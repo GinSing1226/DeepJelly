@@ -43,6 +43,7 @@ English | [简体中文](README.md)
 - **WebSocket Bidirectional Communication** - Low-latency real-time status synchronization
 - **Hook Mechanism** - Subscribe to OpenClaw lifecycle events
 - **Tool Call Visualization** - Visualize AI tool invocation process
+- **Multi-Channel Message Sync** - Messages you send via Feishu and other messaging channels will also receive OpenClaw replies displayed on the desktop pet
 - **Seamless Integration** - Plug and play, no need to modify OpenClaw core code
 
 #### 5. Security & Privacy
