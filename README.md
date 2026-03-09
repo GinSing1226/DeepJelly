@@ -62,21 +62,35 @@
 
 ## 快速开始
 
+### 一键安装（从零开始）
+
+**Windows (PowerShell)**:
+```powershell
+git clone https://github.com/GinSing1226/DeepJelly.git; irm https://rustup.rs | iex; cd DeepJelly; npm install
+```
+
+**macOS**:
+```bash
+git clone https://github.com/GinSing1226/DeepJelly.git && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && cd DeepJelly && source $HOME/.cargo/env && brew install openssl libgtk-3-dev && npm install
+```
+
+**Linux (Ubuntu/Debian)**:
+```bash
+git clone https://github.com/GinSing1226/DeepJelly.git && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && cd DeepJelly && source $HOME/.cargo/env && sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libappindicator3-dev librsvg2-dev && npm install
+```
+
+> **提示**: Rust 安装后需要重启终端或运行 `source $HOME/.cargo/env`
+
 ### 环境要求
 
 - **Node.js** >= 18.0.0
 - **Rust** (用于 Tauri)
 - **系统要求**: Windows 10+, macOS 10.15+, 或 Linux
 
-### 安装依赖
-
-```bash
-npm install
-```
-
 ### 开发模式
 
 ```bash
+cd DeepJelly
 npm run tauri:dev
 ```
 

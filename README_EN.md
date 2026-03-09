@@ -61,21 +61,35 @@ English | [简体中文](README.md)
 
 ## Quick Start
 
+### One-Command Installation (from scratch)
+
+**Windows (PowerShell)**:
+```powershell
+git clone https://github.com/GinSing1226/DeepJelly.git; irm https://rustup.rs | iex; cd DeepJelly; npm install
+```
+
+**macOS**:
+```bash
+git clone https://github.com/GinSing1226/DeepJelly.git && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && cd DeepJelly && source $HOME/.cargo/env && brew install openssl libgtk-3-dev && npm install
+```
+
+**Linux (Ubuntu/Debian)**:
+```bash
+git clone https://github.com/GinSing1226/DeepJelly.git && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && cd DeepJelly && source $HOME/.cargo/env && sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libappindicator3-dev librsvg2-dev && npm install
+```
+
+> **Note**: After installing Rust, restart your terminal or run `source $HOME/.cargo/env`
+
 ### Requirements
 
 - **Node.js** >= 18.0.0
 - **Rust** (for Tauri)
 - **System Requirements**: Windows 10+, macOS 10.15+, or Linux
 
-### Install Dependencies
-
-```bash
-npm install
-```
-
 ### Development Mode
 
 ```bash
+cd DeepJelly
 npm run tauri:dev
 ```
 
