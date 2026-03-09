@@ -1,0 +1,173 @@
+/**
+ * StatusBubble Styles
+ * CSS styles for the StatusBubble component with rounded rectangle design and fade animations.
+ */
+
+/**
+ * StatusBubble Component Styles
+ * Displays character status above the character's head
+ */
+
+.status-bubble {
+  position: absolute;
+  /* 定位在聊天气泡下方 */
+  /* ChatBubble 在 top: -70px，高度约 60-200px，状态气泡在其下方 */
+  top: 130px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 150; /* 高于聊天气泡，确保可点击 */
+  pointer-events: auto; /* 允许点击事件 */
+  animation: statusBubbleFadeIn 0.2s ease-out;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+/**
+ * Fade in animation for status bubble
+ */
+@keyframes statusBubbleFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/**
+ * Fade out animation for status bubble
+ */
+.status-bubble.fade-out {
+  animation: statusBubbleFadeOut 0.2s ease-out forwards;
+}
+
+@keyframes statusBubbleFadeOut {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+}
+
+/**
+ * Status bubble content container
+ * 矩形设计，文字四周边距4px
+ */
+.status-bubble-content {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 4px;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+  min-width: auto;
+  min-height: auto;
+  justify-content: center;
+  line-height: 1;
+}
+
+
+
+/**
+ * Emoji display in status bubble
+ */
+.status-bubble-emoji {
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.status-bubble-emoji img {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0;
+  padding: 0;
+}
+
+/**
+ * Text display in status bubble
+ */
+.status-bubble-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: #000000;
+  white-space: nowrap;
+  line-height: 1;
+  margin: 0;
+  padding: 0;
+  letter-spacing: 0;
+}
+
+/* 移除状态渐变色样式，统一使用简洁的透明底 */
+
+/**
+ * Ensure status bubble doesn't interfere with thought bubble
+ * When thought bubble is visible, status bubble should be positioned below
+ */
+.thought-bubble ~ .status-bubble {
+  top: -30px; /* Adjust position when thought bubble is visible */
+}
+
+/**
+ * Responsive adjustments for smaller character sizes
+ */
+@media (max-width: 400px) {
+  .status-bubble {
+    top: 70px;
+  }
+
+  .status-bubble-content {
+    padding: 6px 12px;
+  }
+
+  .status-bubble-emoji {
+    font-size: 14px;
+  }
+
+  .status-bubble-emoji img {
+    width: 16px;
+    height: 16px;
+  }
+
+  .status-bubble-text {
+    font-size: 12px;
+  }
+}
+
+/**
+ * Loading animation for thinking state
+ */
+.status-bubble.status-thinking .status-bubble-emoji::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.5);
+  animation: statusBubbleSpin 1s linear infinite;
+}
+
+@keyframes statusBubbleSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}

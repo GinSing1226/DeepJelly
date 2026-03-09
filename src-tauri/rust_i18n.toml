@@ -1,0 +1,11 @@
+﻿# rust_i18n configuration file
+# See https://github.com/longbridgemoe/rust_i18n for more information
+
+# The path of the locales relative to the crate root (src-tauri/)
+load_path = "i18n"
+
+# The default locale
+default_locale = "zh"
+
+# Supported locales
+locales = ["zh", "en", "ja"]

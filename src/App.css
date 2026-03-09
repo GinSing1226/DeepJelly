@@ -1,0 +1,20 @@
+.app {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+}
+
+.app > * {
+  pointer-events: auto;
+}
+
+/* character-window 应该占据整个窗口，位置由 Tauri 窗口位置控制 */
+.character-window {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}

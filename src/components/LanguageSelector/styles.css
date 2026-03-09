@@ -1,0 +1,111 @@
+/**
+ * Language Selector Styles
+ *
+ * Meta-Name: Language Selector Styles
+ * Meta-Description: CSS styles for the LanguageSelector component
+ */
+
+/* Language Selector Container */
+.language-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+.language-selector:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Globe Icon Label */
+.language-selector-label {
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Select Dropdown */
+.language-selector-select {
+  padding: 6px 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #333333;
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease-in-out, background-color 0.2s ease-in-out;
+  min-width: 120px;
+}
+
+.language-selector-select:hover {
+  border-color: #b0b0b0;
+}
+
+.language-selector-select:focus {
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
+}
+
+/* Select Options (browser-styled) */
+.language-selector-select option {
+  padding: 8px;
+  background-color: #ffffff;
+  color: #333333;
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+  .language-selector {
+    background: rgba(40, 40, 40, 0.95);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .language-selector:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .language-selector-select {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    border-color: #404040;
+  }
+
+  .language-selector-select:hover {
+    border-color: #606060;
+  }
+
+  .language-selector-select:focus {
+    border-color: #5a9fe8;
+    box-shadow: 0 0 0 2px rgba(90, 159, 232, 0.2);
+  }
+
+  .language-selector-select option {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+  }
+}
+
+/* Accessibility: High contrast mode support */
+@media (prefers-contrast: high) {
+  .language-selector {
+    border: 2px solid currentColor;
+  }
+
+  .language-selector-select {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .language-selector,
+  .language-selector-select {
+    transition: none;
+  }
+}

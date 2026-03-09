@@ -1,0 +1,495 @@
+/**
+ * Onboarding Styles - Mac Minimalist
+ */
+
+.onboarding-container {
+  position: relative;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.onboarding-content {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15),
+              0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+@keyframes onboarding-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 滚动条样式 */
+.onboarding-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.onboarding-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.onboarding-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+.onboarding-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* 步骤标题 */
+.onboarding-content h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  text-align: center;
+  color: #1d1d1f;
+  letter-spacing: -0.5px;
+}
+
+.onboarding-content h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+}
+
+.onboarding-content p {
+  color: #6e6e73;
+  text-align: center;
+  margin: 0 0 28px 0;
+  line-height: 1.5;
+  font-size: 15px;
+}
+
+/* 按钮样式 */
+.btn-primary {
+  background: #0071e3;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.2px;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #0077ed;
+  transform: scale(1.02);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #0071e3;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #0071e3;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: rgba(0, 113, 227, 0.08);
+}
+
+.btn-back {
+  background: transparent;
+  color: #6e6e73;
+  border: none;
+  padding: 10px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.btn-back:hover {
+  color: #1d1d1f;
+}
+
+/* 表单样式 */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  color: #6e6e73;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  color: #1d1d1f;
+  font-size: 15px;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+.form-group input:disabled,
+.form-group textarea:disabled {
+  opacity: 0.5;
+  background: #f5f5f7;
+  cursor: not-allowed;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #a1a1a6;
+}
+
+.form-group textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.form-group small {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #86868b;
+}
+
+/* 错误消息 */
+.error-message {
+  color: #ff3b30;
+  font-size: 13px;
+  margin: 12px 0;
+  text-align: center;
+  padding: 10px 14px;
+  background: rgba(255, 59, 48, 0.1);
+  border-radius: 8px;
+}
+
+/* 步骤操作区 */
+.step-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e5ea;
+}
+
+.welcome-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+}
+
+.prompt-box {
+  background: #f5f5f7;
+  border: 1px solid #e5e5ea;
+  border-radius: 10px;
+  padding: 16px;
+  margin: 20px 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.prompt-box pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 13px;
+  color: #1d1d1f;
+  line-height: 1.5;
+}
+
+.prompt-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 16px 0;
+}
+
+.endpoint-form,
+.assistant-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  background: #f5f5f7;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.app-option:hover {
+  border-color: #0071e3;
+  background: #ffffff;
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.app-option:active {
+  transform: scale(0.98);
+}
+
+.app-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+}
+
+.app-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin-bottom: 4px;
+}
+
+.app-desc {
+  font-size: 13px;
+  color: #6e6e73;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.loading {
+  text-align: center;
+  color: #6e6e73;
+  padding: 40px;
+  font-size: 15px;
+}
+
+.empty {
+  text-align: center;
+  color: #6e6e73;
+  padding: 40px;
+  font-size: 15px;
+}
+
+/* 绑定表单 */
+.binding-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 两列布局：前两个选择器放在一行 */
+.binding-form .form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.binding-form .form-row .form-group {
+  flex: 1;
+}
+
+.binding-form select {
+  width: 100%;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  color: #1d1d1f;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.binding-form select:focus {
+  outline: none;
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+/* 认证信息卡片 */
+.auth-info-section {
+  margin-top: 8px;
+}
+
+.auth-info-card {
+  background: #f5f5f7;
+  border: 1px solid #e5e5ea;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auth-label {
+  font-size: 12px;
+  color: #6e6e73;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.auth-value {
+  background: #ffffff;
+  border: 1px solid #d2d2d7;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 13px;
+  color: #1d1d1f;
+  word-break: break-all;
+  display: block;
+}
+
+.btn-copy {
+  background: #f5f5f7;
+  color: #0071e3;
+  border: 1px solid #d2d2d7;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-copy:hover {
+  background: #e5e5ea;
+  border-color: #0071e3;
+}
+
+/* 提示词卡片 */
+.prompt-section {
+  margin-top: 8px;
+}
+
+.prompt-card {
+  background: #1e1e1e;
+  border: 1px solid #3e3e42;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prompt-content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 12px;
+  color: #d4d4d4;
+  line-height: 1.6;
+}
+
+.prompt-card .btn-copy {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+  align-self: flex-start;
+}
+
+.prompt-card .btn-copy:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* 语言选择器 */
+.language-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 24px 0;
+  gap: 12px;
+}
+
+.language-selector label {
+  font-size: 14px;
+  color: #6e6e73;
+  font-weight: 500;
+}
+
+.language-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.btn-language {
+  background: #f5f5f7;
+  color: #1d1d1f;
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-language:hover {
+  background: #e5e5ea;
+}
+
+.btn-language.active {
+  background: #0071e3;
+  color: white;
+  border-color: #0071e3;
+}

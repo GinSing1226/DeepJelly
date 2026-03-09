@@ -1,0 +1,58 @@
+{
+  "id": "deepjelly",
+  "name": "DeepJelly Desktop Avatar",
+  "description": "Connect OpenClaw to DeepJelly desktop avatar for visual AI assistant experience",
+  "version": "0.1.0",
+  "kind": "channel",
+  "channels": ["deepjelly"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Enable DeepJelly channel"
+      },
+      "serverPort": {
+        "type": "number",
+        "description": "WebSocket server port",
+        "default": 18790
+      },
+      "serverHost": {
+        "type": "string",
+        "description": "WebSocket server host",
+        "default": "127.0.0.1"
+      },
+      "autoStart": {
+        "type": "boolean",
+        "description": "Auto-start server when OpenClaw starts",
+        "default": true
+      },
+      "characterId": {
+        "type": "string",
+        "description": "Default character ID to display"
+      },
+      "appearanceId": {
+        "type": "string",
+        "description": "Default appearance ID"
+      }
+    },
+    "required": []
+  },
+  "uiHints": {
+    "enabled": {
+      "label": "Enable DeepJelly",
+      "description": "Connect to DeepJelly desktop avatar"
+    },
+    "serverPort": {
+      "label": "Server Port",
+      "description": "WebSocket server port",
+      "placeholder": "18790"
+    },
+    "characterId": {
+      "label": "Character ID",
+      "description": "Default character to display",
+      "placeholder": "miku_01"
+    }
+  }
+}

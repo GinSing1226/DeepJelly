@@ -1,0 +1,10 @@
+{
+  "brain_adapter": {
+    "auth_token": "a8a1b5791c6791adc4c6363ce9d6466da0aa4ae4c54d295e",
+    "type": "websocket",
+    "url": "ws://192.168.10.128:18790",
+    "protocol": "jsonrpc",
+    "reconnect_interval_ms": 5000,
+    "timeout_ms": 30000
+  }
+}

@@ -1,0 +1,113 @@
+/**
+ * Quit Confirm Window Styles - 浅蓝+白色风格
+ *
+ * Styles for the independent quit confirm dialog window.
+ */
+
+.quit-confirm-window {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #1d1d1f;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Hide the outer container visually but keep layout */
+.quit-confirm-window > :first-child {
+  width: 100vw;
+  height: 100vh;
+  background: #ffffff;
+  box-shadow: none;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.quit-confirm-content {
+  width: 100vw;
+  height: 100vh;
+  padding: 0;
+  max-width: none;
+  background: #ffffff;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Draggable header */
+.quit-confirm-header {
+  display: flex;
+  align-items: center;
+  padding: 24px 48px 16px 48px;
+  background: white;
+  color: #1d1d1f;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.quit-confirm-header:active {
+  cursor: grabbing;
+}
+
+.quit-confirm-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
+  pointer-events: none;
+}
+
+.quit-confirm-content p {
+  margin: auto;
+  padding: 32px 48px;
+  font-size: 15px;
+  color: #1d1d1f;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.quit-confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding: 0 48px 40px 48px;
+  flex-shrink: 0;
+}
+
+.quit-confirm-actions button {
+  min-width: 100px;
+  padding: 10px 20px;
+  height: 34px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-cancel {
+  background: #f5f5f7;
+  color: #1d1d1f;
+  border: 1px solid #d2d2d7;
+}
+
+.btn-cancel:hover {
+  background: #e5e5e7;
+}
+
+.btn-confirm {
+  background: #007aff;
+  color: #ffffff;
+}
+
+.btn-confirm:hover {
+  background: #0051d5;
+}

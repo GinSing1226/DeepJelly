@@ -1,0 +1,64 @@
+{
+  "name": "deepjelly",
+  "version": "0.1.0",
+  "description": "DeepJelly Channel Plugin for OpenClaw - Connect AI assistant to desktop visual avatar",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "author": "DeepJelly Team",
+  "openclaw": {
+    "extensions": ["./src/index.ts"],
+    "channel": {
+      "id": "deepjelly",
+      "label": "DeepJelly",
+      "selectionLabel": "DeepJelly (Desktop Avatar)",
+      "docsPath": "/channels/deepjelly",
+      "blurb": "Connect to DeepJelly desktop avatar for visual AI assistant experience",
+      "aliases": ["dj", "avatar"]
+    }
+  },
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts",
+    "prepack": "npm run build && cp openclaw.plugin.json dist/ && cp README.md dist/"
+  },
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "channel",
+    "deepjelly",
+    "avatar",
+    "desktop",
+    "visual"
+  ],
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.6",
+    "@types/ws": "^8.5.12",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  },
+  "peerDependencies": {
+    "openclaw": ">=1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deepjelly/openclaw-channel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/deepjelly/openclaw-channel/issues"
+  },
+  "homepage": "https://deepjelly.ai/docs/openclaw"
+}

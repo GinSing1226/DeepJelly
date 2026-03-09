@@ -1,0 +1,196 @@
+/**
+ * SimpleInput 组件样式
+ *
+ * Meta-Name: Simple Input Styles
+ * Meta-Description: 简易输入框的样式定义，包含动画、布局和响应式设计
+ */
+
+.simple-input {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(245, 245, 250, 0.95);
+  border-radius: 0 0 12px 12px;
+  backdrop-filter: blur(10px);
+  z-index: 200;
+  pointer-events: auto;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* 输入框 */
+.simple-input-field {
+  flex: 1;
+  min-height: 24px;
+  max-height: 80px;
+  padding: 6px 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1a1a1a;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  resize: none;
+  outline: none !important;
+  overflow-y: hidden;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+
+.simple-input-field:focus {
+  border-color: rgba(100, 150, 255, 0.6);
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(100, 150, 255, 0.1);
+  outline: none !important;
+}
+
+.simple-input-field::placeholder {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.simple-input-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* 按钮通用样式 */
+.simple-input-send {
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: #3b82f6;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none !important;
+}
+
+.simple-input-send:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #1d4ed8;
+}
+
+.simple-input-send:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.simple-input-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 动画 */
+.simple-input.fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.simple-input.fade-out {
+  animation: fadeOut 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* 响应式调整 */
+@media (max-width: 400px) {
+  .simple-input {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+
+  .simple-input-field {
+    font-size: 13px;
+    padding: 5px 8px;
+  }
+
+  .simple-input-send {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+}
+
+/* 等待AI回复状态 */
+.simple-input.waiting {
+  pointer-events: none;
+}
+
+.simple-input.waiting .simple-input-field {
+  opacity: 0.5;
+}
+
+/* 蒙层 */
+.simple-input-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: 0 0 12px 12px;
+}
+
+.simple-input-overlay-text {
+  color: #1a1a1a;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  padding: 0 12px;
+}
+
+/* Loading 转圈动画 */
+.simple-input-send.loading {
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

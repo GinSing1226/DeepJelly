@@ -1,0 +1,5 @@
+Character Manager Load Log
+Directory: "\\\\?\\D:\\AIcode\\DeepJelly\\data\\characters"
+Directory exists: true
+Loaded 1 character(s)
+  - Character: default (assistant_id: Some("default_assistant"))

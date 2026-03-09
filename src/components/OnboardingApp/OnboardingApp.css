@@ -1,0 +1,79 @@
+.onboarding-window {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f5f7;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* Window Header */
+.onboarding-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8f8f8 100%);
+  border-bottom: 1px solid #e5e5e7;
+  user-select: none;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.onboarding-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.onboarding-icon {
+  font-size: 18px;
+}
+
+.onboarding-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.onboarding-header-btn {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: #e5e5e7;
+  color: #6e6e73;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.onboarding-header-btn:hover {
+  background: #d5d5d7;
+  color: #1d1d1f;
+}
+
+.onboarding-close-btn:hover {
+  background: #ff3b30;
+  color: white;
+}
+
+/* Content Area */
+.onboarding-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

@@ -1,0 +1,48 @@
+.context-menu {
+  position: fixed;
+  min-width: 160px;
+  background-color: rgba(30, 30, 30, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  z-index: 9999;
+  animation: context-menu-fade-in 0.15s ease-out;
+  user-select: none;
+}
+
+@keyframes context-menu-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.context-menu-item {
+  padding: 8px 12px;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.context-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.context-menu-item.checked {
+  color: #4a9eff;
+}
+
+.context-menu-check {
+  margin-right: 8px;
+  font-weight: bold;
+  font-size: 12px;
+}
