@@ -19,7 +19,7 @@ mod utils;
 
 use std::sync::{Arc, Mutex};
 use std::fs;
-use tauri::{Manager, Emitter};
+use tauri::Manager;
 use log::{info, error};
 use crate::utils::logging::{format_log, format_log_arg1};
 
@@ -44,35 +44,9 @@ pub use logic::{
     MessageRouter, RouteTarget, RoutedMessage,
     AppState, ConnectionStatus, SharedState,
     character::{CharacterManager, Assistant as CharacterAssistant, AssistantManager, UpdatedAssistant},
+    data_init::{initialize_user_data, get_user_dir, DEFAULT_DIR, USER_DIR},
 };
 pub use utils::{DeepJellyError, Result, LogCategory};
-
-/// Recursively copy a directory from source to destination
-fn copy_dir_recursive(source: &std::path::Path, destination: &std::path::Path) -> std::io::Result<()> {
-    if !source.exists() {
-        return Ok(());
-    }
-
-    // Create destination directory
-    fs::create_dir_all(destination)?;
-
-    // Iterate through entries in source directory
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        let src_path = entry.path();
-        let dest_path = destination.join(entry.file_name());
-
-        if ty.is_dir() {
-            // Recursively copy subdirectory
-            copy_dir_recursive(&src_path, &dest_path)?;
-        } else {
-            // Copy file
-            fs::copy(&src_path, &dest_path)?;
-        }
-    }
-    Ok(())
-}
 
 /// Application entry point called by main.rs
 pub fn run() {
@@ -102,150 +76,48 @@ pub fn run() {
             // ========== Initialize Data Directories ==========
             info!("{}", format_log(LogCategory::Setup, "Initializing data directories..."));
 
-            // We need TWO directories:
-            // 1. resource_data_dir: for bundled read-only resources (characters, defaults)
-            // 2. local_data_dir: for writable user data (configs, saved state)
-
-            let (resource_data_dir, local_data_dir, is_portable_mode) = if cfg!(debug_assertions) {
-                // Development mode: use ../data for both
-                info!("{}", format_log(LogCategory::Setup, "Development mode detected, using ../data"));
+            // Determine the base data directory
+            // Development: use ../data (from src-tauri)
+            // Production: use data/ (next to exe)
+            let data_dir = if cfg!(debug_assertions) {
+                // Development mode: use ../data
+                info!("{}", format_log(LogCategory::Setup, "Development mode: using ../data"));
                 let data_path = std::path::PathBuf::from("../data");
                 fs::create_dir_all(&data_path)
                     .map_err(|e| format!("Failed to create data directory: {}", e))?;
-                let resolved = data_path.canonicalize()
-                    .map_err(|e| format!("Failed to resolve data directory: {}", e))?;
-                info!("{}", format_log_arg1(LogCategory::Setup, "Data directory resolved to: ", &resolved.display().to_string()));
-                (resolved.clone(), resolved, false)  // debug mode is not portable
+                data_path.canonicalize()
+                    .map_err(|e| format!("Failed to resolve data directory: {}", e))?
             } else {
-                // Production mode: separate read-only resources and writable data
-                info!("{}", format_log(LogCategory::Setup, "Production mode detected"));
-
-                // For read-only bundled resources (characters, etc.)
-                let resource_dir = app.path().resource_dir()
-                    .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-
-                info!("{}", format_log_arg1(LogCategory::Setup, "Resource dir from Tauri: ", &resource_dir.display().to_string()));
-
-                // Note: resource_dir may contain '_up_' folder (Tauri update temp directory)
-                // In that case, the bundled resources are actually inside the _up_ folder
-                // We keep the path as-is since resources are there
-                let resource_dir_str = resource_dir.to_string_lossy().to_string();
-                if resource_dir_str.contains("_up_") {
-                    info!("{}", format_log(LogCategory::Setup, "Resource path contains _up_ folder, resources should be inside it"));
-                }
-
-                let resource_data = resource_dir.join("data");
-                info!("{}", format_log_arg1(LogCategory::Setup, "Resource data dir: ", &resource_data.display().to_string()));
-                info!("{}", format_log_arg1(LogCategory::Setup, "Resource data exists: ", &resource_data.exists().to_string()));
-
-                // For writable user data (configs, etc.)
-                // Use custom path: %APPDATA%\DeepJelly\data on Windows
-                let local_data_path = if cfg!(target_os = "windows") {
-                    // Windows: %APPDATA%\DeepJelly\data
-                    if let Ok(appdata) = std::env::var("APPDATA") {
-                        std::path::PathBuf::from(appdata).join("DeepJelly").join("data")
-                    } else {
-                        // Fallback to Tauri's default
-                        let local_data = app.path().app_local_data_dir()
-                            .unwrap_or_else(|_| std::path::PathBuf::from("."));
-                        local_data.join("data")
-                    }
-                } else {
-                    // Non-Windows: use Tauri's default
-                    let local_data = app.path().app_local_data_dir()
-                        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-                    local_data.join("data")
-                };
-                fs::create_dir_all(&local_data_path)
-                    .map_err(|e| format!("Failed to create local data directory: {}", e))?;
-                let resolved_local = local_data_path.canonicalize()
-                    .map_err(|e| format!("Failed to resolve local data directory: {}", e))?;
-                info!("{}", format_log_arg1(LogCategory::Setup, "Local data dir: ", &resolved_local.display().to_string()));
-
-                // For portable builds, ALWAYS prefer data folder next to exe first
-                // This handles both portable builds and NSIS installer bugs
-                let (resource_data_dir, is_portable_mode) = if let Ok(exe_path) = std::env::current_exe() {
+                // Production mode: use data/ next to executable
+                info!("{}", format_log(LogCategory::Setup, "Production mode: using data/ next to exe"));
+                if let Ok(exe_path) = std::env::current_exe() {
                     if let Some(exe_dir) = exe_path.parent() {
-                        let portable_data = exe_dir.join("data");
-                        if portable_data.exists() {
-                            // Portable build detected - use data next to exe
-                            (portable_data, true)
-                        } else {
-                            // Not a portable build, use Tauri's resource_dir
-                            (resource_data, false)
-                        }
+                        let data_path = exe_dir.join("data");
+                        fs::create_dir_all(&data_path)
+                            .map_err(|e| format!("Failed to create data directory: {}", e))?;
+                        data_path.canonicalize()
+                            .map_err(|e| format!("Failed to resolve data directory: {}", e))?
                     } else {
-                        (resource_data, false)
+                        return Err(format!("Failed to determine executable directory").into());
                     }
                 } else {
-                    (resource_data, false)
-                };
-
-                (resource_data_dir, resolved_local, is_portable_mode)
+                    return Err(format!("Failed to get executable path").into());
+                }
             };
 
-            // In portable mode, use portable data dir directly for everything
-            // In normal mode, use local_data_dir (with copy from resources during first run)
-            let data_dir = if is_portable_mode {
-                resource_data_dir.clone()
-            } else {
-                local_data_dir.clone()
-            };
+            info!("{}", format_log_arg1(LogCategory::Setup, "Data directory: ", &data_dir.display().to_string()));
 
-            // Skip initialization copy in portable mode - resources are already there
-            // Only do initialization in normal (installed) mode
-            if !cfg!(debug_assertions) && !is_portable_mode {
-                // Copy characters directory if it doesn't exist
-                let local_characters_dir = local_data_dir.join("characters");
-                if !local_characters_dir.exists() {
-                    let resource_characters_dir = resource_data_dir.join("characters");
-                    if resource_characters_dir.exists() {
-                        info!("{}", format_log(LogCategory::Setup, "Copying bundled characters to local data directory"));
-                        if let Err(e) = copy_dir_recursive(&resource_characters_dir, &local_characters_dir) {
-                            error!("{}", format_log_arg1(LogCategory::Setup, "Failed to copy characters directory: ", &e.to_string()));
-                        }
-                    }
-                }
+            // Initialize user data directory (creates user/ and copies default configs)
+            initialize_user_data(&data_dir)
+                .map_err(|e| format!("Failed to initialize user data: {}", e))?;
 
-                // Copy default configs if they don't exist
-                let assistants_config = local_data_dir.join("assistants.json");
-                if !assistants_config.exists() {
-                    let resource_assistants = resource_data_dir.join("assistants.default.json");
-                    if resource_assistants.exists() {
-                        let _ = fs::copy(&resource_assistants, &assistants_config);
-                    }
-                }
-
-                let app_integrations_config = local_data_dir.join("app_integrations.json");
-                if !app_integrations_config.exists() {
-                    let resource_integrations = resource_data_dir.join("app_integrations.default.json");
-                    if resource_integrations.exists() {
-                        let _ = fs::copy(&resource_integrations, &app_integrations_config);
-                    }
-                }
-
-                let language_config = local_data_dir.join("language.json");
-                if !language_config.exists() {
-                    let resource_language = resource_data_dir.join("language.json");
-                    if resource_language.exists() {
-                        let _ = fs::copy(&resource_language, &language_config);
-                    }
-                }
-            }
+            // Get user data directory for all managers
+            let user_data_dir = get_user_dir(&data_dir);
+            info!("{}", format_log_arg1(LogCategory::Setup, "User data directory: ", &user_data_dir.display().to_string()));
 
             // ========== Load Locale from Config ==========
-            // Now that data directory is available, try to load saved locale
-            let config_path = data_dir.join("language.json");
-
-            // If config doesn't exist, copy from project data directory for initialization
-            if !config_path.exists() {
-                let project_data_path = std::path::PathBuf::from("../data/language.json");
-                if project_data_path.exists() {
-                    if let Ok(_) = fs::copy(&project_data_path, &config_path) {
-                        info!("{}", format_log(LogCategory::Setup, "Initialized language.json from project data"));
-                    }
-                }
-            }
+            // Try to load saved locale from user data directory
+            let config_path = user_data_dir.join("language.json");
 
             if config_path.exists() {
                 if let Ok(content) = fs::read_to_string(&config_path) {
@@ -264,7 +136,7 @@ pub fn run() {
 
             // ========== Initialize Assistant Manager ==========
             info!("{}", format_log(LogCategory::Setup, "Initializing assistant manager..."));
-            let assistant_manager = match logic::character::AssistantManager::new(data_dir.clone()) {
+            let assistant_manager = match logic::character::AssistantManager::new(user_data_dir.clone()) {
                 Ok(m) => {
                     info!("{}", format_log_arg1(LogCategory::Setup, "Loaded assistants: ", &m.get_all().len().to_string()));
                     m
@@ -272,14 +144,14 @@ pub fn run() {
                 Err(e) => {
                     error!("{}", format_log_arg1(LogCategory::Setup, "Failed to initialize assistant manager: ", &e.to_string()));
                     // Try to recover by backing up and recreating
-                    let config_path = data_dir.join("assistants.json");
+                    let config_path = user_data_dir.join("assistants.json");
                     if config_path.exists() {
-                        let backup_path = data_dir.join("assistants.json.backup");
+                        let backup_path = user_data_dir.join("assistants.json.backup");
                         info!("{}", format_log(LogCategory::Setup, "Backing up corrupted assistants.json"));
                         std::fs::rename(&config_path, &backup_path).ok();
                     }
                     // Retry with fresh config
-                    logic::character::AssistantManager::new(data_dir.clone()).expect("Failed to create assistant manager after recovery")
+                    logic::character::AssistantManager::new(user_data_dir.clone()).expect("Failed to create assistant manager after recovery")
                 }
             };
             let assistant_manager_state: AssistantManagerState = Mutex::new(assistant_manager);
@@ -287,7 +159,7 @@ pub fn run() {
             // ========== Initialize Character Manager ==========
             info!("{}", format_log(LogCategory::Setup, "Initializing character manager..."));
             let mut character_manager = CharacterManager::new(
-                data_dir.clone(),  // Use unified data directory
+                user_data_dir.clone(),  // Use user data directory
             );
 
             // Load all character configurations
@@ -301,7 +173,7 @@ pub fn run() {
 
             // ========== Initialize App Integration Manager ==========
             info!("{}", format_log(LogCategory::Setup, "Initializing app integration manager..."));
-            let app_integration_manager = match logic::character::AppIntegrationManager::new(data_dir.clone()) {
+            let app_integration_manager = match logic::character::AppIntegrationManager::new(user_data_dir.clone()) {
                 Ok(m) => {
                     info!("{}", format_log_arg1(LogCategory::Setup, "Loaded app integrations: ", &m.get_all().len().to_string()));
                     m
@@ -309,14 +181,14 @@ pub fn run() {
                 Err(e) => {
                     error!("{}", format_log_arg1(LogCategory::Setup, "Failed to initialize app integration manager: ", &e.to_string()));
                     // Try to recover by backing up and recreating
-                    let config_path = data_dir.join("app_integrations.json");
+                    let config_path = user_data_dir.join("app_integrations.json");
                     if config_path.exists() {
-                        let backup_path = data_dir.join("app_integrations.json.backup");
+                        let backup_path = user_data_dir.join("app_integrations.json.backup");
                         info!("{}", format_log(LogCategory::Setup, "Backing up corrupted app_integrations.json"));
                         std::fs::rename(&config_path, &backup_path).ok();
                     }
                     // Retry with fresh config
-                    logic::character::AppIntegrationManager::new(data_dir.clone()).expect("Failed to create app integration manager after recovery")
+                    logic::character::AppIntegrationManager::new(user_data_dir.clone()).expect("Failed to create app integration manager after recovery")
                 }
             };
             let app_integration_manager_state: AppIntegrationManagerState = Mutex::new(app_integration_manager);
