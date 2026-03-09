@@ -27,7 +27,8 @@
     "dev": "tsc --watch",
     "test": "vitest",
     "lint": "eslint src --ext .ts",
-    "prepack": "npm run build && cp openclaw.plugin.json dist/ && cp README.md dist/"
+    "prepack": "npm run build && node scripts/copy-dist.js",
+    "install:openclaw": "node scripts/install-to-openclaw.js"
   },
   "keywords": [
     "openclaw",

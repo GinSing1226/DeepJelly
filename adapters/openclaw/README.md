@@ -6,19 +6,33 @@
 
 ## 📦 快速安装
 
-### 最简单的安装方法
+### 方法一：使用安装脚本（推荐）
 
 ```bash
-# 1. 复制整个插件文件夹到 OpenClaw 扩展目录
-cp -r adapters/openclaw ~/.openclaw/extensions/deepjelly
+# 在 DeepJelly 项目根目录执行
+cd adapters/openclaw
+npm run install:openclaw
+```
 
-# 2. 安装依赖（只需要 ws）
+### 方法二：手动安装
+
+```bash
+# 1. 复制插件文件到 OpenClaw 扩展目录（只复制必要文件）
+cd adapters/openclaw
+mkdir -p ~/.openclaw/extensions/deepjelly
+cp -r src dist openclaw.plugin.json README.md ~/.openclaw/extensions/deepjelly/
+
+# 2. 在目标目录安装依赖（只需要 ws）
 cd ~/.openclaw/extensions/deepjelly
-npm install
+npm install --production
 
 # 3. 启动 OpenClaw
 openclaw start
 ```
+
+**重要说明**：
+- **不要复制 `node_modules` 文件夹** - OpenClaw 已有自己的依赖
+- 使用 `--production` 标志只安装运行时依赖（ws），跳过开发依赖
 
 ### 验证安装
 
