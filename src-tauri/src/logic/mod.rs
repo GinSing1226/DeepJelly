@@ -4,6 +4,7 @@
 
 pub mod character;
 pub mod config;
+pub mod data_init;
 pub mod event_engine;
 pub mod protocol;
 pub mod router;
@@ -36,3 +37,4 @@ pub use system1::{
 pub use router::{MessageRouter, RouteTarget, RoutedMessage};
 pub use session::{ChatType, Session, SessionManager};
 pub use state::{AppState, ConnectionStatus, SharedState};
+pub use data_init::{initialize_user_data, get_default_dir, get_user_dir, DEFAULT_DIR, USER_DIR};
