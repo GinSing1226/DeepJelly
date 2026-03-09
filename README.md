@@ -19,6 +19,13 @@
 
 **DeepJelly** 是一款跨平台桌面虚拟助手（桌面宠物），为 AI Agent 提供可视化的"物理化身"。它让隐藏在后台的 AI 以生动的虚拟形象出现在桌面上，通过动画、表情和气泡与用户交互，将单纯的工具箱跃升为桌面上能真实感知的"赛博伴侣"。
 
+
+
+<img width="438" height="349" alt="image" src="https://github.com/user-attachments/assets/fe86de9c-ac51-4a42-b4b2-94027557ed45" />
+<img width="553" height="509" alt="image" src="https://github.com/user-attachments/assets/abbdcdac-b05c-45fe-96af-bbdf9efe9645" />
+<img width="731" height="496" alt="image" src="https://github.com/user-attachments/assets/9ae7fe31-9438-430f-9e6d-faa7d139664d" />
+
+
 ### 核心特性
 
 #### 1. 虚拟形象
