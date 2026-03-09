@@ -22,12 +22,19 @@ pub struct AppIntegration {
     pub provider: String,
     /// 用户自定义名称
     pub name: String,
+    /// 应用描述
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// WebSocket 地址
     pub endpoint: String,
     /// 认证令牌（如需要）
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "authToken")]
     pub auth_token: Option<String>,
+    /// 绑定的助手ID列表
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "assistant")]
+    pub assistant_ids: Vec<String>,
     /// 是否启用
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
@@ -166,11 +173,59 @@ impl AppIntegrationManager {
 
         // Update fields
         integration.name = updates.name;
+        integration.description = updates.description;
         integration.endpoint = updates.endpoint;
         integration.auth_token = updates.auth_token;
         integration.enabled = updates.enabled;
+        integration.assistant_ids = updates.assistant_ids;
 
         self.save()?;
+        Ok(())
+    }
+
+    /// Add an assistant to the integration's bound assistants list
+    pub fn add_assistant(&mut self, id: &str, assistant_id: &str) -> Result<(), DeepJellyError> {
+        let integration = self.integrations
+            .iter_mut()
+            .find(|i| i.id == id)
+            .ok_or_else(|| DeepJellyError::NotFound(format!("Integration {} not found", id)))?;
+
+        // Only add if not already present
+        if !integration.assistant_ids.contains(&assistant_id.to_string()) {
+            integration.assistant_ids.push(assistant_id.to_string());
+            self.save()?;
+        }
+
+        Ok(())
+    }
+
+    /// Remove an assistant from the integration's bound assistants list
+    pub fn remove_assistant(&mut self, id: &str, assistant_id: &str) -> Result<(), DeepJellyError> {
+        let integration = self.integrations
+            .iter_mut()
+            .find(|i| i.id == id)
+            .ok_or_else(|| DeepJellyError::NotFound(format!("Integration {} not found", id)))?;
+
+        integration.assistant_ids.retain(|x| x != assistant_id);
+        self.save()?;
+        Ok(())
+    }
+
+    /// Remove an assistant from all integrations (called when deleting an assistant)
+    pub fn remove_assistant_from_all(&mut self, assistant_id: &str) -> Result<(), DeepJellyError> {
+        let mut modified = false;
+        for integration in &mut self.integrations {
+            let original_len = integration.assistant_ids.len();
+            integration.assistant_ids.retain(|x| x != assistant_id);
+            if integration.assistant_ids.len() != original_len {
+                modified = true;
+            }
+        }
+
+        if modified {
+            self.save()?;
+        }
+
         Ok(())
     }
 

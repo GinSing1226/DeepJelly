@@ -4,7 +4,7 @@
  * Standalone onboarding window for quick setup
  */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
@@ -12,49 +12,110 @@ import { Onboarding } from '@/components/Onboarding';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useAppIntegrationStore } from '@/stores/appIntegrationStore';
 import { useOnboardingStore } from '@/stores/onboardingStore';
+import { useLocaleStore } from '@/stores/localeStore';
 import type { BoundAssistant } from '@/types/appConfig';
 import { getOpenClawParams } from '@/utils/assistantHelper';
 import './OnboardingApp.css';
 
+/**
+ * Get URL query parameter by name
+ */
+function getUrlParam(name: string): string | null {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(name);
+}
+
 export function OnboardingApp() {
   const { setBoundApp } = useSettingsStore();
-  const { loadIntegrations, getIntegration } = useAppIntegrationStore();
+  const { loadIntegrations, getIntegration, setPendingEditIntegrationId } = useAppIntegrationStore();
   const { setStep } = useOnboardingStore();
+  const { initializeLocale } = useLocaleStore();
+  const [isLocaleReady, setIsLocaleReady] = useState(false);
 
-  // Check localStorage on mount for pending edit integration
+  // Initialize locale from backend on mount
+  useEffect(() => {
+    const initLocale = async () => {
+      try {
+        await initializeLocale();
+        console.log('[OnboardingApp] ✅ Locale initialized from backend:', useLocaleStore.getState().locale);
+      } catch (error) {
+        console.error('[OnboardingApp] ❌ Failed to initialize locale:', error);
+      } finally {
+        setIsLocaleReady(true);
+      }
+    };
+
+    initLocale();
+  }, [initializeLocale]);
+
+  // Check for pending edit integration on mount (for new windows)
   useEffect(() => {
     const initEditMode = async () => {
-      // Check if there's a pending edit integration ID
-      const editIntegrationId = localStorage.getItem('onboarding:edit-integration-id');
-      if (editIntegrationId) {
-        console.log('[OnboardingApp] 📝 Found pending edit integration ID in localStorage:', editIntegrationId);
+      // 1. Check URL query parameter first (most reliable for new windows)
+      const editIdFromUrl = getUrlParam('edit');
 
-        // Clear it immediately to avoid affecting future runs
-        localStorage.removeItem('onboarding:edit-integration-id');
+      // 2. Fall back to store for existing windows
+      const pendingEditId = editIdFromUrl || useAppIntegrationStore.getState().pendingEditIntegrationId;
+
+      if (pendingEditId) {
+        // Clear store state to avoid affecting future runs
+        if (useAppIntegrationStore.getState().pendingEditIntegrationId) {
+          useAppIntegrationStore.getState().setPendingEditIntegrationId(null);
+        }
 
         // Load integrations to get the integration data
         await loadIntegrations();
 
         // Get the integration from the store
-        const integration = getIntegration(editIntegrationId);
+        const integration = getIntegration(pendingEditId);
         if (integration) {
-          console.log('[OnboardingApp] ✅ Found integration, setting currentIntegration and skipping to input_endpoint');
           // Set the current integration in the store
           useAppIntegrationStore.getState().setCurrentIntegration(integration);
           // Skip to input_endpoint step
           setStep('input_endpoint');
-        } else {
-          console.error('[OnboardingApp] ❌ Integration not found:', editIntegrationId);
         }
       }
     };
 
     initEditMode();
-  }, [loadIntegrations, getIntegration, setStep]);
+  }, []);
+
+  // Listen for edit mode events (for existing/focused windows)
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    const setupListener = async () => {
+      try {
+        unlisten = await listen<string>('onboarding:edit-mode', async (event) => {
+          const editIntegrationId = event.payload;
+
+          // Load integrations to get the integration data
+          await loadIntegrations();
+
+          // Get the integration from the store
+          const integration = getIntegration(editIntegrationId);
+          if (integration) {
+            // Set the current integration in the store
+            useAppIntegrationStore.getState().setCurrentIntegration(integration);
+            // Skip to input_endpoint step
+            setStep('input_endpoint');
+          }
+        });
+      } catch (error) {
+        console.error('[OnboardingApp] Failed to setup edit mode listener:', error);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, []);
 
   const handleComplete = (assistant: BoundAssistant) => {
-    console.log('[OnboardingApp] Onboarding completed:', assistant);
-
     // 从 integrations 中提取 OpenClaw 参数
     const openclawParams = getOpenClawParams(assistant.integrations);
 
@@ -142,10 +203,17 @@ export function OnboardingApp() {
 
       {/* Content Area */}
       <div className="onboarding-body">
-        <Onboarding
-          onComplete={handleComplete}
-          onSkip={handleSkip}
-        />
+        {!isLocaleReady ? (
+          <div className="onboarding-loading">
+            <div className="loading-spinner" />
+            <p>Loading...</p>
+          </div>
+        ) : (
+          <Onboarding
+            onComplete={handleComplete}
+            onSkip={handleSkip}
+          />
+        )}
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ import { usePenetrationMode } from '@/hooks/usePenetrationMode';
 import { useCharacterResource } from './hooks/useCharacterResource';
 import { SpriteManager } from '@/utils/spriteManager';
 import { TouchDetector } from '@/utils/touchDetection';
+import { getSessionKey } from '@/utils/assistantHelper';
 import { getTouchZones } from '@/config/touchZones';
 import { CHARACTER_DEFAULT_SIZE } from '@/config/constants';
 import { ContextMenu, ContextMenuItem } from '@/components/ContextMenu';
@@ -167,8 +168,17 @@ export function CharacterWindow({
 
   const addMessage = useMessageStore((s) => s.addMessage);
   const removeMessages = useMessageStore((s) => s.removeMessages);
-  const { boundApp } = useSettingsStore();
   const { sendMessage } = useBrainStore();
+
+  // Get selected assistant for session key
+  // 与 DialogApp 保持一致：优先使用选中的，如果没有则使用第一个可用的
+  // 使用选择器分别订阅，确保能正确响应变化
+  const selectedAssistantId = useCharacterManagementStore((s) => s.selectedAssistantId);
+  const assistants = useCharacterManagementStore((s) => s.assistants);
+
+  const selectedAssistant = selectedAssistantId
+    ? assistants.find(a => a.id === selectedAssistantId) || null
+    : (assistants.length > 0 ? assistants[0] : null);
 
   // Animation queue integration
   const [spriteManagerReady, setSpriteManagerReady] = useState(false);
@@ -200,6 +210,58 @@ export function CharacterWindow({
     defaultAppearanceId: firstCharacter?.defaultAppearanceId || 'default',
     preloadAnimations: false,
   });
+
+  // 监听 assistants 变化，确保数据已加载
+  // 注意：App.tsx 中已有自动选择第一个助手的逻辑，这里不需要重复
+  useEffect(() => {
+    console.log('[CharacterWindow] 📊 State update:', {
+      assistantsCount: assistants.length,
+      selectedAssistantId,
+      selectedAssistant: selectedAssistant ? {
+        id: selectedAssistant.id,
+        name: selectedAssistant.name,
+        hasIntegrations: !!selectedAssistant.integrations,
+        integrationsLength: selectedAssistant.integrations?.length,
+        integrations: selectedAssistant.integrations,
+        firstIntegration: selectedAssistant.integrations?.[0],
+        sessionKeyFromHelper: getSessionKey(selectedAssistant.integrations ?? []),
+      } : null,
+      isConnected,
+    });
+  }, [assistants, selectedAssistantId, selectedAssistant, isConnected]);
+
+  // Sync connection status with backend (same as DialogApp)
+  // Each window has its own zustand store instance, so we need to check backend connection
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const backendConnected = await invoke<boolean>('is_brain_connected');
+        // console.log('[CharacterWindow] 🔍 Backend connection status:', backendConnected);
+        if (backendConnected && !isConnected) {
+          // console.log('[CharacterWindow] 🔄 Updating local store: connected = true');
+          useBrainStore.setState({ connected: true });
+        }
+      } catch (error) {
+        // console.error('[CharacterWindow] ❌ Failed to check connection:', error);
+      }
+    };
+
+    // Check on mount
+    checkConnection();
+
+    // Also check when onboarding completes
+    const unlistenPromise = (async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+      return await listen('onboarding:complete', () => {
+        // console.log('[CharacterWindow] 🎉 Onboarding complete, rechecking connection...');
+        checkConnection();
+      });
+    })();
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten()).catch(console.error);
+    };
+  }, []); // Run once on mount, and listen for onboarding completion
 
   // 监听 statusBubbleStore 中的状态气泡
   useEffect(() => {
@@ -534,25 +596,19 @@ export function CharacterWindow({
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     if (isPenetrationMode) return;
 
+    // 只恢复队列，让队列自动处理后续动画
+    // 不再直接播放 idle，避免覆盖队列中恢复的动画
     resumeQueue();
-
-    // 播放待机动画（如果队列没有其他动画要播放）
-    if (spriteManagerRef.current && !isQueuePaused()) {
-      spriteManagerRef.current.play('internal-base-idle');
-    }
-  }, [isPenetrationMode, resumeQueue, isQueuePaused]);
+  }, [isPenetrationMode, resumeQueue]);
 
   // 拖拽结束检测 - 通过 mousemove 检测鼠标按键状态
   useEffect(() => {
     let isDragging = false;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDragging && e.buttons === 0 && spriteManagerRef.current) {
-        const currentAnim = spriteManagerRef.current.getCurrentAnimation();
-        if (currentAnim === 'internal-physics-drag') {
-          spriteManagerRef.current.play('internal-base-idle');
-          resumeQueue();
-        }
+      if (isDragging && e.buttons === 0) {
+        // 鼠标按键已释放，恢复队列
+        resumeQueue();
         isDragging = false;
       }
     };
@@ -565,12 +621,9 @@ export function CharacterWindow({
     };
 
     const handleMouseUp = () => {
-      if (isDragging && spriteManagerRef.current) {
-        const currentAnim = spriteManagerRef.current.getCurrentAnimation();
-        if (currentAnim === 'internal-physics-drag') {
-          spriteManagerRef.current.play('internal-base-idle');
-          resumeQueue();
-        }
+      if (isDragging) {
+        // 只恢复队列，让队列自动处理后续动画
+        resumeQueue();
       }
       isDragging = false;
     };
@@ -849,8 +902,9 @@ export function CharacterWindow({
       duration: 3000,
     });
 
-    // 获取 session ID：优先使用 sessionKey
-    const sessionKeyToSend = boundApp?.sessionKey;
+    // 获取 session ID：从当前选中的 assistant 中获取
+    const sessionKeyToSend = getSessionKey(selectedAssistant?.integrations ?? []);
+
     if (!sessionKeyToSend) {
       addMessage({
         content: '请先在设置中绑定助手',
@@ -888,7 +942,7 @@ export function CharacterWindow({
       // 发送失败时清除等待状态
       setIsWaitingForResponse(false);
     }
-  }, [boundApp, isConnected, addMessage, setIsWaitingForResponse]);
+  }, [selectedAssistant, isConnected, addMessage, setIsWaitingForResponse]);
 
   const handleOpenDialog = useCallback(() => {
     onOpenDialog?.();

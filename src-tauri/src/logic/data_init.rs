@@ -16,10 +16,31 @@ pub const USER_DIR: &str = "user";
 /// Configuration files to copy from default to user
 const CONFIG_FILES: &[&str] = &["assistants.json", "language.json"];
 
+/// Recursively copy a directory and all its contents
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if ty.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
+}
+
 /// Initialize user data directory from default templates
 ///
 /// This function ensures the user data directory exists and is populated
-/// with default configuration files if they don't already exist.
+/// with default configuration files and character resources if they don't already exist.
 ///
 /// # Arguments
 /// * `data_dir` - Root data directory containing default/ and user/ subdirectories
@@ -31,7 +52,7 @@ const CONFIG_FILES: &[&str] = &["assistants.json", "language.json"];
 /// # Behavior
 /// 1. Creates `data_dir/USER_DIR` if it doesn't exist
 /// 2. Copies config files from `default/` to `user/` if they don't exist in user/
-/// 3. Creates `user/characters/` directory
+/// 3. Copies default characters from `default/characters/` to `user/characters/` if they don't exist
 pub fn initialize_user_data(data_dir: &Path) -> DeepJellyResult<()> {
     let default_dir = get_default_dir(data_dir);
     let user_dir = get_user_dir(data_dir);
@@ -59,12 +80,49 @@ pub fn initialize_user_data(data_dir: &Path) -> DeepJellyResult<()> {
         }
     }
 
-    // Ensure user/characters/ directory exists
-    let characters_dir = user_dir.join("characters");
-    fs::create_dir_all(&characters_dir)
-        .map_err(|e| {
-            DeepJellyError::Config(format!("Failed to create characters directory: {}", e))
-        })?;
+    // Ensure user/characters/ directory exists and copy default characters
+    let default_characters_dir = default_dir.join("characters");
+    let user_characters_dir = user_dir.join("characters");
+
+    if default_characters_dir.exists() {
+        // Copy each character from default to user if it doesn't exist
+        for entry in fs::read_dir(&default_characters_dir)
+            .map_err(|e| {
+                DeepJellyError::Config(format!("Failed to read default characters directory: {}", e))
+            })?
+        {
+            let entry = entry.map_err(|e| {
+                DeepJellyError::Config(format!("Failed to read directory entry: {}", e))
+            })?;
+            let character_name = entry.file_name();
+            let default_character_path = default_characters_dir.join(&character_name);
+            let user_character_path = user_characters_dir.join(&character_name);
+
+            // Only copy if character doesn't exist in user directory
+            if !user_character_path.exists() {
+                if default_character_path.is_dir() {
+                    copy_dir_recursive(&default_character_path, &user_character_path)
+                        .map_err(|e| {
+                            DeepJellyError::Config(format!(
+                                "Failed to copy character '{}' from default to user: {}",
+                                character_name.to_string_lossy(),
+                                e
+                            ))
+                        })?;
+                    log::info!(
+                        "Copied default character '{}' to user directory",
+                        character_name.to_string_lossy()
+                    );
+                }
+            }
+        }
+    } else {
+        // If default characters directory doesn't exist, just create empty user/characters/
+        fs::create_dir_all(&user_characters_dir)
+            .map_err(|e| {
+                DeepJellyError::Config(format!("Failed to create characters directory: {}", e))
+            })?;
+    }
 
     Ok(())
 }
@@ -230,5 +288,67 @@ mod tests {
         let user_dir = get_user_dir(data_dir);
         assert!(user_dir.exists());
         assert!(user_dir.join("characters").exists());
+    }
+
+    #[test]
+    fn test_initialize_user_data_copies_default_characters() {
+        let temp_dir = TempDir::new().unwrap();
+        let data_dir = temp_dir.path();
+        let default_dir = get_default_dir(data_dir);
+
+        // Create default character directory with a test character
+        let default_char_dir = default_dir.join("characters").join("test_character");
+        fs::create_dir_all(&default_char_dir).unwrap();
+        create_test_file(&default_char_dir, "appearance.json", r#"{"name": "Test"}"#).unwrap();
+        create_test_file(&default_char_dir, "image.png", "fake_png_data").unwrap();
+
+        // Create subdirectory with resources
+        let resources_dir = default_char_dir.join("resources");
+        fs::create_dir_all(&resources_dir).unwrap();
+        create_test_file(&resources_dir, "anim1.png", "animation1").unwrap();
+        create_test_file(&resources_dir, "anim2.png", "animation2").unwrap();
+
+        // Initialize user data
+        initialize_user_data(data_dir).unwrap();
+
+        // Verify character was copied to user directory
+        let user_dir = get_user_dir(data_dir);
+        let user_char_dir = user_dir.join("characters").join("test_character");
+        assert!(user_char_dir.exists());
+        assert!(user_char_dir.is_dir());
+
+        // Verify all files were copied
+        assert!(user_char_dir.join("appearance.json").exists());
+        assert!(user_char_dir.join("image.png").exists());
+        assert!(user_char_dir.join("resources").exists());
+        assert!(user_char_dir.join("resources/anim1.png").exists());
+        assert!(user_char_dir.join("resources/anim2.png").exists());
+    }
+
+    #[test]
+    fn test_initialize_user_data_preserves_existing_user_characters() {
+        let temp_dir = TempDir::new().unwrap();
+        let data_dir = temp_dir.path();
+        let default_dir = get_default_dir(data_dir);
+        let user_dir = get_user_dir(data_dir);
+
+        // Create default character
+        let default_char_dir = default_dir.join("characters").join("default_char");
+        fs::create_dir_all(&default_char_dir).unwrap();
+        create_test_file(&default_char_dir, "appearance.json", r#"{"from": "default"}"#).unwrap();
+
+        // Create existing user character (simulating user customization)
+        let user_char_dir = user_dir.join("characters").join("default_char");
+        fs::create_dir_all(&user_char_dir).unwrap();
+        create_test_file(&user_char_dir, "appearance.json", r#"{"from": "user"}"#).unwrap();
+        create_test_file(&user_char_dir, "custom.png", "user_custom").unwrap();
+
+        // Initialize user data
+        initialize_user_data(data_dir).unwrap();
+
+        // Verify user's character was not overwritten
+        let appearance_content = fs::read_to_string(user_char_dir.join("appearance.json")).unwrap();
+        assert_eq!(appearance_content, r#"{"from":"user"}"#);
+        assert!(user_char_dir.join("custom.png").exists());
     }
 }

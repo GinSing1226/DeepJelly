@@ -22,7 +22,7 @@ type SettingsTab = 'character' | 'integration' | 'system';
 // Integration Settings Component
 function IntegrationSettings() {
   const { t } = useTranslation(['settings', 'common']);
-  const { integrations, loadIntegrations } = useAppIntegrationStore();
+  const { integrations, loadIntegrations, setPendingEditIntegrationId } = useAppIntegrationStore();
   const { assistants, loadAssistants } = useCharacterManagementStore();
 
   // Load data on mount
@@ -90,13 +90,14 @@ function IntegrationSettings() {
 
   const handleEdit = async (integration: AppIntegration) => {
     console.log('[IntegrationSettings] ✏️ Edit clicked for integration:', integration.applicationId);
-    // Store the integration ID in localStorage for the onboarding window to pick up
-    // localStorage is shared across Tauri windows
+    // Set pending edit ID in store (for new windows)
+    // And pass it to the command (for existing windows via event)
     try {
-      localStorage.setItem('onboarding:edit-integration-id', integration.id);
-      console.log('[IntegrationSettings] ✅ Stored integration ID in localStorage:', integration.id);
-      // Open onboarding window
-      await invoke('open_onboarding_window');
+      setPendingEditIntegrationId(integration.id);
+      await invoke('open_onboarding_window', {
+        editIntegrationId: integration.id,
+      });
+      console.log('[IntegrationSettings] ✅ Set pending edit ID and opened onboarding window:', integration.id);
     } catch (error) {
       console.error('[IntegrationSettings] Failed to open onboarding window:', error);
     }
@@ -150,6 +151,7 @@ function IntegrationSettings() {
                     }}>
                       {integration.name}
                     </h4>
+                    {/* TODO: 暂时隐藏启用/禁用状态标记，等功能实现后再显示
                     <span className="status-badge connected" style={{
                       padding: '4px 8px',
                       borderRadius: '4px',
@@ -160,6 +162,7 @@ function IntegrationSettings() {
                     }}>
                       {integration.enabled !== false ? t('settings:integration.enabled') : t('settings:integration.disabled')}
                     </span>
+                    */}
                   </div>
 
                   {/* Card Details */}

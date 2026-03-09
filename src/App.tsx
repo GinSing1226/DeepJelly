@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect } from 'react';
+﻿import { useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { CharacterWindow } from '@/components/CharacterWindow';
@@ -89,20 +89,51 @@ function App() {
 
   // ========== Onboarding 状态 ==========
   // 首次启动时打开引导窗口，而不是在主窗口内显示引导
+  // 使用 ref 防止重复打开窗口
+  const onboardingCheckRef = useRef(false);
   useEffect(() => {
     const openOnboardingWindowIfNeeded = async () => {
-      // 如果没有绑定助手，打开引导窗口
-      if (!boundApp) {
-        try {
-          await invoke('open_onboarding_window');
-        } catch (error) {
-          console.error('[App] Failed to open onboarding window:', error);
-        }
+      // 防止重复执行
+      if (onboardingCheckRef.current) {
+        return;
       }
+      onboardingCheckRef.current = true;
+
+      // 先加载助手数据（如果尚未加载）
+      if (assistants.length === 0) {
+        await loadAssistants();
+      }
+
+      // 等待下一次渲染以获取最新的 assistants 数据
+      // 使用 setTimeout 确保在 assistants 更新后再检查
+      setTimeout(async () => {
+        // 重新获取最新的 assistants 数据
+        const latestAssistants = useCharacterManagementStore.getState().assistants;
+
+        // 检查是否已有集成的助手（从持久化数据检查）
+        const hasIntegratedAssistant = latestAssistants.some(
+          (assistant) => assistant.integrations && assistant.integrations.length > 0
+        );
+
+        console.log('[App] Onboarding check:', {
+          boundApp: !!boundApp,
+          hasIntegratedAssistant,
+          assistantsCount: latestAssistants.length,
+        });
+
+        // 如果内存中没有绑定，且持久化数据中也没有集成的助手，才打开引导窗口
+        if (!boundApp && !hasIntegratedAssistant) {
+          try {
+            await invoke('open_onboarding_window');
+          } catch (error) {
+            console.error('[App] Failed to open onboarding window:', error);
+          }
+        }
+      }, 0);
     };
 
     openOnboardingWindowIfNeeded();
-  }, [boundApp]);
+  }, []); // 空依赖数组，只在组件挂载时执行一次
 
   // ========== Auto-select first assistant on startup ==========
   // 确保角色窗口能正确加载角色
@@ -123,6 +154,24 @@ function App() {
 
     initializeAssistantSelection();
   }, [assistants, selectedAssistantId, loadAssistants, selectAssistant]);
+
+  // ========== 监听引导页完成事件 ==========
+  // 当引导页完成后，重新加载助手数据
+  useEffect(() => {
+    const unlistenPromise = (async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+      return await listen('onboarding:complete', async () => {
+        console.log('[App] 🎉 Onboarding complete event received, reloading assistants...');
+        // 重新加载助手数据
+        await loadAssistants();
+        console.log('[App] ✅ Assistants reloaded after onboarding');
+      });
+    })();
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten()).catch(console.error);
+    };
+  }, [loadAssistants]);
 
   // ========== Global hotkeys ==========
   useGlobalHotkeys({
@@ -323,13 +372,37 @@ function App() {
   }, [addMessage]);
 
   // ========== 自动连接到 OpenClaw ==========
+  const autoConnectRef = useRef(false);
   useEffect(() => {
-    // 如果已经连接或未绑定助手，跳过
-    if (connected || !boundApp) {
-      return;
-    }
-
     const autoConnect = async () => {
+      // 如果已经连接或已尝试连接，跳过
+      if (connected || autoConnectRef.current) {
+        return;
+      }
+      autoConnectRef.current = true;
+
+      // 稍等片刻，让数据加载完成
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 检查是否有绑定（内存或持久化数据）
+      let hasBinding = !!boundApp;
+
+      if (!hasBinding) {
+        const latestAssistants = useCharacterManagementStore.getState().assistants;
+        if (latestAssistants.length > 0) {
+          hasBinding = latestAssistants.some(
+            (assistant) => assistant.integrations && assistant.integrations.length > 0
+          );
+        }
+      }
+
+      console.log('[App] Auto-connect check:', { hasBinding, connected });
+
+      // 如果没有绑定，跳过自动连接
+      if (!hasBinding) {
+        return;
+      }
+
       try {
         // 先加载保存的配置
         await getConfig();
@@ -338,11 +411,12 @@ function App() {
       } catch (error) {
         // 静默失败，不显示错误提示
         // 用户可以稍后手动连接
+        console.warn('[App] Auto-connect failed:', error);
       }
     };
 
     autoConnect();
-  }, [boundApp, connected, getConfig, connect]);
+  }, []); // 空依赖数组，只在组件挂载时执行一次
 
   // ========== 角色点击事件 ==========
   const handleCharacterClick = useCallback(async () => {

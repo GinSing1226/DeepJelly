@@ -12,6 +12,7 @@ import type { AppIntegration } from '@/types/appConfig';
 interface AppIntegrationState {
   integrations: AppIntegration[];
   currentIntegration: AppIntegration | null;
+  pendingEditIntegrationId: string | null;  // 待编辑的集成ID（跨窗口通信）
 
   // Actions
   loadIntegrations: () => Promise<void>;
@@ -20,11 +21,13 @@ interface AppIntegrationState {
   deleteIntegration: (id: string) => Promise<void>;
   getIntegration: (id: string) => AppIntegration | undefined;
   setCurrentIntegration: (integration: AppIntegration | null) => void;
+  setPendingEditIntegrationId: (id: string | null) => void;
 }
 
 export const useAppIntegrationStore = create<AppIntegrationState>((set, get) => ({
   integrations: [],
   currentIntegration: null,
+  pendingEditIntegrationId: null,
 
   /**
    * 加载所有应用集成配置
@@ -108,5 +111,12 @@ export const useAppIntegrationStore = create<AppIntegrationState>((set, get) => 
    */
   setCurrentIntegration: (integration) => {
     set({ currentIntegration: integration });
+  },
+
+  /**
+   * 设置待编辑的集成ID（用于跨窗口通信）
+   */
+  setPendingEditIntegrationId: (id) => {
+    set({ pendingEditIntegrationId: id });
   },
 }));

@@ -18,8 +18,8 @@ interface InputEndpointStepProps {
 export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
   const { t } = useTranslation('onboarding');
   const { setEndpoint, setStep, setError, error } = useOnboardingStore();
-  const { connectAndSetConfig, connecting, connected } = useBrainStore();
-  const { currentIntegration } = useAppIntegrationStore();
+  const { connectAndSetConfig, connecting, connected, config: brainConfig } = useBrainStore();
+  const { currentIntegration, addIntegration, updateIntegration, setCurrentIntegration } = useAppIntegrationStore();
 
   // Parse endpoint to get IP and port for reintegration
   const getDefaultValues = () => {
@@ -77,6 +77,7 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
       try {
         const url = new URL(currentIntegration.endpoint);
         console.log('[InputEndpointStep] Restoring from URL:', url.hostname, url.port);
+        console.log('[InputEndpointStep] Restoring authToken:', currentIntegration.authToken ? `${currentIntegration.authToken.substring(0, 8)}...(${currentIntegration.authToken.length} chars)` : '(none)');
         setIp(url.hostname);
         setPort(url.port || '18790');
         setAuthToken(currentIntegration.authToken || '');
@@ -84,13 +85,14 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
         const match = currentIntegration.endpoint.match(/ws:\/\/([^:]+):(\d+)/);
         if (match) {
           console.log('[InputEndpointStep] Restoring from regex:', match[1], match[2]);
+          console.log('[InputEndpointStep] Restoring authToken:', currentIntegration.authToken ? `${currentIntegration.authToken.substring(0, 8)}...(${currentIntegration.authToken.length} chars)` : '(none)');
           setIp(match[1]);
           setPort(match[2]);
           setAuthToken(currentIntegration.authToken || '');
         }
       }
     }
-  }, [currentIntegration?.endpoint, currentIntegration?.authToken]);
+  }, [currentIntegration]);
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -142,6 +144,42 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
       await connectAndSetConfig(fullEndpoint, authToken);
 
       addLog('✅ connectAndSetConfig() 完成');
+
+      // 连接成功后，立即保存集成配置到文件
+      addLog('💾 保存集成配置到文件...');
+
+      if (currentIntegration) {
+        // 编辑场景：更新现有集成
+        addLog(`📝 编辑模式：更新集成 ${currentIntegration.id}`);
+        await updateIntegration(currentIntegration.id, {
+          id: currentIntegration.id,
+          applicationId: currentIntegration.applicationId,
+          provider: currentIntegration.provider,
+          name: currentIntegration.name,
+          description: currentIntegration.description,
+          endpoint: fullEndpoint,
+          authToken: authToken || undefined,
+          enabled: true,
+          createdAt: currentIntegration.createdAt,
+          assistant: currentIntegration.assistant,
+        });
+        addLog('✅ 集成配置已更新');
+      } else {
+        // 首次场景：创建新集成
+        addLog('📝 首次模式：创建新集成');
+        const newIntegration = await addIntegration({
+          provider: 'openclaw',
+          name: `OpenClaw (${ip})`,
+          endpoint: fullEndpoint,
+          authToken: authToken || undefined,
+          enabled: false, // 首次连接时先设置为未启用，等到助手绑定后再启用
+        });
+        addLog('✅ 新集成已创建');
+        // 关键：设置为当前集成，让 ConfirmAssistantStep 能找到它
+        setCurrentIntegration(newIntegration);
+        addLog(`📍 设置为当前集成: ${newIntegration.id}`);
+      }
+
       addLog('===== 连接流程结束 =====');
 
       // 如果没有抛出异常，说明连接成功

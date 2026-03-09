@@ -16,25 +16,10 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { useCharacterManagementStore } from '@/stores/characterManagementStore';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { getSessionKey } from '@/utils/assistantHelper';
 import './DialogPanel/styles.css';
 
 type ViewMode = 'list' | 'chat';
-
-/**
- * 从 assistant 中提取 sessionKey
- * 后端返回的数据结构是 integrations[0].params.sessionKeys[0]
- */
-function extractSessionKey(assistant: ReturnType<typeof useCharacterManagementStore.getState>['assistants'][number] | null): string | undefined {
-  if (!assistant?.integrations) return undefined;
-
-  const openclawIntegration = assistant.integrations.find(i => i.provider === 'openclaw');
-  if (openclawIntegration?.params?.sessionKeys && Array.isArray(openclawIntegration.params.sessionKeys)) {
-    return openclawIntegration.params.sessionKeys[0];
-  }
-
-  // Fallback to top-level sessionKey if exists (for backward compatibility)
-  return (assistant as any)?.sessionKey;
-}
 
 export function DialogApp() {
   // 组件挂载日志
@@ -60,22 +45,15 @@ export function DialogApp() {
 
   // Store state
   const { boundApp } = useSettingsStore();
-  const currentAssistant = useCharacterManagementStore((s) => {
-    const selectedId = s.selectedAssistantId;
-    if (selectedId) {
-      return s.assistants.find(a => a.id === selectedId) || null;
-    }
-    // 如果没有选中，使用第一个可用的 assistant
-    if (s.assistants.length > 0) {
-      console.log('[DialogApp] 🔍 Auto-selecting first assistant:', s.assistants[0]);
-      return s.assistants[0];
-    }
-    console.log('[DialogApp] ⚠️ No assistants available');
-    return null;
-  });
-  const assistants = useCharacterManagementStore((s) => s.assistants);
+  // 分别订阅以确保正确响应变化
   const selectedAssistantId = useCharacterManagementStore((s) => s.selectedAssistantId);
+  const assistants = useCharacterManagementStore((s) => s.assistants);
   const isLoadingAssistants = useCharacterManagementStore((s) => s.isLoading);
+
+  // 计算 currentAssistant
+  const currentAssistant = selectedAssistantId
+    ? assistants.find(a => a.id === selectedAssistantId) || null
+    : (assistants.length > 0 ? (console.log('[DialogApp] 🔍 Auto-selecting first assistant:', assistants[0]), assistants[0]) : (console.log('[DialogApp] ⚠️ No assistants available'), null));
   const sessions = useSessionStore((s) => s.sessions);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const messagesBySession = useSessionStore((s) => s.messagesBySession);
@@ -100,7 +78,7 @@ export function DialogApp() {
 
   // Debug logging for state
   useEffect(() => {
-    const extractedSessionKey = extractSessionKey(currentAssistant);
+    const extractedSessionKey = getSessionKey(currentAssistant?.integrations ?? []);
     console.log('[DialogApp] =======================================');
     console.log('[DialogApp] 📊 State Update:');
     console.log('[DialogApp]   isLoadingAssistants:', isLoadingAssistants);
@@ -166,7 +144,7 @@ export function DialogApp() {
       }
 
       // 优先使用 currentAssistant（从 integrations 提取），如果没有则回退到 boundApp.sessionKey
-      const sessionKey = extractSessionKey(currentAssistant) || boundApp?.sessionKey;
+      const sessionKey = getSessionKey(currentAssistant?.integrations ?? []) || boundApp?.sessionKey;
       const assistantName = currentAssistant?.name || boundApp?.assistantName || 'Assistant';
 
       if (!sessionKey) {
@@ -294,6 +272,40 @@ export function DialogApp() {
     };
   }, []); // Empty dependency array - only register once
 
+  // 监听引导页完成事件，重新加载助手数据
+  useEffect(() => {
+    const unlistenPromise = (async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+      return await listen('onboarding:complete', async (event) => {
+        console.log('[DialogApp] 🎉 Onboarding completed event received:', event);
+        // 重新加载助手列表
+        const { loadAssistants, selectAssistant } = useCharacterManagementStore.getState();
+
+        console.log('[DialogApp] Reloading assistants...');
+        await loadAssistants();
+
+        // 等待 store 更新
+        setTimeout(() => {
+          const updatedAssistants = useCharacterManagementStore.getState().assistants;
+          console.log('[DialogApp] Assistants after reload:', updatedAssistants.length);
+
+          if (updatedAssistants.length > 0) {
+            const firstAssistant = updatedAssistants[0];
+            console.log('[DialogApp] Auto-selecting assistant:', firstAssistant.id, firstAssistant.name);
+            console.log('[DialogApp] Assistant integrations:', firstAssistant.integrations);
+            selectAssistant(firstAssistant.id);
+          } else {
+            console.warn('[DialogApp] No assistants found after onboarding!');
+          }
+        }, 100);
+      });
+    })();
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten()).catch(console.error);
+    };
+  }, []);
+
   // Filter sessions by search query
   const filteredSessions = sessions.filter((session) =>
     session.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -327,7 +339,7 @@ export function DialogApp() {
     console.log('[DialogApp] 🔄 Refresh button clicked (incremental mode)');
 
     // 优先使用 currentAssistant（从 integrations 提取），如果没有则回退到 boundApp.sessionKey
-    const sessionKey = extractSessionKey(currentAssistant) || boundApp?.sessionKey;
+    const sessionKey = getSessionKey(currentAssistant?.integrations ?? []) || boundApp?.sessionKey;
     if (!sessionKey) {
       console.log('[DialogApp] ⚠️ No sessionKey, skipping refresh');
       return;
@@ -529,7 +541,7 @@ export function DialogApp() {
 
       // Send message to backend
       // 优先使用 currentAssistant（从 integrations 提取），如果没有则回退到 boundApp.sessionKey
-      const sessionKeyToSend = extractSessionKey(currentAssistant) || boundApp?.sessionKey;
+      const sessionKeyToSend = getSessionKey(currentAssistant?.integrations ?? []) || boundApp?.sessionKey;
       if (!sessionKeyToSend) {
         throw new Error('No session key available');
       }
@@ -584,7 +596,7 @@ export function DialogApp() {
   // Handle load more messages
   const handleLoadMore = useCallback(async () => {
     // 优先使用 currentAssistant（从 integrations 提取），如果没有则回退到 boundApp.sessionKey
-    const sessionKey = extractSessionKey(currentAssistant) || boundApp?.sessionKey;
+    const sessionKey = getSessionKey(currentAssistant?.integrations ?? []) || boundApp?.sessionKey;
     if (!sessionKey || !currentSessionId || isLoadingMore || !hasMore) {
       console.log('[DialogApp] ⚠️ Cannot load more:', { hasSessionKey: !!sessionKey, hasCurrentSessionId: !!currentSessionId, isLoadingMore, hasMore });
       return;

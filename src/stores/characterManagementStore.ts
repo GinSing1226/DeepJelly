@@ -316,8 +316,20 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
           type: typeof assistants,
           isArray: Array.isArray(assistants),
           length: assistants?.length,
-          data: assistants
         });
+        // 打印第一个 assistant 的详细信息
+        if (assistants && assistants.length > 0) {
+          const first = assistants[0];
+          console.log('[CharacterManagement] First assistant details:', {
+            id: first.id,
+            name: first.name,
+            appType: first.appType,
+            agentLabel: first.agentLabel,
+            integrations: first.integrations,
+            integrationsLength: first.integrations?.length,
+            integrationsFirstItem: first.integrations?.[0],
+          });
+        }
         set({ assistants, isLoading: false });
         console.log('[CharacterManagement] ========== loadAssistants COMPLETE ==========');
       } catch (error) {

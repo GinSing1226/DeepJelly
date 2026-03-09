@@ -431,8 +431,14 @@ pub async fn toggle_hide_window(app: AppHandle) -> Result<(), String> {
 }
 
 /// Open or focus the onboarding window
+/// Optional edit_integration_id parameter for editing existing integration
 #[tauri::command]
-pub async fn open_onboarding_window(app: AppHandle) -> Result<(), String> {
+pub async fn open_onboarding_window(
+    app: AppHandle,
+    edit_integration_id: Option<String>,
+) -> Result<(), String> {
+    info!("{}", format_log(LogCategory::Window, &format!("open_onboarding_window called with edit_integration_id: {:?}", edit_integration_id)));
+
     if let Some(window) = app.get_webview_window(ONBOARDING_WINDOW_LABEL) {
         debug!("{}", format_log(LogCategory::Window, "Onboarding window already exists"));
         window
@@ -444,14 +450,33 @@ pub async fn open_onboarding_window(app: AppHandle) -> Result<(), String> {
         window
             .unminimize()
             .map_err(|e| format!("Failed to unminimize onboarding window: {}", e))?;
-        info!("{}", format_log(LogCategory::Window, "Onboarding window focused"));
+
+        // Emit event to notify frontend about edit mode
+        // Use app.emit() so all windows can receive it (for debugging)
+        if let Some(ref id) = edit_integration_id {
+            info!("{}", format_log(LogCategory::Window, &format!("Emitting onboarding:edit-mode event with ID: {}", id)));
+            let _ = app.emit("onboarding:edit-mode", id);
+            info!("{}", format_log(LogCategory::Window, &format!("Onboarding window focused in edit mode: {}", id)));
+        } else {
+            info!("{}", format_log(LogCategory::Window, "Onboarding window focused"));
+        }
         return Ok(());
     }
+
+    // Build URL with edit_integration_id as query parameter for new windows
+    let url = if let Some(ref id) = edit_integration_id {
+        format!("onboarding.html?edit={}", id)
+    } else {
+        "onboarding.html".to_string()
+    };
+
+    // Log URL before it's moved
+    info!("{}", format_log(LogCategory::Window, &format!("Creating onboarding window with URL: {}", url)));
 
     let _window = WebviewWindowBuilder::new(
         &app,
         ONBOARDING_WINDOW_LABEL,
-        WebviewUrl::App("onboarding.html".into()),
+        WebviewUrl::App(url.into()),
     )
     .title("DeepJelly - Integration Guide")
     .inner_size(900.0, 700.0)
@@ -468,7 +493,7 @@ pub async fn open_onboarding_window(app: AppHandle) -> Result<(), String> {
         format!("Failed to create onboarding window: {}", e)
     })?;
 
-    info!("{}", format_log(LogCategory::Window, "Onboarding window created"));
+    info!("{}", format_log(LogCategory::Window, "Onboarding window created successfully"));
     Ok(())
 }
 

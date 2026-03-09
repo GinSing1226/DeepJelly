@@ -12,11 +12,14 @@ pub type AssistantManagerState = Mutex<AssistantManager>;
 /// Get all assistants
 ///
 /// Returns a list of all assistant configurations.
+/// Always reloads from disk to ensure fresh data.
 #[tauri::command]
 pub fn get_all_assistants(
     manager: State<'_, AssistantManagerState>,
 ) -> Result<Vec<Assistant>, String> {
-    let manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
+    let mut manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
+    // Reload from disk to get latest data
+    manager.load().map_err(|e| format!("加载助手数据失败: {}", e))?;
     Ok(manager.get_all())
 }
 

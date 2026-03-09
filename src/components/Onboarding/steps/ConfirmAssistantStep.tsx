@@ -44,16 +44,6 @@ interface AgentSession {
   updatedAt?: number;
 }
 
-interface BoundAssistantResult {
-  id: string;
-  name: string;
-  description?: string;
-  agentId: string;
-  agentName: string;
-  sessionKey: string;
-  applicationId: string;
-}
-
 // 生成随机应用ID
 function generateApplicationId(): string {
   const charset = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -89,9 +79,6 @@ export function ConfirmAssistantStep({ onComplete, onSkip }: ConfirmAssistantSte
   // 用于等待回复的标志
   const [waitingForReply, setWaitingForReply] = useState(false);
   const waitingForSessionKeyRef = useRef<string>('');
-
-  // 绑定成功后的结果信息
-  const [boundResult, setBoundResult] = useState<BoundAssistantResult | null>(null);
 
   // 生成并缓存 applicationId（手动模式使用）
   const manualApplicationId = useMemo(() => generateApplicationId(), []);
@@ -300,21 +287,38 @@ export function ConfirmAssistantStep({ onComplete, onSkip }: ConfirmAssistantSte
     }
 
     try {
+      // 直接从 store 获取最新的 currentIntegration，而不是使用组件变量
+      // 这确保我们能看到 InputEndpointStep 最新设置的值
+      const latestCurrentIntegration = useAppIntegrationStore.getState().currentIntegration;
+
       // 检查是否是重新集成模式
-      const isReintegration = currentIntegration !== null;
+      const isReintegration = latestCurrentIntegration !== null;
+
+      console.log('[ConfirmAssistantStep] completeIntegration:', {
+        applicationId,
+        isReintegration,
+        currentIntegrationFromState: latestCurrentIntegration?.id,
+        currentIntegrationFromProps: currentIntegration?.id,
+      });
 
       // 1. 创建或更新 OpenClaw 应用集成配置
       let integrationConfig: AppIntegration;
 
-      if (isReintegration && currentIntegration) {
+      if (isReintegration && latestCurrentIntegration) {
         // 重新集成：更新现有集成
-        await updateIntegration(currentIntegration.id, {
+        await updateIntegration(latestCurrentIntegration.id, {
+          id: latestCurrentIntegration.id,
+          applicationId: latestCurrentIntegration.applicationId,
+          provider: latestCurrentIntegration.provider,
           name: `OpenClaw (${selectedOpenClawAssistant.name})`,
+          description: latestCurrentIntegration.description,
           endpoint: endpoint,
           authToken: authToken,
           enabled: true,
+          createdAt: latestCurrentIntegration.createdAt,
+          assistant: latestCurrentIntegration.assistant,
         });
-        integrationConfig = currentIntegration;
+        integrationConfig = latestCurrentIntegration;
         console.log('[ConfirmAssistantStep] ✅ App integration updated:', integrationConfig);
       } else {
         // 首次集成：创建新集成
@@ -408,47 +412,71 @@ export function ConfirmAssistantStep({ onComplete, onSkip }: ConfirmAssistantSte
       console.log('[ConfirmAssistantStep] ✅ Assistant integration complete');
       setBindStatus('success');
 
+      // 3.5. 更新 AppIntegration 的 assistant 字段，记录绑定的助手
+      const existingAssistantIds = integrationConfig.assistant || [];
+      const updatedAssistantIds = existingAssistantIds.includes(boundAssistantId)
+        ? existingAssistantIds
+        : [...existingAssistantIds, boundAssistantId];
+
+      if (isReintegration && latestCurrentIntegration) {
+        await updateIntegration(latestCurrentIntegration.id, {
+          id: latestCurrentIntegration.id,
+          applicationId: latestCurrentIntegration.applicationId,
+          provider: latestCurrentIntegration.provider,
+          name: latestCurrentIntegration.name,
+          description: latestCurrentIntegration.description,
+          endpoint: latestCurrentIntegration.endpoint,
+          authToken: latestCurrentIntegration.authToken,
+          enabled: latestCurrentIntegration.enabled,
+          createdAt: latestCurrentIntegration.createdAt,
+          assistant: updatedAssistantIds,
+        });
+        console.log('[ConfirmAssistantStep] ✅ App integration assistant list updated:', updatedAssistantIds);
+      } else {
+        // 首次集成时，integrationConfig 已经是新创建的，需要更新它
+        await updateIntegration(integrationConfig.id, {
+          id: integrationConfig.id,
+          applicationId: integrationConfig.applicationId,
+          provider: integrationConfig.provider,
+          name: integrationConfig.name,
+          description: integrationConfig.description,
+          endpoint: integrationConfig.endpoint,
+          authToken: integrationConfig.authToken,
+          enabled: integrationConfig.enabled,
+          createdAt: integrationConfig.createdAt,
+          assistant: updatedAssistantIds,
+        });
+        console.log('[ConfirmAssistantStep] ✅ App integration assistant list updated:', updatedAssistantIds);
+      }
+
       // 4. Emit event 通知其他窗口刷新
       await emit('onboarding:complete', { integration: integrationConfig });
 
-      // 5. 准备绑定信息用于显示
+      // 5. 准备绑定信息
       const boundAssistant = {
         id: boundAssistantId,
         name: boundAssistantName,
         description: boundAssistantDescription,
-        agentId: selectedOpenClawAssistant.id,
-        agentName: selectedOpenClawAssistant.name,
-        sessionKey: selectedSessionKey,
-        applicationId: integrationConfig.applicationId,
+        integrations: [{
+          provider: 'openclaw',
+          params: {
+            applicationId: integrationConfig.applicationId,
+            agentId: selectedOpenClawAssistant.id,
+            sessionKeys: [selectedSessionKey],
+          },
+          enabled: true,
+          createdAt: Date.now(),
+        }],
       };
 
-      // 保存到状态以便在成功页面显示
-      setBoundResult(boundAssistant);
+      // 6. 直接调用 onComplete，完成引导流程
+      console.log('[ConfirmAssistantStep] 🎉 Integration complete, calling onComplete...');
+      onComplete(boundAssistant);
     } catch (error) {
       console.error('[ConfirmAssistantStep] ❌ Failed to complete integration:', error);
       setBindStatus('failed');
       setBindError(error instanceof Error ? error.message : String(error));
     }
-  };
-
-  const handleFinish = () => {
-    if (!boundResult) return;
-
-    onComplete({
-      id: boundResult.id,
-      name: boundResult.name,
-      description: boundResult.description,
-      integrations: [{
-        provider: 'openclaw',
-        params: {
-          applicationId: boundResult.applicationId,
-          agentId: boundResult.agentId,
-          sessionKeys: [boundResult.sessionKey],
-        },
-        enabled: true,
-        createdAt: Date.now(),
-      }],
-    });
   };
 
   // 生成显示名称
@@ -686,7 +714,7 @@ export function ConfirmAssistantStep({ onComplete, onSkip }: ConfirmAssistantSte
       </div>
 
       {/* 绑定状态显示 */}
-      {bindStatus !== 'idle' && !boundResult && (
+      {bindStatus !== 'idle' && (
         <div style={{
           padding: '12px',
           marginBottom: '16px',
@@ -703,76 +731,28 @@ export function ConfirmAssistantStep({ onComplete, onSkip }: ConfirmAssistantSte
         </div>
       )}
 
-      {/* 绑定成功结果显示 */}
-      {boundResult && (
-        <div style={{
-          padding: '20px',
-          marginBottom: '16px',
-          borderRadius: '12px',
-          background: '#d4edda',
-          border: '1px solid #c3e6cb',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
-            <span style={{ fontSize: '32px', marginRight: '12px' }}>✓</span>
-            <div>
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', color: '#1b5e20' }}>{t('bindingSuccess')}</h3>
-              <p style={{ margin: 0, fontSize: '13px', color: '#2e7d32' }}>{t('assistantBound')}</p>
-            </div>
-          </div>
-
-          <div style={{
-            background: '#ffffff',
-            borderRadius: '8px',
-            padding: '12px',
-            fontSize: '13px',
-          }}>
-            <div style={{ marginBottom: '8px' }}>
-              <span style={{ color: '#6e6e73', fontWeight: '500' }}>{t('assistantName')}</span>
-              <span style={{ color: '#1d1d1f', fontWeight: '600' }}>{boundResult.name}</span>
-            </div>
-            <div style={{ marginBottom: '8px' }}>
-              <span style={{ color: '#6e6e73', fontWeight: '500' }}>{t('assistantId')}</span>
-              <code style={{ background: '#f5f5f7', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontFamily: 'monospace' }}>{boundResult.id}</code>
-            </div>
-            <div style={{ marginBottom: '8px' }}>
-              <span style={{ color: '#6e6e73', fontWeight: '500' }}>{t('boundAgent')}</span>
-              <span style={{ color: '#1d1d1f' }}>{boundResult.agentName}</span>
-            </div>
-            <div style={{ marginBottom: '8px' }}>
-              <span style={{ color: '#6e6e73', fontWeight: '500' }}>{t('agentIdLabel')}</span>
-              <code style={{ background: '#f5f5f7', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontFamily: 'monospace' }}>{boundResult.agentId}</code>
-            </div>
-            <div>
-              <span style={{ color: '#6e6e73', fontWeight: '500' }}>{t('appId')}</span>
-              <code style={{ background: '#f5f5f7', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontFamily: 'monospace' }}>{boundResult.applicationId}</code>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="step-actions">
-        {/* 绑定成功后显示完成按钮 */}
-        {boundResult ? (
-          <button
-            className="btn-primary"
-            onClick={handleFinish}
-            style={{ marginLeft: 'auto' }}
-          >
-            {t('completeButton')}
-          </button>
-        ) : (
-          <>
-            {/* 上一步 - 始终显示 */}
-            <button
-              className="btn-back"
-              onClick={() => useOnboardingStore.getState().setStep('input_endpoint')}
-              disabled={bindStatus === 'binding' || waitingForReply}
-            >
-              {t('previousStep')}
-            </button>
+        {/* 上一步 - 始终可用，点击时清理状态 */}
+        <button
+          className="btn-back"
+          onClick={() => {
+            // 清理等待状态
+            if (waitingForReply) {
+              setWaitingForReply(false);
+              waitingForSessionKeyRef.current = '';
+            }
+            // 重置绑定状态
+            setBindStatus('idle');
+            setBindError(null);
+            // 返回上一步
+            setStep('input_endpoint');
+          }}
+        >
+          {t('previousStep')}
+        </button>
 
-            {/* 右侧按钮组 */}
-            <div style={{ display: 'flex', gap: '8px' }}>
+        {/* 右侧按钮组 */}
+        <div style={{ display: 'flex', gap: '8px' }}>
           {/* 自动模式 */}
           {integrationMode === 'auto' && (
             <>
@@ -821,12 +801,7 @@ export function ConfirmAssistantStep({ onComplete, onSkip }: ConfirmAssistantSte
                 className="btn-primary"
                 onClick={() => {
                   // 手动集成：直接完成整个流程
-                  completeIntegration(manualApplicationId).then(() => {
-                    // 集成成功后自动调用 onComplete
-                    setTimeout(() => {
-                      handleFinish();
-                    }, 500);
-                  });
+                  completeIntegration(manualApplicationId);
                 }}
                 disabled={!selectedSessionKey}
                 style={{ marginLeft: 'auto', marginRight: 'auto' }}
@@ -843,12 +818,10 @@ export function ConfirmAssistantStep({ onComplete, onSkip }: ConfirmAssistantSte
               )}
             </>
           )}
-            </div>
-          </>
-        )}
+        </div>
       </div>
 
-      {/* 手动集成提示词 */}
+      {/* 手动集成配置说明 */}
       {integrationMode === 'manual' && (
         <div style={{
           marginTop: '12px',
@@ -856,7 +829,7 @@ export function ConfirmAssistantStep({ onComplete, onSkip }: ConfirmAssistantSte
           background: '#f5f5f7',
           borderRadius: '8px',
           border: '1px solid #e5e5e7',
-          maxHeight: '300px',
+          maxHeight: '400px',
           overflowY: 'auto',
         }}>
           <div style={{ marginBottom: '12px' }}>
@@ -864,10 +837,11 @@ export function ConfirmAssistantStep({ onComplete, onSkip }: ConfirmAssistantSte
               {t('manualConfigTitle', '手动集成配置说明')}
             </h4>
             <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#6e6e73' }}>
-              {t('clickToComplete')}
+              {t('manualConfigDesc', '请按照以下步骤手动配置 OpenClaw，然后点击【确定】完成集成')}
             </p>
           </div>
 
+          {/* 关键信息 */}
           <div style={{
             background: '#ffffff',
             borderRadius: '6px',
@@ -875,35 +849,133 @@ export function ConfirmAssistantStep({ onComplete, onSkip }: ConfirmAssistantSte
             fontSize: '12px',
             fontFamily: 'monospace',
             border: '1px solid #e5e5e7',
+            marginBottom: '12px',
           }}>
             <div style={{ marginBottom: '8px', color: '#1d1d1f' }}>
-              <strong>Application ID:</strong> <span style={{ color: '#0066cc' }}>{selectedOpenClawAssistant ? manualApplicationId : '---'}</span>
+              <strong>{t('applicationId')}:</strong> <span style={{ color: '#0066cc' }}>{selectedOpenClawAssistant ? manualApplicationId : '---'}</span>
             </div>
             <div style={{ marginBottom: '8px', color: '#1d1d1f' }}>
-              <strong>Agent ID:</strong> <span style={{ color: '#0066cc' }}>{selectedOpenClawAssistant?.id || '---'}</span>
+              <strong>{t('agentId')}:</strong> <span style={{ color: '#0066cc' }}>{selectedOpenClawAssistant?.id || '---'}</span>
             </div>
             <div style={{ marginBottom: '8px', color: '#1d1d1f' }}>
-              <strong>Assistant ID:</strong> <span style={{ color: '#0066cc' }}>{selectedLocalAssistant?.id || (selectedOpenClawAssistant ? manualApplicationId : '---')}</span>
+              <strong>{t('assistantId')}:</strong> <span style={{ color: '#0066cc' }}>{selectedLocalAssistant?.id || (selectedOpenClawAssistant ? manualApplicationId : '---')}</span>
             </div>
-            <div style={{ marginBottom: '8px', color: '#1d1d1f' }}>
-              <strong>Session Key:</strong> <span style={{ color: '#0066cc', fontSize: '11px' }}>{selectedSessionKey || '---'}</span>
+            <div style={{ color: '#1d1d1f' }}>
+              <strong>{t('sessionKey')}:</strong> <span style={{ color: '#0066cc', fontSize: '11px' }}>{selectedSessionKey || '---'}</span>
             </div>
+          </div>
 
-            <div style={{
-              marginTop: '12px',
-              paddingTop: '12px',
-              borderTop: '1px solid #e5e5e7',
-              color: '#6e6e73',
-              fontSize: '11px',
-            }}>
-              <div style={{ marginBottom: '6px' }}><strong>配置步骤：</strong></div>
-              <ol style={{ margin: '0', paddingLeft: '20px', lineHeight: '1.6' }}>
-                <li>在 OpenClaw 的 openclaw.json 中添加 deepjelly channel 配置</li>
-                <li>配置 applicationId、agentId、assistantId 映射关系</li>
-                <li>重启 OpenClaw 网关使配置生效</li>
-                <li>点击下方【确定】按钮完成集成</li>
-              </ol>
+          {/* 配置说明 */}
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '6px',
+            padding: '12px',
+            fontSize: '11px',
+            border: '1px solid #e5e5e7',
+            marginBottom: '12px',
+          }}>
+            <div style={{ marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: '#1d1d1f' }}>
+              {t('configSteps', '配置步骤')}:
             </div>
+            <ol style={{ margin: '0', paddingLeft: '20px', lineHeight: '1.8', color: '#6e6e73' }}>
+              <li>{t('step1', '打开 OpenClaw 的配置文件 openclaw.json')}</li>
+              <li>{t('step2', '在 channels 模块中添加 deepjelly channel 配置（见下方示例）')}</li>
+              <li>{t('step3', '根据你的部署场景选择配置（本地开发或局域网部署）')}</li>
+              <li>{t('step4', '保存配置文件')}</li>
+              <li>{t('step5', '重启 OpenClaw 网关使配置生效')}</li>
+              <li>{t('step6', '点击下方【确定】按钮完成集成')}</li>
+            </ol>
+          </div>
+
+          {/* 本地开发配置 */}
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '6px',
+            padding: '12px',
+            fontSize: '11px',
+            border: '1px solid #e5e5e7',
+            marginBottom: '12px',
+          }}>
+            <div style={{ marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: '#1d1d1f' }}>
+              {t('localDev', '本地开发（同一台机器）')}:
+            </div>
+            <div style={{ marginBottom: '4px', color: '#6e6e73' }}>
+              <strong>{t('firewall')}:</strong> {t('noFirewallNeeded', '无需配置')}
+            </div>
+            <div style={{ marginBottom: '4px', color: '#6e6e73' }}>
+              <strong>{t('connectionEndpoint')}:</strong> ws://127.0.0.1:18790
+            </div>
+            <pre style={{
+              margin: '8px 0 0 0',
+              padding: '8px',
+              background: '#1e1e1e',
+              color: '#d4d4d4',
+              borderRadius: '4px',
+              fontSize: '10px',
+              overflowX: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+            }}>{`{
+  "channels": {
+    "deepjelly": {
+      "enabled": true,
+      "serverHost": "127.0.0.1",
+      "serverPort": 18790,
+      "autoStart": true,
+      "applicationId": "${selectedOpenClawAssistant ? manualApplicationId : '...'}",
+      "accounts": {
+        "${selectedOpenClawAssistant?.id || 'agent-id'}": {
+          "assistantId": "${selectedLocalAssistant?.id || (selectedOpenClawAssistant ? manualApplicationId : '...')}"
+        }
+      }
+    }
+  }
+}`}</pre>
+          </div>
+
+          {/* 局域网部署配置 */}
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '6px',
+            padding: '12px',
+            fontSize: '11px',
+            border: '1px solid #e5e5e7',
+          }}>
+            <div style={{ marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: '#1d1d1f' }}>
+              {t('lanDeploy', '局域网部署（不同机器）')}:
+            </div>
+            <div style={{ marginBottom: '4px', color: '#6e6e73' }}>
+              <strong>{t('firewall')}:</strong> {t('firewallDesc', '需要允许 18790 端口入站连接')}
+            </div>
+            <div style={{ marginBottom: '4px', color: '#6e6e73' }}>
+              <strong>{t('connectionEndpoint')}:</strong> ws://{'<OpenClaw_IP>'}:18790
+            </div>
+            <pre style={{
+              margin: '8px 0 0 0',
+              padding: '8px',
+              background: '#1e1e1e',
+              color: '#d4d4d4',
+              borderRadius: '4px',
+              fontSize: '10px',
+              overflowX: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+            }}>{`{
+  "channels": {
+    "deepjelly": {
+      "enabled": true,
+      "serverHost": "0.0.0.0",
+      "serverPort": 18790,
+      "autoStart": true,
+      "applicationId": "${selectedOpenClawAssistant ? manualApplicationId : '...'}",
+      "accounts": {
+        "${selectedOpenClawAssistant?.id || 'agent-id'}": {
+          "assistantId": "${selectedLocalAssistant?.id || (selectedOpenClawAssistant ? manualApplicationId : '...')}"
+        }
+      }
+    }
+  }
+}`}</pre>
           </div>
         </div>
       )}

@@ -336,7 +336,7 @@ pub fn load_character_resources(
         let path = manager.get_resource_path(&assistant_id, &character_id, &resource_name);
 
         // Debug logging
-        log::info!("Loading resource: {}/{} -> {:?}", assistant_id, resource_name, path);
+        // log::info!("Loading resource: {}/{} -> {:?}", assistant_id, resource_name, path);
 
         match path {
             Some(actual_path) => {

@@ -23,10 +23,14 @@ export interface AppIntegration {
   provider: AIAppType;
   /** 用户自定义名称 */
   name: string;
+  /** 应用描述 */
+  description?: string;
   /** WebSocket 地址 */
   endpoint: string;
   /** 认证令牌（如需要） */
   authToken?: string;
+  /** 绑定的助手ID列表 */
+  assistant?: string[];
   /** 是否启用 */
   enabled?: boolean;
   /** 绑定时间戳 */
