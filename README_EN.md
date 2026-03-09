@@ -19,6 +19,12 @@ English | [简体中文](README.md)
 
 **DeepJelly** is a cross-platform desktop virtual assistant (desktop pet) that provides a visual "physical avatar" for AI Agents. It brings background AI to your desktop as vivid virtual characters that interact with users through animations, expressions, and bubbles—transforming from a simple toolbox into a perceptible "cyber companion" on your desktop.
 
+<img width="438" height="349" alt="image" src="https://github.com/user-attachments/assets/fe86de9c-ac51-4a42-b4b2-94027557ed45" />
+
+<img width="553" height="509" alt="image" src="https://github.com/user-attachments/assets/abbdcdac-b05c-45fe-96af-bbdf9efe9645" />
+
+<img width="731" height="496" alt="image" src="https://github.com/user-attachments/assets/9ae7fe31-9438-430f-9e6d-faa7d139664d" />
+
 ### Core Features
 
 #### 1. Virtual Avatar
