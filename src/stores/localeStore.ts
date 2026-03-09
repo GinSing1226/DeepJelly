@@ -1,34 +1,38 @@
 import { create } from 'zustand';
+import { invoke } from '@tauri-apps/api/core';
 import type { SupportedLocale } from '@/i18n/config';
-import { changeLocale as changeLocaleI18n } from '@/i18n/init';
-import i18n from '@/i18n/config';
 
 interface LocaleState {
   locale: SupportedLocale;
-  setLocale: (locale: SupportedLocale) => void;
+  setLocale: (locale: SupportedLocale) => Promise<void>;
   /**
-   * Initialize locale from i18n (which was loaded from backend)
-   * Call this after initI18n() completes
+   * Initialize locale from backend
+   * Call this to load the persisted locale setting
    */
-  initializeLocale: () => void;
+  initializeLocale: () => Promise<void>;
 }
 
 export const useLocaleStore = create<LocaleState>((set) => ({
   // Default to 'zh', will be updated by initializeLocale()
   locale: 'zh' as SupportedLocale,
-  setLocale: (locale) => {
-    // Update zustand store
+  setLocale: async (locale) => {
+    // Persist to backend via set_locale command
+    await invoke('set_locale', { locale });
+    // Update zustand store after backend succeeds
     set({ locale });
-    // Sync to i18n and backend
-    changeLocaleI18n(locale).catch(console.error);
   },
-  initializeLocale: () => {
-    // Sync with i18n's current language (loaded from backend)
-    const currentLocale = i18n.language;
-    // Validate it's a supported locale
-    const supportedLocales: SupportedLocale[] = ['zh', 'en', 'ja'];
-    if (supportedLocales.includes(currentLocale as SupportedLocale)) {
-      set({ locale: currentLocale as SupportedLocale });
+  initializeLocale: async () => {
+    try {
+      // Load persisted locale from backend
+      const persistedLocale = await invoke<string>('get_locale');
+      // Validate it's a supported locale
+      const supportedLocales: SupportedLocale[] = ['zh', 'en', 'ja'];
+      if (supportedLocales.includes(persistedLocale as SupportedLocale)) {
+        set({ locale: persistedLocale as SupportedLocale });
+      }
+    } catch (error) {
+      console.error('[LocaleStore] Failed to initialize locale from backend:', error);
+      // Keep default 'zh' on error
     }
   },
 }));
