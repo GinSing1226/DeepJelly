@@ -7,7 +7,6 @@
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { changeLocale } from '@/i18n/init';
 import type { BoundApp } from '@/types/appConfig';
@@ -83,8 +82,8 @@ interface SettingsState extends AppSettings {
   // Reset
   resetSettings: () => void;
 
-  // Sync from backend
-  syncLanguageFromBackend: () => Promise<void>;
+  // Load settings from backend
+  loadSettings: () => Promise<void>;
 }
 
 const defaultSettings: AppSettings = {
@@ -98,118 +97,95 @@ const defaultSettings: AppSettings = {
   dialogExplicitlyClosed: false,
 };
 
-export const useSettingsStore = create<SettingsState>()(
-  persist(
-    (set, get) => {
-      const store = {
-        ...defaultSettings,
+export const useSettingsStore = create<SettingsState>()((set, get) => ({
+  ...defaultSettings,
 
-        // Computed
-        isBound: () => get().boundApp !== null,
+  // Computed
+  isBound: () => get().boundApp !== null,
 
-        // Settings Actions
-        setAutoLaunch: async (autoLaunch) => {
-          try {
-            await invoke('set_auto_launch', { enabled: autoLaunch });
-            set({ autoLaunch });
-          } catch (error) {
-            console.error('[SettingsStore] Failed to set auto-launch:', error);
-          }
-        },
-        setLanguage: async (language) => {
-          try {
-            await changeLocale(language);
-            set({ language });
-          } catch (error) {
-            console.error('[SettingsStore] Failed to change language:', error);
-          }
-        },
-        setBrainUrl: (brainUrl) => set({ brainUrl }),
-
-        // Binding Actions
-        setBoundApp: (boundApp) => set({ boundApp }),
-        clearBoundApp: () => set({ boundApp: null }),
-
-        // DND Actions
-        toggleDoNotDisturb: () => {
-          const state = get();
-          const newDndState = !state.isDoNotDisturb;
-
-          set({ isDoNotDisturb: newDndState });
-
-          // 如果退出勿扰模式且有积压消息，返回积压消息供显示
-          if (!newDndState && state.queuedMessages.length > 0) {
-            console.log(`Exiting DND with ${state.queuedMessages.length} queued messages`);
-          }
-        },
-
-        setDoNotDisturb: (isDoNotDisturb) => {
-          const state = get();
-
-          set({ isDoNotDisturb });
-
-          // 如果退出勿扰模式且有积压消息
-          if (!isDoNotDisturb && state.queuedMessages.length > 0) {
-            console.log(`Exiting DND with ${state.queuedMessages.length} queued messages`);
-          }
-        },
-
-        // Hide Actions
-        toggleHidden: () => set((state) => ({ isHidden: !state.isHidden })),
-        setHidden: (isHidden) => set({ isHidden }),
-
-        // Queue Actions
-        queueMessage: (message) => {
-          set((state) => ({
-            queuedMessages: [...state.queuedMessages, message],
-          }));
-        },
-
-        clearQueue: () => set({ queuedMessages: [] }),
-
-        getQueuedMessages: () => get().queuedMessages,
-
-        // Dialog Actions
-        setDialogExplicitlyClosed: (dialogExplicitlyClosed) => set({ dialogExplicitlyClosed }),
-
-        // Reset
-        resetSettings: () => set({
-          ...defaultSettings,
-          // 保留语言设置
-          language: get().language,
-        }),
-
-        // 从后端同步语言设置
-        syncLanguageFromBackend: async () => {
-          try {
-            const { invoke } = await import('@tauri-apps/api/core');
-            const backendLocale = await invoke<string>('get_locale');
-            set({ language: backendLocale as 'zh' | 'en' | 'ja' });
-          } catch (error) {
-            console.error('[SettingsStore] Failed to sync language from backend:', error);
-          }
-        },
-      };
-
-      // 在 store 创建后立即从后端同步语言
-      store.syncLanguageFromBackend();
-
-      return store;
-    },
-    {
-      name: 'deepjelly-settings',
-      // 只持久化部分状态
-      // 注意: language 不持久化到 localStorage，而是从后端读取
-      // 这样可以确保语言设置在所有窗口中保持同步
-      partialize: (state) => ({
-        autoLaunch: state.autoLaunch,
-        // language: state.language,  // 不持久化，从后端读取
-        brainUrl: state.brainUrl,
-        boundApp: state.boundApp,
-      }),
+  // Settings Actions
+  setAutoLaunch: async (autoLaunch) => {
+    try {
+      await invoke('set_auto_launch', { enabled: autoLaunch });
+      set({ autoLaunch });
+    } catch (error) {
+      console.error('[SettingsStore] Failed to set auto-launch:', error);
     }
-  )
-);
+  },
+  setLanguage: async (language) => {
+    try {
+      await changeLocale(language);
+      set({ language });
+    } catch (error) {
+      console.error('[SettingsStore] Failed to change language:', error);
+    }
+  },
+  setBrainUrl: (brainUrl) => set({ brainUrl }),
+
+  // Binding Actions
+  setBoundApp: (boundApp) => set({ boundApp }),
+  clearBoundApp: () => set({ boundApp: null }),
+
+  // DND Actions
+  toggleDoNotDisturb: () => {
+    const state = get();
+    const newDndState = !state.isDoNotDisturb;
+
+    set({ isDoNotDisturb: newDndState });
+
+    // 如果退出勿扰模式且有积压消息，返回积压消息供显示
+    if (!newDndState && state.queuedMessages.length > 0) {
+      console.log(`Exiting DND with ${state.queuedMessages.length} queued messages`);
+    }
+  },
+
+  setDoNotDisturb: (isDoNotDisturb) => {
+    const state = get();
+
+    set({ isDoNotDisturb });
+
+    // 如果退出勿扰模式且有积压消息
+    if (!isDoNotDisturb && state.queuedMessages.length > 0) {
+      console.log(`Exiting DND with ${state.queuedMessages.length} queued messages`);
+    }
+  },
+
+  // Hide Actions
+  toggleHidden: () => set((state) => ({ isHidden: !state.isHidden })),
+  setHidden: (isHidden) => set({ isHidden }),
+
+  // Queue Actions
+  queueMessage: (message) => {
+    set((state) => ({
+      queuedMessages: [...state.queuedMessages, message],
+    }));
+  },
+
+  clearQueue: () => set({ queuedMessages: [] }),
+
+  getQueuedMessages: () => get().queuedMessages,
+
+  // Dialog Actions
+  setDialogExplicitlyClosed: (dialogExplicitlyClosed) => set({ dialogExplicitlyClosed }),
+
+  // Reset
+  resetSettings: () => set({
+    ...defaultSettings,
+    // 保留语言设置
+    language: get().language,
+  }),
+
+  // Load settings from backend
+  loadSettings: async () => {
+    try {
+      const backendLocale = await invoke<string>('get_locale');
+      set({ language: backendLocale as 'zh' | 'en' | 'ja' });
+    } catch (error) {
+      console.error('[SettingsStore] Failed to load settings from backend:', error);
+      // Keep default language on error
+    }
+  },
+}));
 
 /**
  * 获取屏幕中央位置
