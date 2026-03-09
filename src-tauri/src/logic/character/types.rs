@@ -5,11 +5,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// AI应用助手
-///
-/// Note: This type is defined in assistant.rs to avoid duplication.
-/// This re-export is provided for convenience.
-pub use super::assistant::Assistant;
 
 /// 角色
 #[derive(Debug, Clone, Serialize, Deserialize)]

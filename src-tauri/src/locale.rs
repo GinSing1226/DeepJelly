@@ -6,60 +6,9 @@
 use once_cell::sync::Lazy;
 use std::sync::RwLock;
 use std::path::Path;
-use serde::{Deserialize, Serialize};
 
 /// Type alias for locale identifier
 pub type Locale = String;
-
-/// Locale configuration file structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LocaleConfig {
-    /// Current locale setting
-    pub locale: String,
-}
-
-impl Default for LocaleConfig {
-    fn default() -> Self {
-        Self {
-            locale: DEFAULT_LOCALE.to_string(),
-        }
-    }
-}
-
-impl LocaleConfig {
-    /// Load locale configuration from a JSON file
-    pub fn load(path: &Path) -> Result<Self, String> {
-        if !path.exists() {
-            // Return default config if file doesn't exist
-            return Ok(Self::default());
-        }
-
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read locale config file: {}", e))?;
-
-        let config: Self = serde_json::from_str(&content)
-            .map_err(|e| format!("Failed to parse locale config JSON: {}", e))?;
-
-        Ok(config)
-    }
-
-    /// Save locale configuration to a JSON file
-    pub fn save(&self, path: &Path) -> Result<(), String> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create locale config directory: {}", e))?;
-        }
-
-        let content = serde_json::to_string_pretty(self)
-            .map_err(|e| format!("Failed to serialize locale config: {}", e))?;
-
-        std::fs::write(path, content)
-            .map_err(|e| format!("Failed to write locale config file: {}", e))?;
-
-        log::info!("Saved locale config to {:?}", path);
-        Ok(())
-    }
-}
 
 /// List of supported locales in the application
 const SUPPORTED_LOCALES: &[&str] = &["zh", "en", "ja"];
@@ -185,33 +134,6 @@ pub fn get_locale() -> Locale {
         .unwrap_or_else(|_| DEFAULT_LOCALE.to_string())
 }
 
-/// Gets the list of supported locales
-///
-/// # Returns
-/// Vector of supported locale identifiers
-///
-/// # Example
-/// ```rust
-/// use deepjelly::locale::get_supported_locales;
-///
-/// let locales = get_supported_locales();
-/// println!("Supported locales: {:?}", locales);
-/// ```
-pub fn get_supported_locales() -> Vec<&'static str> {
-    SUPPORTED_LOCALES.to_vec()
-}
-
-/// Checks if a locale is supported
-///
-/// # Arguments
-/// * `locale` - Locale identifier to check
-///
-/// # Returns
-/// `true` if the locale is supported, `false` otherwise
-pub fn is_supported_locale(locale: &str) -> bool {
-    SUPPORTED_LOCALES.contains(&locale)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,20 +161,5 @@ mod tests {
         let result = set_locale("fr");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Unsupported locale"));
-    }
-
-    #[test]
-    fn test_supported_locales() {
-        let locales = get_supported_locales();
-        assert_eq!(locales, vec!["zh", "en", "ja"]);
-    }
-
-    #[test]
-    fn test_is_supported_locale() {
-        assert!(is_supported_locale("zh"));
-        assert!(is_supported_locale("en"));
-        assert!(is_supported_locale("ja"));
-        assert!(!is_supported_locale("fr"));
-        assert!(!is_supported_locale("de"));
     }
 }

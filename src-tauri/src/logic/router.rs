@@ -3,7 +3,6 @@
 //! Routes CAP protocol messages to appropriate UI components.
 
 use super::protocol::*;
-use std::sync::Arc;
 use tokio::sync::broadcast;
 
 /// 路由目标

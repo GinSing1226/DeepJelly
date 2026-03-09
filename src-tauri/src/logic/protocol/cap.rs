@@ -33,6 +33,7 @@ pub enum CapMessageType {
 /// 参与者类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum CapParticipantType {
     User,
     Assistant,
@@ -42,6 +43,7 @@ pub enum CapParticipantType {
 /// 来源应用
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum CapSourceApp {
     Openclaw,
     Deepjelly,

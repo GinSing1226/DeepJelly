@@ -47,12 +47,6 @@ pub fn format_log_arg1(category: LogCategory, message: &str, arg1: &str) -> Stri
     format!("[{}] {}{}", category.as_str(), message, arg1)
 }
 
-/// Format a log message with category prefix and Display argument
-#[inline]
-pub fn format_log_fmt<T: std::fmt::Display>(category: LogCategory, message: &str, arg: T) -> String {
-    format!("[{}] {}{}", category.as_str(), message, arg)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

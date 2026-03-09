@@ -14,7 +14,7 @@ pub mod system1;
 
 pub use character::{
     AnimationActionId, AnimationCategory, AnimationCommand, AnimationDomain,
-    AnimationResource, Appearance, AppearanceConfig, Assistant, Character,
+    AnimationResource, Appearance, AppearanceConfig, Character,
     CharacterConfig, ResourceType,
 };
 pub use config::{
@@ -37,4 +37,3 @@ pub use system1::{
 pub use router::{MessageRouter, RouteTarget, RoutedMessage};
 pub use session::{ChatType, Session, SessionManager};
 pub use state::{AppState, ConnectionStatus, SharedState};
-pub use data_init::{initialize_user_data, get_default_dir, get_user_dir, DEFAULT_DIR, USER_DIR};

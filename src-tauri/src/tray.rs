@@ -5,7 +5,7 @@
 
 use std::sync::Mutex;
 use tauri::{
-    menu::{Menu, MenuItem, Submenu, PredefinedMenuItem, IsMenuItem, CheckMenuItem},
+    menu::{Menu, MenuItem, Submenu, PredefinedMenuItem, CheckMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent, TrayIcon},
     AppHandle, Emitter, Wry, Manager,
 };
@@ -13,9 +13,6 @@ use crate::logic::character::CharacterManager;
 
 /// Global reference to the tray icon for menu updates
 static TRAY_ICON: Mutex<Option<TrayIcon<Wry>>> = Mutex::new(None);
-
-/// Global reference to the toggle hide/show menu item for dynamic text updates
-static TOGGLE_HIDE_ITEM: Mutex<Option<MenuItem<Wry>>> = Mutex::new(None);
 
 /// Type alias for AppHandle with Wry runtime
 type AppHandleWry = AppHandle<Wry>;
@@ -35,7 +32,7 @@ type AppHandleWry = AppHandle<Wry>;
 /// ├── ─────────────
 /// └── 退出
 /// ```
-pub fn create_tray(app: &AppHandleWry, character_manager: &Mutex<CharacterManager>) -> Result<Menu<Wry>, String> {
+pub fn create_tray(app: &AppHandleWry, _character_manager: &Mutex<CharacterManager>) -> Result<Menu<Wry>, String> {
     // Ensure locale is set before creating menu items
     let locale = crate::locale::get_locale();
     rust_i18n::set_locale(&locale);
@@ -92,7 +89,7 @@ pub fn create_tray(app: &AppHandleWry, character_manager: &Mutex<CharacterManage
     // Store reference globally for text updates
     *TOGGLE_HIDE_ITEM.lock().expect("TOGGLE_HIDE_ITEM mutex poisoned") = Some(hide_character.clone());
     */
-    let hide_character = MenuItem::with_id(
+    let _hide_character = MenuItem::with_id(
         app,
         "toggle_hide_disabled",
         rust_i18n::t!("tray_hide_character"),
@@ -202,81 +199,6 @@ pub fn create_tray(app: &AppHandleWry, character_manager: &Mutex<CharacterManage
     .map_err(|e| format!("Failed to create menu: {}", e))?;
 
     Ok(menu)
-}
-
-/// Creates the character/appearance submenu
-/// Lists all character/appearance combinations as "Character Name - Appearance Name"
-fn create_character_submenu(
-    app: &AppHandleWry,
-    character_manager: &Mutex<CharacterManager>,
-) -> Result<Submenu<Wry>, String> {
-    let mut menu_items: Vec<MenuItem<Wry>> = Vec::new();
-
-    // Get characters from manager
-    if let Ok(manager) = character_manager.lock() {
-        let characters = manager.get_all_characters();
-
-        if characters.is_empty() {
-            // No characters available, show placeholder
-            let placeholder = MenuItem::with_id(
-                app,
-                "no_characters",
-                rust_i18n::t!("tray_no_characters"),
-                false, // disabled
-                None::<&str>,
-            )
-            .map_err(|e| format!("Failed to create placeholder menu item: {}", e))?;
-            menu_items.push(placeholder);
-        } else {
-            // Create menu item for each character's appearances
-            for character in characters {
-                if character.appearances.is_empty() {
-                    continue;
-                }
-
-                for appearance in &character.appearances {
-                    let menu_id = format!("char_{}_{}", character.character_id, appearance.id);
-                    // Format as "Character - Appearance" for clarity
-                    let menu_text = format!("{} - {}", character.name, appearance.name);
-
-                    let item = MenuItem::with_id(
-                        app,
-                        &menu_id,
-                        menu_text,
-                        true,
-                        None::<&str>,
-                    )
-                    .map_err(|e| format!("Failed to create appearance menu item: {}", e))?;
-
-                    menu_items.push(item);
-                }
-            }
-        }
-    } else {
-        // Failed to lock manager
-        let error_item = MenuItem::with_id(
-            app,
-            "char_error",
-            rust_i18n::t!("tray_char_load_error"),
-            false, // disabled
-            None::<&str>,
-        )
-        .map_err(|e| format!("Failed to create error menu item: {}", e))?;
-        menu_items.push(error_item);
-    }
-
-    // Convert to references for Submenu::with_items
-    let item_refs: Vec<&dyn IsMenuItem<Wry>> = menu_items.iter()
-        .map(|item| item as &dyn IsMenuItem<Wry>)
-        .collect();
-
-    Submenu::with_items(
-        app,
-        rust_i18n::t!("tray_switch_character"),
-        true,
-        &item_refs,
-    )
-    .map_err(|e| format!("Failed to create character submenu: {}", e))
 }
 
 /// Handles tray icon events
@@ -392,7 +314,7 @@ pub fn build_tray(app: &AppHandleWry, character_manager: &Mutex<CharacterManager
 
 /// Update the text of a menu item in the tray menu
 /// TEMPORARILY DISABLED: Hide/show character feature
-pub fn update_tray_item_text(item_id: &str, text: &str) -> Result<(), String> {
+pub fn update_tray_item_text(item_id: &str, _text: &str) -> Result<(), String> {
     match item_id {
         // TEMPORARILY DISABLED
         /*

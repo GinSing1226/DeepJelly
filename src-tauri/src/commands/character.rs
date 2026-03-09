@@ -332,7 +332,7 @@ pub fn load_character_resources(
 
     let mut result = HashMap::new();
 
-    for (index, resource_name) in resource_names.iter().enumerate() {
+    for (_index, resource_name) in resource_names.iter().enumerate() {
         let path = manager.get_resource_path(&assistant_id, &character_id, &resource_name);
 
         // Debug logging

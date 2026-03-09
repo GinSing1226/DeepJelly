@@ -37,9 +37,8 @@ export function OnboardingApp() {
     const initLocale = async () => {
       try {
         await initializeLocale();
-        console.log('[OnboardingApp] ✅ Locale initialized from backend:', useLocaleStore.getState().locale);
       } catch (error) {
-        console.error('[OnboardingApp] ❌ Failed to initialize locale:', error);
+        console.error('[OnboardingApp] Failed to initialize locale:', error);
       } finally {
         setIsLocaleReady(true);
       }

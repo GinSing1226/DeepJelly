@@ -3,7 +3,7 @@
 //! Tauri commands for brain adapter operations.
 
 use crate::brain::{AdapterClient, Assistant, BrainAdapterConfig, BrainAdapterSettings, BrainEvent};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use crate::utils::logging::{LogCategory, format_log, format_log_arg1};
 use std::path::PathBuf;
 use std::sync::Arc;

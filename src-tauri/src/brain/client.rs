@@ -29,6 +29,7 @@ struct JsonRpcRequest {
 
 /// JSON-RPC 2.0 Response
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct JsonRpcResponse {
     jsonrpc: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -40,6 +41,7 @@ struct JsonRpcResponse {
 
 /// JSON-RPC 2.0 Error
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct JsonRpcError {
     code: i32,
     message: String,
@@ -49,6 +51,7 @@ struct JsonRpcError {
 
 /// JSON-RPC 2.0 Notification (event from server)
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct JsonRpcNotification {
     jsonrpc: String,
     method: String,
@@ -82,6 +85,7 @@ pub struct AdapterClient {
     settings: BrainAdapterSettings,
     connected: Arc<RwLock<bool>>,
     message_tx: mpsc::Sender<ClientMessage>,
+    #[allow(dead_code)]
     pending_requests: Arc<RwLock<HashMap<String, PendingRequest>>>,
 }
 

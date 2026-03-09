@@ -3,7 +3,7 @@
 //! Provides commands to manage system-level settings like auto-launch.
 
 use tauri_plugin_autostart::ManagerExt;
-use log::{info, error, debug};
+use log::{info, debug};
 use crate::utils::logging::{LogCategory, format_log_arg1};
 
 /// Enable auto-launch at startup

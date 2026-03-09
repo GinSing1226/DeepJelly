@@ -61,8 +61,6 @@ impl Default for AppIntegrationsConfig {
 
 /// App Integration Manager
 pub struct AppIntegrationManager {
-    /// Data directory path
-    data_dir: PathBuf,
     /// Integrations configuration file path
     config_path: PathBuf,
     /// Cached integrations
@@ -78,7 +76,6 @@ impl AppIntegrationManager {
         fs::create_dir_all(&data_dir).map_err(DeepJellyError::Io)?;
 
         let mut manager = Self {
-            data_dir,
             config_path,
             integrations: Vec::new(),
         };

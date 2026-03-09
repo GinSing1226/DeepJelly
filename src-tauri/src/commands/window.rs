@@ -437,10 +437,7 @@ pub async fn open_onboarding_window(
     app: AppHandle,
     edit_integration_id: Option<String>,
 ) -> Result<(), String> {
-    info!("{}", format_log(LogCategory::Window, &format!("open_onboarding_window called with edit_integration_id: {:?}", edit_integration_id)));
-
     if let Some(window) = app.get_webview_window(ONBOARDING_WINDOW_LABEL) {
-        debug!("{}", format_log(LogCategory::Window, "Onboarding window already exists"));
         window
             .set_focus()
             .map_err(|e| format!("Failed to focus onboarding window: {}", e))?;
@@ -452,13 +449,8 @@ pub async fn open_onboarding_window(
             .map_err(|e| format!("Failed to unminimize onboarding window: {}", e))?;
 
         // Emit event to notify frontend about edit mode
-        // Use app.emit() so all windows can receive it (for debugging)
         if let Some(ref id) = edit_integration_id {
-            info!("{}", format_log(LogCategory::Window, &format!("Emitting onboarding:edit-mode event with ID: {}", id)));
             let _ = app.emit("onboarding:edit-mode", id);
-            info!("{}", format_log(LogCategory::Window, &format!("Onboarding window focused in edit mode: {}", id)));
-        } else {
-            info!("{}", format_log(LogCategory::Window, "Onboarding window focused"));
         }
         return Ok(());
     }
@@ -469,9 +461,6 @@ pub async fn open_onboarding_window(
     } else {
         "onboarding.html".to_string()
     };
-
-    // Log URL before it's moved
-    info!("{}", format_log(LogCategory::Window, &format!("Creating onboarding window with URL: {}", url)));
 
     let _window = WebviewWindowBuilder::new(
         &app,
@@ -493,7 +482,6 @@ pub async fn open_onboarding_window(
         format!("Failed to create onboarding window: {}", e)
     })?;
 
-    info!("{}", format_log(LogCategory::Window, "Onboarding window created successfully"));
     Ok(())
 }
 
