@@ -34,3 +34,5 @@ src-tauri/WixTools/
 CLAUDE.md
 docs/
 
+# User data (keep default data in git)
+/data/user/
