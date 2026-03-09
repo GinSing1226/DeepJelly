@@ -76,6 +76,8 @@ function App() {
   useEffect(() => {
     // Sync localeStore with i18n (loaded from backend)
     initializeLocale();
+    // Load settings from backend
+    useSettingsStore.getState().loadSettings();
   }, [initializeLocale]);
 
   // 新的队列stores
