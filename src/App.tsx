@@ -21,6 +21,7 @@ import { useTrayEventHandler } from '@/hooks/useTrayEventHandler';
 import { useGlobalHotkeys } from '@/hooks/useGlobalHotkeys';
 import { useCAPMessage } from '@/hooks/useCAPMessage';
 import { useTheme } from '@/hooks/useTheme';
+import { resolveEmoji } from '@/utils/emojiResolver';
 import type { AnyTypedCAPMessage, EventPayload } from '@/types/cap';
 import './App.css';
 
@@ -206,10 +207,21 @@ function App() {
 
       // 如果需要显示状态气泡（mental 信息）→ 添加到状态气泡队列
       if (payload.mental.show_bubble && payload.mental.thought_text) {
-        addStatusBubble({
-          emoji: payload.mental.emotion_icon,
-          content: payload.mental.thought_text,
-          receiverId,
+        // 异步解析 emoji（懒加载 node-emoji）
+        resolveEmoji(payload.mental.emotion_icon).then(emoji => {
+          addStatusBubble({
+            emoji,
+            content: payload.mental.thought_text,
+            receiverId,
+          });
+        }).catch(err => {
+          console.warn('[App] Failed to resolve emoji, using original:', err);
+          // 降级：使用原始输入
+          addStatusBubble({
+            emoji: payload.mental.emotion_icon,
+            content: payload.mental.thought_text,
+            receiverId,
+          });
         });
       }
     }, [addEvent, addStatusBubble]),

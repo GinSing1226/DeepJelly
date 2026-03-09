@@ -5,15 +5,21 @@ import './styles.css';
 
 /**
  * Preset status configurations with emoji and text
+ *
+ * NOTE: 已禁用硬编码映射，改用 emojiResolver 懒加载方案
+ * 如果需要验证方案 B 是否生效，请保持此注释状态
  */
-const PRESET_STATUSES: Record<StatusType, { emoji: string; text: string }> = {
-  idle: { emoji: '💤', text: '空闲' },
-  listening: { emoji: '👂', text: '倾听' },
-  thinking: { emoji: '🤔', text: '思考' },
-  executing: { emoji: '⚙️', text: '执行' },
-  speaking: { emoji: '💬', text: '说话' },
-  network_error: { emoji: '❌', text: '网络异常' },
-};
+// const PRESET_STATUSES: Record<StatusType, { emoji: string; text: string }> = {
+//   idle: { emoji: '💤', text: '空闲' },
+//   listening: { emoji: '👂', text: '倾听' },
+//   thinking: { emoji: '🤔', text: '思考' },
+//   executing: { emoji: '⚙️', text: '执行' },
+//   speaking: { emoji: '💬', text: '说话' },
+//   network_error: { emoji: '❌', text: '网络异常' },
+// };
+
+// 类型断言，避免编译错误
+const PRESET_STATUSES: Record<StatusType, { emoji: string; text: string }> = {} as any;
 
 /**
  * Props for the StatusBubble component
