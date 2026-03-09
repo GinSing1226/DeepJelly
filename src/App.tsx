@@ -76,7 +76,8 @@ function App() {
   useEffect(() => {
     // Sync localeStore with i18n (loaded from backend)
     initializeLocale();
-    // Load settings from backend
+    // Fire-and-forget: load settings in background from i18n (already initialized)
+    // Defaults are used immediately, this syncs the store state
     useSettingsStore.getState().loadSettings();
   }, [initializeLocale]);
 

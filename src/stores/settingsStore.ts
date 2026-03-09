@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { changeLocale } from '@/i18n/init';
+import i18n from '@/i18n/config';
 import type { BoundApp } from '@/types/appConfig';
 
 /** 路由信息 */
@@ -175,14 +176,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     language: get().language,
   }),
 
-  // Load settings from backend
+  // Load settings from i18n (which was already initialized from backend)
   loadSettings: async () => {
     try {
-      const backendLocale = await invoke<string>('get_locale');
-      set({ language: backendLocale as 'zh' | 'en' | 'ja' });
+      // Read from i18n which was already initialized from backend via initI18n()
+      // This avoids duplicate get_locale calls
+      const currentLocale = i18n.language;
+      if (['zh', 'en', 'ja'].includes(currentLocale)) {
+        set({ language: currentLocale as 'zh' | 'en' | 'ja' });
+      }
     } catch (error) {
-      console.error('[SettingsStore] Failed to load settings from backend:', error);
-      // Keep default language on error
+      console.error('[SettingsStore] Failed to load settings:', error);
     }
   },
 }));
