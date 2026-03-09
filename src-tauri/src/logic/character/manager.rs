@@ -505,6 +505,7 @@ mod tests {
             character_id: "char_001".to_string(),
             name: "测试角色".to_string(),
             description: None,
+            assistant_id: None,
             appearances: vec![],
         };
 
@@ -528,6 +529,7 @@ mod tests {
             character_id: "char_001".to_string(),
             name: "测试角色".to_string(),
             description: None,
+            assistant_id: None,
             appearances: vec![],
         };
 
@@ -545,6 +547,7 @@ mod tests {
             character_id: "char_001".to_string(),
             name: "测试角色".to_string(),
             description: None,
+            assistant_id: None,
             appearances: vec![],
         };
 
