@@ -344,7 +344,7 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
 
             // Get routing information from context
             const applicationId = cfg?.channels?.deepjelly?.applicationId || "openclaw";
-            const assistantId = cfg?.channels?.deepjelly?.accounts?.[accountId || "default"]?.assistantId || "assistant";
+            const characterId = cfg?.channels?.deepjelly?.accounts?.[accountId || "default"]?.characterId || "character";
             const sessionKey = to || "unknown";
 
             const message = Converter.createSessionMessage(
@@ -366,10 +366,10 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
 
               },
 
-              // receiver: Assistant (DeepJelly)
+              // receiver: Character (DeepJelly)
               {
 
-                id: assistantId
+                id: characterId
 
               }
 
@@ -759,6 +759,20 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
   }
 
   /**
+   * Get characterId for a given agentId (sessionKey)
+   * This maps OpenClow agents to DeepJelly characters for message routing
+   * The agentId in hook context is the sessionKey
+   */
+  function getCharacterId(agentId?: string): string {
+    const accounts = api.config?.channels?.deepjelly?.accounts;
+    if (accounts && agentId && accounts[agentId]?.characterId) {
+      return accounts[agentId].characterId;
+    }
+    // Fallback: use agentId as characterId
+    return agentId || "character";
+  }
+
+  /**
    * Helper: Extract text content from a message
    * Handles different message content formats (string, array, object)
    */
@@ -798,13 +812,13 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
     api.logger.debug(`[DeepJelly] before_agent_start: ${ctx.sessionKey}`);
 
     const applicationId = getApplicationId();
-    const assistantId = getAssistantId(ctx.agentId);
+    const characterId = getCharacterId(ctx.sessionKey);
     const sessionKey = ctx.sessionKey || "unknown";
 
     // Create and broadcast agent start message
     const statusMessage = createAgentStartMessage({
       applicationId,
-      assistantId,
+      characterId,
       sessionKey,
       direction: "aiToAssistant",
       app_params: { hookType: "before_agent_start" },
@@ -820,13 +834,13 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
     api.logger.debug(`[DeepJelly] llm_input: ${ctx.sessionKey}`);
 
     const applicationId = getApplicationId();
-    const assistantId = getAssistantId(ctx.agentId);
+    const characterId = getCharacterId(ctx.sessionKey);
     const sessionKey = ctx.sessionKey || "unknown";
 
     // Create and broadcast thinking status message
     const thinkingMessage = createLlmThinkingMessage({
       applicationId,
-      assistantId,
+      characterId,
       sessionKey,
       direction: "aiToAssistant",
       app_params: { hookType: "llm_input" },
@@ -865,13 +879,13 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
     api.logger.debug(`[DeepJelly] before_tool_call: ${event.toolName}`);
 
     const applicationId = getApplicationId();
-    const assistantId = getAssistantId(ctx.agentId);
+    const characterId = getCharacterId(ctx.sessionKey);
     const sessionKey = ctx.sessionKey || "unknown";
 
     // Create and broadcast tool start message with proper routing
     const statusMessage = createToolStartMessage({
       applicationId,
-      assistantId,
+      characterId,
       sessionKey,
       direction: "aiToAssistant",
       app_params: { hookType: "before_tool_call", toolName: event.toolName },
@@ -887,21 +901,21 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
     api.logger.debug(`[DeepJelly] after_tool_call: ${event.toolName}, error: ${!!event.error}`);
 
     const applicationId = getApplicationId();
-    const assistantId = getAssistantId(ctx.agentId);
+    const characterId = getCharacterId(ctx.sessionKey);
     const sessionKey = ctx.sessionKey || "unknown";
 
     // Create appropriate status message based on result
     const statusMessage = event.error
       ? createToolErrorMessage({
           applicationId,
-          assistantId,
+          characterId,
           sessionKey,
           direction: "aiToAssistant",
           app_params: { hookType: "after_tool_call", toolName: event.toolName },
         })
       : createToolCompleteMessage({
           applicationId,
-          assistantId,
+          characterId,
           sessionKey,
           direction: "aiToAssistant",
           app_params: { hookType: "after_tool_call", toolName: event.toolName },
@@ -924,7 +938,7 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
     }
 
     const applicationId = getApplicationId();
-    const assistantId = getAssistantId(ctx.agentId);
+    const characterId = getCharacterId(ctx.sessionKey);
     const sessionKey = ctx.sessionKey || "unknown";
 
     // Extract the last assistant message from the conversation
@@ -947,7 +961,7 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
         finalContent,
         {
           applicationId,
-          assistantId,
+          characterId,
           sessionKey,
           direction: "aiToAssistant",
           app_params: { hookType: "agent_end" },
