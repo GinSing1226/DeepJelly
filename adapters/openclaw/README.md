@@ -60,14 +60,24 @@ openclaw deepjelly status
       "autoStart": true,
       "applicationId": "deepjelly为openclaw生成的应用id",
       "accounts": {
-        "openclaw的agent id": {
-          "assistantId": "deepjelly的助手id"
+        "agent:christina:main": {
+          "assistantId": "work_assistant",
+          "characterId": "char_feishu_private"
+        },
+        "agent:christina:group": {
+          "assistantId": "work_assistant",
+          "characterId": "char_feishu_group"
         }
       }
     }
   }
 }
 ```
+
+**accounts 配置说明**:
+- **键**: sessionKey（OpenClaw的会话标识）
+- **assistantId**: DeepJelly的助手ID（便于逻辑分组）
+- **characterId**: DeepJelly的角色ID（用于消息路由）
 
 **DeepJelly 连接**: `ws://127.0.0.1:18790`
 
@@ -86,8 +96,9 @@ openclaw deepjelly status
       "autoStart": true,
       "applicationId": "deepjelly为openclaw生成的应用id",
       "accounts": {
-        "openclaw的agent id": {
-          "assistantId": "deepjelly的助手id"
+        "agent:christina:main": {
+          "assistantId": "work_assistant",
+          "characterId": "char_feishu_private"
         }
       }
     }
