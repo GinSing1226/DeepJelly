@@ -28,8 +28,10 @@ export type CAPMessageType = 'behavior_mental' | 'session' | 'notification' | 'e
  * CAP协议路由信息
  */
 export interface CAPRouting {
-  /** 会话密钥，格式: agent:{assistantId}:{sessionId} */
+  /** 会话密钥，格式由对方应用定义（如OpenClaw: agent:{agentId}:{sessionId}） */
   sessionKey?: string;
+  /** Claude API: 线程ID */
+  threadId?: string;
 }
 
 /**
@@ -37,9 +39,9 @@ export interface CAPRouting {
  * 遵循协议文档 3.1.协议总览.md
  */
 export interface CAPParticipant {
-  /** 实体ID（agentId/ui_core等） */
+  /** 实体ID - DeepJelly侧使用characterId，OpenClaw侧使用applicationId */
   id: string;
-  /** 参与者类型：user/assistant/visitor */
+  /** 参与者类型：user/assistant/system */
   type: CAPParticipantType;
   /** 来源应用：openclaw/deepjelly */
   source_app: CAPSourceApp;
@@ -50,7 +52,7 @@ export interface CAPParticipant {
 /**
  * CAP参与者类型
  */
-export type CAPParticipantType = 'user' | 'assistant' | 'visitor';
+export type CAPParticipantType = 'user' | 'assistant' | 'system';
 
 /**
  * 全局CAP消息信封

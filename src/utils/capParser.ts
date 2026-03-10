@@ -18,7 +18,6 @@ import type {
   BehaviorMentalPayload,
   SessionPayload,
   NotificationPayload,
-  StatusPayload,
   EventPayload,
   TypedCAPMessage,
 } from '@/types/cap';
@@ -36,7 +35,7 @@ const VALID_MESSAGE_TYPES: CAPMessageType[] = [
 const VALID_PARTICIPANT_TYPES: CAPParticipantType[] = [
   'user',
   'assistant',
-  'visitor',
+  'system',
 ];
 
 const VALID_SOURCE_APPS: CAPSourceApp[] = [
