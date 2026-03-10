@@ -84,7 +84,7 @@ export function createSessionMessage(
       ...(sender?.routing && { routing: sender.routing }),
     },
     receiver: {
-      id: receiver?.id || "assistant",
+      id: receiver?.id || "character",
       type: "assistant",
       source_app: "deepjelly",
       ...(receiver?.routing && { routing: receiver.routing }),
@@ -136,7 +136,7 @@ export function createBehaviorMentalMessage(
       ...(sender?.routing && { routing: sender.routing }),
     },
     receiver: {
-      id: receiver?.id || "assistant",
+      id: receiver?.id || "character",
       type: "assistant",
       source_app: "deepjelly",
       ...(receiver?.routing && { routing: receiver.routing }),
@@ -164,7 +164,7 @@ export function createNotificationMessage(
       ...(sender?.routing && { routing: sender.routing }),
     },
     receiver: {
-      id: receiver?.id || "assistant",
+      id: receiver?.id || "character",
       type: "assistant",
       source_app: "deepjelly",
       ...(receiver?.routing && { routing: receiver.routing }),
@@ -319,8 +319,8 @@ export type MessageDirection = "aiToAssistant" | "assistantToAi";
 export interface ToolStatusMessageOptions {
   /** AI application ID (from DeepJelly) */
   applicationId: string;
-  /** Assistant ID (from DeepJelly) */
-  assistantId: string;
+  /** Character ID (from DeepJelly) */
+  characterId: string;
   /** Session key for routing */
   sessionKey: string;
   /** Message direction - who is sending to whom */
@@ -342,15 +342,15 @@ export interface ToolStatusMessageOptions {
 export function createToolStartMessage(
   options: ToolStatusMessageOptions
 ): CAPMessage {
-  const { applicationId, assistantId, sessionKey, direction = "aiToAssistant", app_params } = options;
+  const { applicationId, characterId, sessionKey, direction = "aiToAssistant", app_params } = options;
 
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
     ? { id: applicationId, routing: { sessionKey } }
-    : { id: assistantId, routing: { sessionKey } };
+    : { id: characterId, routing: { sessionKey } };
 
   const receiver = direction === "aiToAssistant"
-    ? { id: assistantId }
+    ? { id: characterId }
     : { id: applicationId };
 
   return createBehaviorMentalMessage({
@@ -372,15 +372,15 @@ export function createToolStartMessage(
 export function createToolCompleteMessage(
   options: ToolStatusMessageOptions
 ): CAPMessage {
-  const { applicationId, assistantId, sessionKey, direction = "aiToAssistant", app_params } = options;
+  const { applicationId, characterId, sessionKey, direction = "aiToAssistant", app_params } = options;
 
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
     ? { id: applicationId, routing: { sessionKey } }
-    : { id: assistantId, routing: { sessionKey } };
+    : { id: characterId, routing: { sessionKey } };
 
   const receiver = direction === "aiToAssistant"
-    ? { id: assistantId }
+    ? { id: characterId }
     : { id: applicationId };
 
   return createBehaviorMentalMessage({
@@ -402,15 +402,15 @@ export function createToolCompleteMessage(
 export function createToolErrorMessage(
   options: ToolStatusMessageOptions
 ): CAPMessage {
-  const { applicationId, assistantId, sessionKey, direction = "aiToAssistant", app_params } = options;
+  const { applicationId, characterId, sessionKey, direction = "aiToAssistant", app_params } = options;
 
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
     ? { id: applicationId, routing: { sessionKey } }
-    : { id: assistantId, routing: { sessionKey } };
+    : { id: characterId, routing: { sessionKey } };
 
   const receiver = direction === "aiToAssistant"
-    ? { id: assistantId }
+    ? { id: characterId }
     : { id: applicationId };
 
   return createBehaviorMentalMessage({
@@ -437,10 +437,10 @@ export function createMessageReceivedMessage(
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
     ? { id: applicationId, routing: { sessionKey } }
-    : { id: assistantId, routing: { sessionKey } };
+    : { id: characterId, routing: { sessionKey } };
 
   const receiver = direction === "aiToAssistant"
-    ? { id: assistantId }
+    ? { id: characterId }
     : { id: applicationId };
 
   return createBehaviorMentalMessage({
@@ -471,10 +471,10 @@ export function createSessionEndMessage(
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
     ? { id: applicationId, routing: { sessionKey } }
-    : { id: assistantId, routing: { sessionKey } };
+    : { id: characterId, routing: { sessionKey } };
 
   const receiver = direction === "aiToAssistant"
-    ? { id: assistantId }
+    ? { id: characterId }
     : { id: applicationId };
 
   return createBehaviorMentalMessage({
@@ -496,15 +496,15 @@ export function createSessionEndMessage(
 export function createLlmThinkingMessage(
   options: ToolStatusMessageOptions
 ): CAPMessage {
-  const { applicationId, assistantId, sessionKey, direction = "aiToAssistant", app_params } = options;
+  const { applicationId, characterId, sessionKey, direction = "aiToAssistant", app_params } = options;
 
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
     ? { id: applicationId, routing: { sessionKey } }
-    : { id: assistantId, routing: { sessionKey } };
+    : { id: characterId, routing: { sessionKey } };
 
   const receiver = direction === "aiToAssistant"
-    ? { id: assistantId }
+    ? { id: characterId }
     : { id: applicationId };
 
   return createBehaviorMentalMessage({
@@ -527,15 +527,15 @@ export function createLlmThinkingMessage(
 export function createLlmOutputMessage(
   options: ToolStatusMessageOptions
 ): CAPMessage {
-  const { applicationId, assistantId, sessionKey, direction = "aiToAssistant", app_params } = options;
+  const { applicationId, characterId, sessionKey, direction = "aiToAssistant", app_params } = options;
 
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
     ? { id: applicationId, routing: { sessionKey } }
-    : { id: assistantId, routing: { sessionKey } };
+    : { id: characterId, routing: { sessionKey } };
 
   const receiver = direction === "aiToAssistant"
-    ? { id: assistantId }
+    ? { id: characterId }
     : { id: applicationId };
 
   return createBehaviorMentalMessage({
@@ -565,10 +565,10 @@ export function createConversationContentMessage(
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
     ? { id: applicationId, routing: { sessionKey } }
-    : { id: assistantId, routing: { sessionKey } };
+    : { id: characterId, routing: { sessionKey } };
 
   const receiver = direction === "aiToAssistant"
-    ? { id: assistantId }
+    ? { id: characterId }
     : { id: applicationId };
 
   return createSessionMessage(
@@ -592,15 +592,15 @@ export function createConversationContentMessage(
 export function createAgentStartMessage(
   options: ToolStatusMessageOptions
 ): CAPMessage {
-  const { applicationId, assistantId, sessionKey, direction = "aiToAssistant", app_params } = options;
+  const { applicationId, characterId, sessionKey, direction = "aiToAssistant", app_params } = options;
 
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
     ? { id: applicationId, routing: { sessionKey } }
-    : { id: assistantId, routing: { sessionKey } };
+    : { id: characterId, routing: { sessionKey } };
 
   const receiver = direction === "aiToAssistant"
-    ? { id: assistantId }
+    ? { id: characterId }
     : { id: applicationId };
 
   return createBehaviorMentalMessage({
@@ -626,15 +626,15 @@ export function createAgentEndMessage(
   finalContent: string,
   options: ToolStatusMessageOptions
 ): CAPMessage {
-  const { applicationId, assistantId, sessionKey, direction = "aiToAssistant", app_params } = options;
+  const { applicationId, characterId, sessionKey, direction = "aiToAssistant", app_params } = options;
 
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
     ? { id: applicationId, routing: { sessionKey } }
-    : { id: assistantId, routing: { sessionKey } };
+    : { id: characterId, routing: { sessionKey } };
 
   const receiver = direction === "aiToAssistant"
-    ? { id: assistantId }
+    ? { id: characterId }
     : { id: applicationId };
 
   return createSessionMessage(
