@@ -432,7 +432,7 @@ export function createToolErrorMessage(
 export function createMessageReceivedMessage(
   options: ToolStatusMessageOptions
 ): CAPMessage {
-  const { applicationId, assistantId, sessionKey, direction = "aiToAssistant" } = options;
+  const { applicationId, characterId, sessionKey, direction = "aiToAssistant" } = options;
 
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
@@ -466,7 +466,7 @@ export function createMessageReceivedMessage(
 export function createSessionEndMessage(
   options: ToolStatusMessageOptions
 ): CAPMessage {
-  const { applicationId, assistantId, sessionKey, direction = "aiToAssistant" } = options;
+  const { applicationId, characterId, sessionKey, direction = "aiToAssistant" } = options;
 
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
@@ -560,7 +560,7 @@ export function createConversationContentMessage(
   content: string,
   options: ToolStatusMessageOptions
 ): CAPMessage {
-  const { applicationId, assistantId, sessionKey, direction = "aiToAssistant" } = options;
+  const { applicationId, characterId, sessionKey, direction = "aiToAssistant" } = options;
 
   // Determine sender and receiver based on direction
   const sender = direction === "aiToAssistant"
