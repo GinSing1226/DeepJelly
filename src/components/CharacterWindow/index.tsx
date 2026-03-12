@@ -291,19 +291,33 @@ export function CharacterWindow({
           return;
         }
 
-        // 检查是否匹配当前窗口
-        const isMatch = payload.assistantId === windowIdentity.assistantId &&
-                        payload.characterId === windowIdentity.characterId;
-
-        if (!isMatch) {
-          console.log('[CharacterWindow] Ignoring event - payload does not match window identity', {
-            payload: { assistantId: payload.assistantId, characterId: payload.characterId },
-            windowIdentity
+        // 如果 windowIdentity 还未设置（assistantId 为 null），说明这是初始化事件
+        // 直接接受事件并更新 windowIdentity
+        const isInitialLoad = !windowIdentity.assistantId;
+        if (isInitialLoad) {
+          console.log('[CharacterWindow] Initial load - setting window identity from event:', {
+            assistantId: payload.assistantId,
+            characterId: payload.characterId
           });
-          return;
-        }
+          setWindowIdentity({
+            assistantId: payload.assistantId,
+            characterId: payload.characterId
+          });
+        } else {
+          // 检查是否匹配当前窗口
+          const isMatch = payload.assistantId === windowIdentity.assistantId &&
+                          payload.characterId === windowIdentity.characterId;
 
-        console.log('[CharacterWindow] Event matches window identity - processing character load');
+          if (!isMatch) {
+            console.log('[CharacterWindow] Ignoring event - payload does not match window identity', {
+              payload: { assistantId: payload.assistantId, characterId: payload.characterId },
+              windowIdentity
+            });
+            return;
+          }
+
+          console.log('[CharacterWindow] Event matches window identity - processing character load');
+        }
 
         if (payload?.appearanceId) {
           console.log('[CharacterWindow] Loading character from event:', {
@@ -332,21 +346,6 @@ export function CharacterWindow({
       unlistenPromise.then(unlisten => unlisten()).catch(console.error);
     };
   }, [loadCharacter, windowIdentity]);
-
-  // 初始加载时设置窗口身份
-  // 当 config 加载完成后，保存 assistantId 和 characterId 用于后续事件匹配
-  useEffect(() => {
-    if (config && !windowIdentity.assistantId) {
-      console.log('[CharacterWindow] Setting initial window identity from config:', {
-        assistantId: config.assistant_id,
-        characterId: config.id
-      });
-      setWindowIdentity({
-        assistantId: config.assistant_id,
-        characterId: config.id
-      });
-    }
-  }, [config]);
 
   // Track and save window position for display slot windows
   // This ensures windows are restored to their last position on app restart
