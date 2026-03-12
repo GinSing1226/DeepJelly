@@ -8,12 +8,19 @@ import { useCharacterStore } from '@/stores/characterStore';
 import { useCharacterManagementStore } from '@/stores/characterManagementStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useMessageStore } from '@/stores/messageStore';
-import { useEventQueueStore } from '@/stores/eventQueueStore';
-import { useStatusBubbleStore } from '@/stores/statusBubbleStore';
-import { useSessionQueueStore } from '@/stores/sessionQueueStore';
+// REMOVED: Old stores - now using character-isolated stores
+// import { useStatusBubbleStore } from '@/stores/statusBubbleStore';
+// import { useSessionQueueStore } from '@/stores/sessionQueueStore';
+// NEW: Character-isolated stores for routed messages
+import {
+  animationQueueStore,
+  statusBubbleStore,
+  sessionQueueStore,
+} from '@/stores/characterStores';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useBrainStore } from '@/stores/brainStore';
-import { useCAPMessage } from '@/hooks/useCAPMessage';
+// REMOVED: useCAPMessage - now handled by MessageGateway
+// import { useCAPMessage } from '@/hooks/useCAPMessage';
 import { useBehaviorAnimation } from '@/hooks/useAnimationQueue';
 import { usePenetrationMode } from '@/hooks/usePenetrationMode';
 import { useCharacterResource } from './hooks/useCharacterResource';
@@ -27,6 +34,7 @@ import { StatusBubble, useStatusBubble } from '@/components/StatusBubble';
 import { ChatBubble } from '@/components/ChatBubble';
 import { SimpleInput } from './SimpleInput';
 
+import '@/styles/design-system.css';
 import './styles.css';
 import './SimpleInput.css';
 
@@ -112,8 +120,92 @@ export function CharacterWindow({
   const [inputHasContent, setInputHasContent] = useState(false);
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
 
+  // Window identity for parameter matching
+  // 存储当前窗口的 assistantId 和 characterId，用于匹配 character:load 事件
+  const [windowIdentity, setWindowIdentity] = useState<{
+    assistantId: string | null;
+    characterId: string | null;
+  }>({ assistantId: null, characterId: null });
+
   // Status bubble management
-  const { status, statusType, setPresetStatus, setCustomStatus, clearStatus } = useStatusBubble();
+  const { status, setCustomStatus, clearStatus: clearLocalStatus } = useStatusBubble();
+
+  // ========== Character Data for CAP Filtering ==========
+  // Get selected assistant for session key
+  // 与 DialogApp 保持一致：优先使用选中的，如果没有则使用第一个可用的
+  // 使用选择器分别订阅，确保能正确响应变化
+  const selectedAssistantId = useCharacterManagementStore((s) => s.selectedAssistantId);
+  const assistants = useCharacterManagementStore((s) => s.assistants);
+
+  const selectedAssistant = selectedAssistantId
+    ? assistants.find(a => a.id === selectedAssistantId) || null
+    : (assistants.length > 0 ? assistants[0] : null);
+
+  // Extract sessionKeys from the current assistant's integrations
+  // These are used to filter CAP messages - only respond if sender.routing.sessionKey matches
+  const currentSessionKeys = selectedAssistant?.integrations
+    ?.flatMap(i => {
+      console.log('[CharacterWindow] Processing integration:', {
+        provider: i.provider,
+        paramsKeys: Object.keys(i.params || {}),
+        params: i.params,
+      });
+      const params = i.params as { sessionKeys?: string[] } | undefined;
+      const sessionKeys = params?.sessionKeys || [];
+      console.log('[CharacterWindow] Extracted sessionKeys:', sessionKeys);
+      return sessionKeys;
+    })
+    .filter(key => key) || [];
+
+  // Get the first character of the current assistant
+  const currentCharacters = useCharacterManagementStore(state => {
+    const selectedId = state.selectedAssistantId;
+    if (!selectedId) return [];
+    return state.characters[selectedId] || [];
+  });
+  const firstCharacter = currentCharacters[0];
+
+  // Check if user has integrated character data (from platform binding)
+  // CAP messages should only be processed when hasIntegratedCharacter is true
+  const hasIntegratedCharacter = firstCharacter !== undefined;
+
+  // ========== Character Resource Loading ==========
+  // Always load a character (local default or integrated)
+  // This ensures the character window is always visible
+  const defaultCharacterId = firstCharacter?.id || 'default';
+  const defaultAppearanceId = firstCharacter?.defaultAppearanceId || 'default';
+
+  const {
+    config,
+    appearance,
+    loadState,
+    loadCharacter,
+  } = useCharacterResource({
+    defaultCharacterId,
+    defaultAppearanceId,
+    preloadAnimations: false,
+  });
+
+  // Get current character ID for message filtering
+  // CAP protocol uses receiver.id = characterId
+  const currentCharacterId = config?.id; // config.id should be characterId according to CAP protocol
+  const currentAssistantId = config?.assistant_id; // This is for resource path
+
+  // Debug logging for CAP filtering (after all variables are defined)
+  console.log('[CharacterWindow] CAP Filter state:', {
+    selectedAssistantId,
+    selectedAssistantName: selectedAssistant?.name,
+    currentSessionKeys,
+    currentCharacterId,
+    hasIntegratedCharacter,
+  });
+
+  // ========== NEW: Subscribe to routed stores ==========
+  // MessageGateway 已将消息路由到按 characterId 隔离的 stores
+  // CharacterWindow 只需订阅属于自己的那部分数据
+
+  // Get characterId for subscribing to routed stores
+  const characterIdForRouting = currentCharacterId || 'default';
 
   // Penetration mode hook
   const {
@@ -122,6 +214,14 @@ export function CharacterWindow({
     handleMouseEnter: handlePenetrationMouseEnter,
     handleMouseLeave: handlePenetrationMouseLeave,
   } = usePenetrationMode();
+
+  // 处理状态气泡关闭 - 同时清除本地状态和store状态
+  const handleStatusDismiss = useCallback(() => {
+    clearLocalStatus();
+    if (characterIdForRouting) {
+      statusBubbleStore.getState().clearStatus(characterIdForRouting);
+    }
+  }, [clearLocalStatus, characterIdForRouting]);
 
   // Sync penetration mode state to characterStore
   useEffect(() => {
@@ -149,6 +249,162 @@ export function CharacterWindow({
     };
   }, []);
 
+  // Listen for character:load event from display slot refresh
+  // 全局监听 character:load 事件，通过参数匹配决定是否处理
+  useEffect(() => {
+    const windowLabel = getCurrentWindow().label;
+    console.log('[CharacterWindow] ========== character:load listener SETUP ==========');
+    console.log('[CharacterWindow] Window label:', windowLabel);
+    console.log('[CharacterWindow] Current config:', config ? { id: config.id, assistant_id: config.assistant_id, name: config.name } : 'null');
+
+    // Only display slot windows should listen for character:load events
+    // Main window should not respond to this event
+    if (!windowLabel.startsWith('char-window-')) {
+      console.log('[CharacterWindow] Skipping character:load listener - not a display slot window');
+      return;
+    }
+
+    console.log('[CharacterWindow] Setting up character:load listener...');
+
+    const unlistenPromise = (async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+
+      console.log('[CharacterWindow] Registering character:load listener for window:', windowLabel);
+
+      // 全局监听 character:load 事件，通过参数匹配决定是否处理
+      return await listen('character:load', async (event) => {
+        const payload = event.payload as {
+          slotId?: string;
+          assistantId?: string;
+          characterId?: string;
+          appearanceId?: string;
+        } | undefined;
+
+        console.log('[CharacterWindow] ========== RECEIVED character:load ==========');
+        console.log('[CharacterWindow] My window:', windowLabel);
+        console.log('[CharacterWindow] My identity:', windowIdentity);
+        console.log('[CharacterWindow] Event payload:', payload);
+
+        // 参数匹配：只有当 payload 中的 assistantId 和 characterId 与当前窗口匹配时才处理
+        if (!payload?.assistantId || !payload?.characterId) {
+          console.warn('[CharacterWindow] Ignoring event - missing assistantId or characterId in payload');
+          return;
+        }
+
+        // 检查是否匹配当前窗口
+        const isMatch = payload.assistantId === windowIdentity.assistantId &&
+                        payload.characterId === windowIdentity.characterId;
+
+        if (!isMatch) {
+          console.log('[CharacterWindow] Ignoring event - payload does not match window identity', {
+            payload: { assistantId: payload.assistantId, characterId: payload.characterId },
+            windowIdentity
+          });
+          return;
+        }
+
+        console.log('[CharacterWindow] Event matches window identity - processing character load');
+
+        if (payload?.appearanceId) {
+          console.log('[CharacterWindow] Loading character from event:', {
+            characterId: payload.characterId,
+            appearanceId: payload.appearanceId,
+            assistantId: payload.assistantId,
+          });
+
+          // Clear cached resources for this character to ensure fresh load
+          const { globalCharacterLoader } = await import('./utils/characterLoader');
+          console.log('[CharacterWindow] Clearing cache for characterId:', payload.characterId);
+          globalCharacterLoader.clearCharacterCache(payload.characterId);
+
+          // Load the correct character for this display slot
+          console.log('[CharacterWindow] Calling loadCharacter with assistantId:', payload.assistantId);
+          loadCharacter(payload.characterId, payload.appearanceId, payload.assistantId);
+        } else {
+          console.error('[CharacterWindow] Invalid character:load payload:', payload);
+        }
+      });  // <-- 注意：移除了 { target: windowLabel } 选项
+    })();
+
+    return () => {
+      console.log('[CharacterWindow] ========== Cleaning up character:load listener ==========');
+      console.log('[CharacterWindow] Window:', windowLabel);
+      unlistenPromise.then(unlisten => unlisten()).catch(console.error);
+    };
+  }, [loadCharacter, windowIdentity]);
+
+  // 初始加载时设置窗口身份
+  // 当 config 加载完成后，保存 assistantId 和 characterId 用于后续事件匹配
+  useEffect(() => {
+    if (config && !windowIdentity.assistantId) {
+      console.log('[CharacterWindow] Setting initial window identity from config:', {
+        assistantId: config.assistant_id,
+        characterId: config.id
+      });
+      setWindowIdentity({
+        assistantId: config.assistant_id,
+        characterId: config.id
+      });
+    }
+  }, [config]);
+
+  // Track and save window position for display slot windows
+  // This ensures windows are restored to their last position on app restart
+  useEffect(() => {
+    const windowLabel = getCurrentWindow().label;
+    console.log('[CharacterWindow] Window position tracking setup:', windowLabel);
+
+    // Only display slot windows should track position
+    if (!windowLabel.startsWith('char-window-')) {
+      console.log('[CharacterWindow] Skipping position tracking - not a display slot window');
+      return;
+    }
+
+    // Extract slot ID from window label (format: char-window-slot_XXXXX)
+    const slotId = windowLabel.replace('char-window-', '');
+    console.log('[CharacterWindow] Tracking position for slot:', slotId);
+
+    let saveTimeout: NodeJS.Timeout | null = null;
+
+    const unlistenPromise = (async () => {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const { listen } = await import('@tauri-apps/api/event');
+      const window = getCurrentWindow();
+
+      // Listen for window move events (Tauri v2 uses tauri://move event pattern)
+      return await listen('tauri://move', async () => {
+        // Debounce position saves to avoid too frequent writes
+        if (saveTimeout) {
+          clearTimeout(saveTimeout);
+        }
+
+        saveTimeout = setTimeout(async () => {
+          try {
+            const position = await window.outerPosition();
+            const x = position.x;
+            const y = position.y;
+            console.log('[CharacterWindow] Saving window position:', { slotId, x, y });
+
+            await invoke('update_slot_position', {
+              slotId,
+              x,
+              y,
+            });
+          } catch (error) {
+            console.error('[CharacterWindow] Failed to save window position:', error);
+          }
+        }, 500); // Save 500ms after the last move event
+      });
+    })();
+
+    return () => {
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+      }
+      unlistenPromise.then(unlisten => unlisten()).catch(console.error);
+    };
+  }, []);
+
   // Handle window visibility based on isHidden state
   // Note: Window visibility is controlled by Rust backend (hide_all_windows / show_main_window)
   // This component only needs to track isHidden for UI rendering (App.tsx return null check)
@@ -170,16 +426,6 @@ export function CharacterWindow({
   const removeMessages = useMessageStore((s) => s.removeMessages);
   const { sendMessage } = useBrainStore();
 
-  // Get selected assistant for session key
-  // 与 DialogApp 保持一致：优先使用选中的，如果没有则使用第一个可用的
-  // 使用选择器分别订阅，确保能正确响应变化
-  const selectedAssistantId = useCharacterManagementStore((s) => s.selectedAssistantId);
-  const assistants = useCharacterManagementStore((s) => s.assistants);
-
-  const selectedAssistant = selectedAssistantId
-    ? assistants.find(a => a.id === selectedAssistantId) || null
-    : (assistants.length > 0 ? assistants[0] : null);
-
   // Animation queue integration
   const [spriteManagerReady, setSpriteManagerReady] = useState(false);
 
@@ -191,25 +437,162 @@ export function CharacterWindow({
     },
   });
 
-  // Character resource loading
-  // Get the first character of the current assistant
-  const currentCharacters = useCharacterManagementStore(state => {
-    const selectedId = state.selectedAssistantId;
-    if (!selectedId) return [];
-    return state.characters[selectedId] || [];
-  });
-  const firstCharacter = currentCharacters[0];
-  const defaultCharacterId = firstCharacter?.id || 'default';
+  // ========== Subscribe to character-isolated stores ==========
+  // These useEffect hooks depend on spriteManagerReady, so they must be defined after it
 
-  const {
-    config,
-    appearance,
+  console.log('[CharacterWindow] Store subscription setup:', {
+    characterIdForRouting,
+    spriteManagerReady,
+    currentCharacterId,
+    configId: config?.id,
+    configName: config?.name,
     loadState,
-  } = useCharacterResource({
-    defaultCharacterId,
-    defaultAppearanceId: firstCharacter?.defaultAppearanceId || 'default',
-    preloadAnimations: false,
+    firstCharacterId: firstCharacter?.id,
   });
+
+  // Listen to animation queue for this character
+  // Bridge between animationQueueStore (from MessageGateway) and useBehaviorAnimation hook
+  // Use polling instead of subscription to avoid re-entrancy issues
+  useEffect(() => {
+    console.log('[CharacterWindow] Animation queue polling useEffect:', {
+      characterIdForRouting,
+      spriteManagerReady,
+    });
+
+    if (!characterIdForRouting || !spriteManagerReady) return;
+
+    console.log('[CharacterWindow] Starting animation queue polling for:', characterIdForRouting);
+
+    // Poll the queue every 100ms
+    const pollInterval = setInterval(() => {
+      const queue = animationQueueStore.getState().getQueue(characterIdForRouting);
+      const currentAnim = animationQueueStore.getState().getCurrent(characterIdForRouting);
+
+      // Debug: log polling state
+      if (queue.length > 0) {
+        console.log('[CharacterWindow] Polling: queue has items, isQueuePaused:', isQueuePaused, 'queueLength:', queue.length);
+      }
+
+      if (queue.length > 0 && !isQueuePaused()) {
+        const nextAnim = animationQueueStore.getState().dequeue(characterIdForRouting);
+        if (nextAnim) {
+          console.log('[CharacterWindow] Playing animation from queue:', nextAnim);
+          try {
+            playAnimation(nextAnim);
+            console.log('[CharacterWindow] playAnimation call succeeded');
+          } catch (err) {
+            console.error('[CharacterWindow] playAnimation error:', err);
+          }
+        }
+      }
+
+      // Check for current animation (set directly, not from queue)
+      if (currentAnim && queue.length === 0) {
+        console.log('[CharacterWindow] Playing current animation:', currentAnim);
+        playAnimation(currentAnim);
+        // Clear it after playing to avoid re-playing
+        animationQueueStore.getState().setCurrent(characterIdForRouting, null);
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(pollInterval);
+      console.log('[CharacterWindow] Stopped animation queue polling for:', characterIdForRouting);
+    };
+  }, [characterIdForRouting, spriteManagerReady, isQueuePaused, playAnimation]);
+
+  // Listen to status bubble for this character
+  useEffect(() => {
+    console.log('[CharacterWindow] Status bubble useEffect:', {
+      characterIdForRouting,
+    });
+
+    if (!characterIdForRouting) return;
+
+    console.log('[CharacterWindow] Subscribing to status bubble for:', characterIdForRouting);
+
+    const unsubscribe = statusBubbleStore.subscribe((state) => {
+      const status = state.getStatus(characterIdForRouting);
+
+      console.log('[CharacterWindow] Status bubble update:', {
+        characterId: characterIdForRouting,
+        status,
+      });
+
+      if (status) {
+        const emoji = mapEmojiName(status.emoji);
+        setCustomStatus(emoji, status.text, status.duration);
+      } else {
+        clearLocalStatus();
+      }
+    });
+
+    return unsubscribe;
+  }, [characterIdForRouting, setCustomStatus, clearLocalStatus]);
+
+  // Listen to session queue for this character
+  useEffect(() => {
+    console.log('[CharacterWindow] Session queue useEffect:', {
+      characterIdForRouting,
+    });
+
+    if (!characterIdForRouting) return;
+
+    console.log('[CharacterWindow] Subscribing to session queue for:', characterIdForRouting);
+
+    const unsubscribe = sessionQueueStore.subscribe((state) => {
+      const sessions = state.getSessions(characterIdForRouting);
+      const latestSession = sessions[sessions.length - 1];
+
+      console.log('[CharacterWindow] Session queue update:', {
+        characterId: characterIdForRouting,
+        sessionCount: sessions.length,
+        latestSession: latestSession ? {
+          id: latestSession.id,
+          sender: latestSession.sender,
+          content: latestSession.content?.substring(0, 50),
+        } : null,
+      });
+
+      // Note: Speak animation is triggered by MessageGateway when session messages arrive
+      // No need to manually enqueue here
+    });
+
+    return unsubscribe;
+  }, [characterIdForRouting]);
+
+  console.log('[CharacterWindow] IDs:', {
+    hasIntegratedCharacter,
+    currentCharacterId,
+    currentAssistantId,
+    configId: config?.id,
+    configAssistantId: config?.assistant_id,
+    firstCharacterId: firstCharacter?.id,
+  });
+
+  // Debug: Log store states
+  useEffect(() => {
+    const logInterval = setInterval(() => {
+      const animState = animationQueueStore.getState();
+      const statusState = statusBubbleStore.getState();
+      const sessionState = sessionQueueStore.getState();
+
+      const myQueue = animState.getQueue(characterIdForRouting);
+      const myStatus = statusState.getStatus(characterIdForRouting);
+      const mySessions = sessionState.getSessions(characterIdForRouting);
+
+      console.log('[CharacterWindow] Store states:', {
+        characterId: characterIdForRouting,
+        animationQueueSize: myQueue.length,
+        currentAnimation: animState.getCurrent(characterIdForRouting),
+        status: myStatus,
+        sessionCount: mySessions.length,
+        spriteManagerReady,
+      });
+    }, 5000); // Log every 5 seconds
+
+    return () => clearInterval(logInterval);
+  }, [characterIdForRouting]);
 
   // 监听 assistants 变化，确保数据已加载
   // 注意：App.tsx 中已有自动选择第一个助手的逻辑，这里不需要重复
@@ -263,113 +646,48 @@ export function CharacterWindow({
     };
   }, []); // Run once on mount, and listen for onboarding completion
 
-  // 监听 statusBubbleStore 中的状态气泡
+  // 监听资源热更新事件
   useEffect(() => {
-    const unsubscribe = useStatusBubbleStore.subscribe((state) => {
-      const currentAssistantId = config?.assistant_id || config?.id;
+    const unlistenPromise = (async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+      return await listen('resource-changed', (event: any) => {
+        const payload = event.payload as { file: string; path: string };
+        console.log('[CharacterWindow] 🔄 Resource changed:', payload);
 
-      if (!currentAssistantId) {
-        clearStatus();
-        return;
-      }
-
-      // 状态气泡规则：无持续时间，会被后来者立刻打断
-      // 使用 getLatestByReceiverId 获取该角色的最新状态气泡
-      const latestBubble = state.getLatestByReceiverId(currentAssistantId);
-
-      if (latestBubble) {
-        // 使用前端emoji映射
-        const emoji = mapEmojiName(latestBubble.emoji);
-        const content = latestBubble.content || '';
-
-        if (emoji || content) {
-          setCustomStatus(emoji, content, null);
+        // 重新加载角色数据 - 使用当前选中的助手ID
+        const state = useCharacterManagementStore.getState();
+        const currentAssistantId = state.selectedAssistantId;
+        if (currentAssistantId) {
+          state.loadCharacters(currentAssistantId);
         }
-      } else {
-        clearStatus();
-      }
-    });
-    return unsubscribe;
-  }, [setCustomStatus, clearStatus, config]);
+      });
+    })();
 
-  // 监听 eventQueueStore 中的 behavior 事件，触发动画
+    return () => {
+      unlistenPromise.then(unlisten => unlisten()).catch(console.error);
+    };
+  }, []);
+
+  // REMOVED: Old statusBubbleStore subscription - now handled by the new subscription above
+  // Status bubble is populated by MessageGateway and consumed by character-specific subscription
+
+  // REMOVED: Old eventQueueStore subscription - now handled by MessageGateway
+  // Animation queue is populated by MessageGateway and consumed by the new subscription above
+
+  // Listen to new sessionQueueStore for waiting state management
   useEffect(() => {
-    const unsubscribe = useEventQueueStore.subscribe((state) => {
-      const events = state.events;
+    if (!characterIdForRouting) return;
 
-      // 获取当前角色 ID
-      const currentAssistantId = config?.assistant_id || config?.id;
+    const unsubscribe = sessionQueueStore.subscribe((state) => {
+      const sessions = state.getSessions(characterIdForRouting);
 
-      if (!currentAssistantId) {
+      if (!isWaitingForResponse) {
         return;
       }
 
-      // 获取当前角色的最早的未消费 behavior 事件（先进先出）
-      const firstEvent = events.find(e =>
-        e.type === 'behavior' &&
-        e.receiverId === currentAssistantId
-      );
-
-      if (firstEvent?.behavior) {
-        const animationId = `${firstEvent.behavior.domain}-${firstEvent.behavior.category}-${firstEvent.behavior.action_id}`;
-        const isSpeak = firstEvent.behavior.action_id === 'speak';
-
-        // 如果是 speak 动画，延迟移除 session
-        // 给 ChatBubble 足够时间显示（ChatBubble 默认显示 10 秒）
-        if (isSpeak) {
-          // 清除之前的定时器，防止内存泄漏
-          if (removeSessionTimeoutRef.current) {
-            clearTimeout(removeSessionTimeoutRef.current);
-          }
-
-          const speakDuration = firstEvent.behavior.duration_ms || 10000;
-          const bubbleDisplayTime = 10000; // ChatBubble 的默认显示时间
-          const delay = Math.max(speakDuration, bubbleDisplayTime) + 500; // 多等 500ms 确保显示完成
-
-          removeSessionTimeoutRef.current = setTimeout(() => {
-            const sessions = useSessionQueueStore.getState().sessions;
-            const currentSessions = sessions.filter(s => s.receiverId === currentAssistantId);
-            if (currentSessions.length > 0) {
-              currentSessions.forEach(s => {
-                useSessionQueueStore.getState().removeSession(s.id);
-              });
-            }
-            // 清除已执行的定时器引用
-            removeSessionTimeoutRef.current = null;
-          }, delay);
-        }
-
-        // 播放行为动画
-        playBehaviorAnimation({
-          domain: firstEvent.behavior.domain as any,
-          category: firstEvent.behavior.category as any,
-          action_id: firstEvent.behavior.action_id,
-          urgency: firstEvent.behavior.urgency,
-          intensity: firstEvent.behavior.intensity,
-          duration_ms: firstEvent.behavior.duration_ms,
-        });
-
-        // 立即消费事件（从队列中移除）
-        useEventQueueStore.getState().consumeEvent(firstEvent.id);
-      }
-    });
-    return unsubscribe;
-  }, [playBehaviorAnimation, config]);
-
-  // 监听 sessionQueueStore，当收到 AI 回复时清除等待状态
-  useEffect(() => {
-    const unsubscribe = useSessionQueueStore.subscribe((state) => {
-      const sessions = state.sessions;
-
-      // 获取当前角色 ID
-      const currentAssistantId = config?.assistant_id || config?.id;
-      if (!currentAssistantId || !isWaitingForResponse) {
-        return;
-      }
-
-      // 查找是否有来自该角色的 assistant 消息
+      // Check if there's an assistant response for this character
       const hasAssistantResponse = sessions.some(s =>
-        s.receiverId === currentAssistantId && s.sender === 'assistant'
+        s.sender === 'assistant'
       );
 
       if (hasAssistantResponse) {
@@ -377,7 +695,7 @@ export function CharacterWindow({
       }
     });
     return unsubscribe;
-  }, [config, isWaitingForResponse, setIsWaitingForResponse]);
+  }, [characterIdForRouting, isWaitingForResponse, setIsWaitingForResponse]);
 
   // Calculate actual size (with scale applied)
   const actualWidth = width * scale;
@@ -464,24 +782,64 @@ export function CharacterWindow({
         const { invoke } = await import('@tauri-apps/api/core');
         const assistantId = config.assistant_id || config.id;
         const characterId = config.id;
+        const appearanceId = appearance.id;
 
-        console.log('[CharacterWindow] Loading character resources:', { assistantId, characterId });
+        console.log('[CharacterWindow] Loading character resources:', {
+          assistantId,
+          characterId,
+          appearanceId,
+          configAssistantId: config.assistant_id,
+          configId: config.id
+        });
 
-        // Helper: Load all resources for an action using batch API
-        const loadActionResources = async (actionKey: string, action: any): Promise<{
-          actionKey: string;
-          framePaths: string[];
-          frameRate: number;
-          loop: boolean;
-          loopStartFrame?: number;
-        } | null> => {
-          const rawFrames = action.resources || action.frames;
-          if (!rawFrames || !Array.isArray(rawFrames)) return null;
+        // Helper: Load resources based on action type
+        const loadActionResources = async (actionKey: string, action: any): Promise<any | null> => {
+          const actionType = action.type || 'frames'; // Default to frames for backward compatibility
 
           try {
-            // 构建完整资源路径：actionKey/fileName
-            // 例如: internal-base-idle/0001.png
-            const fullResourceNames = rawFrames.map((frame: string) => `${actionKey}/${frame}`);
+            // For spritesheet type, load the spritesheet config file
+            if (actionType === 'spritesheet') {
+              // If no spritesheet config but has resources array, treat as frames type
+              if (!action.spritesheet) {
+                if (action.resources && Array.isArray(action.resources)) {
+                  console.log(`[CharacterWindow] Spritesheet action ${actionKey} missing spritesheet config, treating as frames`);
+                  // Fall through to frames handling below
+                } else {
+                  console.warn(`[CharacterWindow] Spritesheet action ${actionKey} missing spritesheet config and no resources`);
+                  return null;
+                }
+              } else {
+                const spritesheetConfig = action.spritesheet;
+                // 新的目录结构: {character_id}/{appearance_id}/{action_key}/{resource}
+                const resourceName = `${appearanceId}/${actionKey}/${spritesheetConfig.url}`;
+
+                // Load spritesheet resource (JSON or PNG)
+                const resourceUrl = await invoke<string>('load_character_resource', {
+                  assistantId,
+                  characterId,
+                  resourceName,
+                });
+
+                // Return action with resolved resource URL
+                return {
+                  type: 'spritesheet',
+                  spritesheet: {
+                    ...spritesheetConfig,
+                    url: resourceUrl,
+                  },
+                  fps: action.fps || 12,
+                  loop: action.loop ?? true,
+                };
+              }
+            }
+
+            // For frames type (default), load all frame images
+            const rawFrames = action.resources || action.frames;
+            if (!rawFrames || !Array.isArray(rawFrames)) return null;
+
+            // 新的目录结构: {character_id}/{appearance_id}/{action_key}/{frame}
+            // 构建完整资源路径：appearanceId/actionKey/fileName
+            const fullResourceNames = rawFrames.map((frame: string) => `${appearanceId}/${actionKey}/${frame}`);
 
             // Batch load: one IPC call for all frames
             const resourceMap = await invoke<Record<string, string>>('load_character_resources', {
@@ -504,7 +862,13 @@ export function CharacterWindow({
             const loop = action.loop ?? true;
             const loopStartFrame = action.loopStartFrame;
 
-            return { actionKey, framePaths, frameRate, loop, loopStartFrame };
+            return {
+              type: 'frames',
+              resources: framePaths,
+              fps: frameRate,
+              loop,
+              loopStartFrame,
+            };
           } catch (error) {
             console.error(`[CharacterWindow] Failed to load action ${actionKey}:`, error);
             return null;
@@ -516,13 +880,8 @@ export function CharacterWindow({
         if (idleAction) {
           const idleData = await loadActionResources('internal-base-idle', idleAction);
           if (idleData && spriteManagerRef.current) {
-            await spriteManagerRef.current.loadFrameAnimation(
-              idleData.actionKey,
-              idleData.framePaths,
-              idleData.frameRate,
-              idleData.loop,
-              idleData.loopStartFrame
-            );
+            // Use unified loadFromAction interface
+            await spriteManagerRef.current.loadFromAction('internal-base-idle', idleData);
             spriteManagerRef.current.play('internal-base-idle');
           }
         }
@@ -537,14 +896,8 @@ export function CharacterWindow({
 
           if (actionData && spriteManagerRef.current) {
             try {
-              await spriteManagerRef.current.loadFrameAnimation(
-                actionData.actionKey,
-                actionData.framePaths,
-                actionData.frameRate,
-                actionData.loop,
-                actionData.loopStartFrame
-              );
-
+              // Use unified loadFromAction interface
+              await spriteManagerRef.current.loadFromAction(actionKey, actionData);
             } catch (error) {
               console.error(`[CharacterWindow] Failed: ${actionKey}`, error);
             }
@@ -735,7 +1088,9 @@ export function CharacterWindow({
 
   // Get available characters for switching
   const charactersObj = useCharacterManagementStore((s) => s.characters);
-  const switchCharacter = useCharacterManagementStore((s) => s.switchCharacter);
+  // REMOVED: switchCharacter method doesn't exist in CharacterManagementStore
+  // TODO: Re-implement character switching functionality
+  // const switchCharacter = useCharacterManagementStore((s) => s.switchCharacter);
   const currentLocale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const [isCharacterHidden, setIsCharacterHidden] = useState(false);
@@ -744,7 +1099,15 @@ export function CharacterWindow({
   const characters = Object.values(charactersObj).flat();
 
   // Build character switch submenu
-  const characterSubmenu: ContextMenuItem[] = [];
+  // TEMPORARILY DISABLED: switchCharacter method doesn't exist
+  const characterSubmenu: ContextMenuItem[] = [{
+    id: 'no-characters',
+    label: '角色切换功能暂不可用',
+    onClick: () => {},
+    disabled: true,
+  }];
+
+  /*
   for (const character of characters) {
     if (character.appearances && character.appearances.length > 0) {
       for (const appearance of character.appearances) {
@@ -766,6 +1129,7 @@ export function CharacterWindow({
       disabled: true,
     });
   }
+  */
 
   const contextMenuItems: ContextMenuItem[] = [
     {
@@ -778,6 +1142,13 @@ export function CharacterWindow({
       label: t('tray:settings'),
       onClick: () => {
         emit('open-settings');
+      },
+    },
+    {
+      id: 'display-management',
+      label: t('tray:displayManagement'),
+      onClick: () => {
+        emit('open-settings', { tab: 'display' });
       },
     },
     // TEMPORARILY DISABLED: Hide/show character and center features
@@ -805,6 +1176,7 @@ export function CharacterWindow({
     {
       id: 'language',
       label: t('tray:language'),
+      onClick: () => {}, // Parent menu item with submenu doesn't need action
       submenu: [
         {
           id: 'lang-zh',
@@ -902,8 +1274,33 @@ export function CharacterWindow({
       duration: 3000,
     });
 
-    // 获取 session ID：从当前选中的 assistant 中获取
-    const sessionKeyToSend = getSessionKey(selectedAssistant?.integrations ?? []);
+    // 获取 session ID：优先使用角色视窗自己的配置中的 sessionKey
+    // 如果角色视窗配置中有 assistantId，则从对应助手获取 sessionKey
+    let sessionKeyToSend: string | undefined;
+
+    if (config?.assistant_id || config?.id) {
+      // 使用角色视窗自己的配置查找对应的助手
+      const windowAssistantId = config?.assistant_id || config?.id;
+      const windowAssistant = assistants.find(a => a.id === windowAssistantId);
+
+      if (windowAssistant) {
+        sessionKeyToSend = getSessionKey(windowAssistant.integrations ?? []);
+        console.log('[CharacterWindow] Using config assistant for sessionKey:', {
+          windowAssistantId,
+          windowAssistantName: windowAssistant.name,
+          sessionKeyToSend,
+        });
+      }
+    }
+
+    // 如果角色视窗配置中没有找到，回退到全局选中的助手
+    if (!sessionKeyToSend && selectedAssistant) {
+      sessionKeyToSend = getSessionKey(selectedAssistant.integrations ?? []);
+      console.log('[CharacterWindow] Fallback to selectedAssistant for sessionKey:', {
+        selectedAssistantId: selectedAssistant.id,
+        sessionKeyToSend,
+      });
+    }
 
     if (!sessionKeyToSend) {
       addMessage({
@@ -942,7 +1339,7 @@ export function CharacterWindow({
       // 发送失败时清除等待状态
       setIsWaitingForResponse(false);
     }
-  }, [selectedAssistant, isConnected, addMessage, setIsWaitingForResponse]);
+  }, [config, assistants, selectedAssistant, isConnected, addMessage, setIsWaitingForResponse]);
 
   const handleOpenDialog = useCallback(() => {
     onOpenDialog?.();
@@ -974,10 +1371,11 @@ export function CharacterWindow({
 
       <StatusBubble
         status={status}
-        statusType={statusType}
-        onDismiss={clearStatus}
+        onDismiss={handleStatusDismiss}
       />
-      <ChatBubble onOpenDialog={handleOpenDialog} assistantId={config?.assistant_id || config?.id} />
+      {/* ChatBubble without click-to-open-dialog for character windows */}
+      {/* ChatBubble filters by sessionKeys AND characterId for proper routing */}
+      <ChatBubble disableClick={true} assistantId={currentCharacterId} sessionKeys={currentSessionKeys} />
 
       <SimpleInput
         visible={isInputVisible}

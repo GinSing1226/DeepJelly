@@ -554,7 +554,7 @@ export function createLlmOutputMessage(
  * This is used to send the actual conversation to DeepJelly
  *
  * @param content - The conversation content/summary
- * @param options - Message routing options
+ * @param options - Message routing options containing characterId, sessionKey, etc.
  */
 export function createConversationContentMessage(
   content: string,
@@ -620,7 +620,7 @@ export function createAgentStartMessage(
  * Uses session type to send the actual conversation content
  *
  * @param finalContent - The final assistant response content
- * @param options - Message routing options
+ * @param options - Message routing options containing characterId, sessionKey, etc.
  */
 export function createAgentEndMessage(
   finalContent: string,
