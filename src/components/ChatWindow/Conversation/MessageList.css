@@ -1,0 +1,114 @@
+/**
+ * MessageList Styles - Claude Style v3
+ * name: 消息列表样式
+ * description: 米白主题消息列表，温暖专业的滚动消息展示
+ */
+
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--dj-bg-primary);
+}
+
+/* Custom scrollbar - Minimal */
+.message-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.message-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.message-list::-webkit-scrollbar-thumb {
+  background: var(--dj-border-strong);
+  border-radius: 3px;
+}
+
+.message-list::-webkit-scrollbar-thumb:hover {
+  background: var(--dj-text-muted);
+}
+
+/* ========== Empty State ========== */
+.message-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--dj-text-secondary);
+  padding: 48px 24px;
+}
+
+.empty-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+  opacity: 0.4;
+}
+
+.empty-text {
+  font-size: 15px;
+  color: var(--dj-text-tertiary);
+  line-height: 1.5;
+}
+
+/* ========== Loading State ========== */
+.message-list-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  color: var(--dj-text-secondary);
+  font-size: 14px;
+}
+
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--dj-border);
+  border-top-color: var(--dj-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ========== Load More Button ========== */
+.load-more-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 16px;
+  margin: 8px 0;
+  background: var(--dj-bg-secondary);
+  border: 1px solid var(--dj-border);
+  border-radius: 8px;
+  color: var(--dj-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.load-more-button:hover:not(:disabled) {
+  background: var(--dj-bg-tertiary);
+  border-color: var(--dj-border-strong);
+}
+
+.load-more-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.load-more-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
