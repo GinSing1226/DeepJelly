@@ -215,6 +215,7 @@ async function ensureGatewayHttpEnabled(): Promise<void> {
 
 export class DeepJellyServer {
   private wss: any = null;
+  private httpServer: any = null; // HTTP server for handling WebSocket upgrade
   private clients: Map<string, ConnectedClient> = new Map();
   private config: DeepJellyConfig;
   private assistantCache: Assistant[] | null = null;
@@ -253,6 +254,45 @@ export class DeepJellyServer {
   }
 
   /**
+   * Get character ID for a given session key from accounts config
+   * @param sessionKey - Session key (e.g., "agent:coder_1:main")
+   * @returns Character ID or default from config
+   */
+  private getCharacterIdForSession(sessionKey: string): string {
+    // Try exact match with session key
+    if (this.config.accounts?.[sessionKey]?.characterId) {
+      return this.config.accounts[sessionKey].characterId;
+    }
+
+    // Try matching with agent ID (for session keys like "agent:xxx:...")
+    const agentMatch = sessionKey.match(/^agent:([^:]+)(?::|$)/);
+    if (agentMatch && this.config.accounts?.[agentMatch[1]]?.characterId) {
+      return this.config.accounts[agentMatch[1]].characterId;
+    }
+
+    // Fall back to default characterId from config
+    return this.config.characterId || "character";
+  }
+
+  /**
+   * Get application ID for sender identification
+   * @returns Application ID or default "openclaw"
+   */
+  private getApplicationId(): string {
+    return this.config.applicationId || "openclaw";
+  }
+
+  /**
+   * Get agent ID from session key
+   * @param sessionKey - Session key (e.g., "agent:coder_1:main")
+   * @returns Agent ID or session key if not in agent format
+   */
+  private getAgentIdFromSession(sessionKey: string): string {
+    const match = sessionKey.match(/^agent:([^:]+)(?::|$)/);
+    return match ? match[1] : sessionKey;
+  }
+
+  /**
    * Start the WebSocket server
    */
   async start(): Promise<void> {
@@ -270,22 +310,40 @@ export class DeepJellyServer {
 
     return new Promise((resolve, reject) => {
       try {
+        // Create HTTP server to handle WebSocket upgrade with path checking
+        const http = require('http');
+        this.httpServer = http.createServer();
+
         this.wss = new WebSocketServer({
-          port: this.config.serverPort,
-          host: this.config.serverHost,
+          noServer: true, // Handle upgrade manually to support path
         });
 
-        this.wss.on("listening", () => {
+        // Handle HTTP upgrade requests - only allow /ws path
+        this.httpServer.on('upgrade', (request: any, socket: any, head: any) => {
+          const fullUrl = request.url || '/';
+          // Extract pathname (remove query string)
+          const pathname = fullUrl.split('?')[0];
+          console.log(`[DeepJelly Server] Upgrade request for path: ${pathname} (full: ${fullUrl})`);
+
+          // Accept /ws or / (for backward compatibility)
+          if (pathname === '/ws' || pathname === '/') {
+            console.log(`[DeepJelly Server] Accepting WebSocket upgrade for path: ${pathname}`);
+            this.wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+              this.wss.emit('connection', ws, request);
+            });
+          } else {
+            console.warn(`[DeepJelly Server] Rejecting upgrade for invalid path: ${pathname}`);
+            socket.destroy();
+          }
+        });
+
+        this.httpServer.listen(this.config.serverPort, this.config.serverHost, () => {
           console.log(`[DeepJelly Server] ✅ WebSocket server is listening`);
           console.log(`[DeepJelly Server]   Bound to: ${this.config.serverHost}:${this.config.serverPort}`);
           resolve();
         });
 
-        this.wss.on("connection", (ws: WebSocket, req) => {
-          this.handleConnection(ws, req);
-        });
-
-        this.wss.on("error", (error: any) => {
+        this.httpServer.on('error', (error: any) => {
           if (error.code === 'EADDRINUSE') {
             reject(new Error(
               `Port ${this.config.serverPort} is already in use. ` +
@@ -294,6 +352,10 @@ export class DeepJellyServer {
           } else {
             reject(error);
           }
+        });
+
+        this.wss.on("connection", (ws: WebSocket, req) => {
+          this.handleConnection(ws, req);
         });
       } catch (error) {
         reject(error);
@@ -315,13 +377,19 @@ export class DeepJellyServer {
     });
     this.clients.clear();
 
-    // Close the server
-    return new Promise((resolve) => {
-      this.wss.close(() => {
-        this.wss = null;
-        resolve();
+    // Close the WebSocket server
+    this.wss.close();
+    this.wss = null;
+
+    // Close the HTTP server
+    if (this.httpServer) {
+      return new Promise((resolve) => {
+        this.httpServer.close(() => {
+          this.httpServer = null;
+          resolve();
+        });
       });
-    });
+    }
   }
 
   /**
@@ -336,6 +404,53 @@ export class DeepJellyServer {
       clients: this.getClientInfos(),
     };
   }
+
+  /**
+   * Get agentId by characterId from character_integrations.json
+   *
+   * @param characterId - Character ID to look up
+   * @returns Agent ID if found, undefined otherwise
+   */
+  private getAgentIdByCharacterId(characterId: string): string | undefined {
+    console.log(`[DeepJelly Plugin] getAgentIdByCharacterId called: characterId=${characterId}`);
+
+    // Try to resolve data directory from environment or config
+    // Priority: 1. DEEPJELLY_DATA_DIR env var
+    //           2. Current working directory /data/user
+    //           3. Parent directory /data/user (for development)
+    const dataDir = process.env.DEEPJELLY_DATA_DIR ||
+                    path.join(process.cwd(), 'data', 'user');
+
+    const integrationsPath = path.join(dataDir, 'character_integrations.json');
+
+    console.log(`[DeepJelly Plugin] Reading integrations from: ${integrationsPath}`);
+
+    try {
+      if (!fs.existsSync(integrationsPath)) {
+        console.warn(`[DeepJelly Plugin] character_integrations.json not found at ${integrationsPath}`);
+        return undefined;
+      }
+
+      const raw = fs.readFileSync(integrationsPath, 'utf8');
+      const data = JSON.parse(raw) as { bindings: Array<{ characterId: string; integration: { agentId: string } }> };
+
+      // Find binding by characterId
+      const binding = data.bindings.find(b => b.characterId === characterId);
+
+      if (binding) {
+        const agentId = binding.integration.agentId;
+        console.log(`[DeepJelly Plugin] ✅ Found mapping: characterId=${characterId} -> agentId=${agentId}`);
+        return agentId;
+      }
+
+      console.warn(`[DeepJelly Plugin] ⚠️ No binding found for characterId: ${characterId}`);
+      return undefined;
+    } catch (error: any) {
+      console.error(`[DeepJelly Plugin] ❌ Error reading character_integrations.json: ${error.message}`);
+      return undefined;
+    }
+  }
+
   /**
    * Broadcast a CAP message to all connected clients
    */
@@ -514,7 +629,7 @@ export class DeepJellyServer {
             break;
           case "get_all_sessions":
             console.log(`[DeepJelly Plugin] -> getAllSessions`);
-            result = await this.getAllSessions(params?.limit);
+            result = await this.getAllSessions(params?.characterId, params?.limit);
             break;
           case "get_session_history":
             console.log(`[DeepJelly Plugin] -> getSessionHistory`);
@@ -739,11 +854,36 @@ export class DeepJellyServer {
       }
 
       const data: any = await response.json();
-      console.log(`[DeepJelly Plugin] sessions_history response:`, JSON.stringify(data, null, 2));
+      console.log(`[DeepJelly Plugin] ======== sessions_history response ========`);
+      console.log(`[DeepJelly Plugin] sessionKey: ${sessionKey}`);
+      console.log(`[DeepJelly Plugin] Full response:`, JSON.stringify(data, null, 2));
+      console.log(`[DeepJelly Plugin] data.result:`, data.result ? JSON.stringify(data.result, null, 2) : 'undefined');
+      console.log(`[DeepJelly Plugin] data.result?.details:`, data.result?.details ? JSON.stringify(data.result.details, null, 2) : 'undefined');
+      console.log(`[DeepJelly Plugin] data.result?.details?.messages:`, data.result?.details?.messages);
+
+      // Check for forbidden/error status in response
+      const details = data.result?.details || {};
+      if (details.status === 'forbidden' || details.error) {
+        console.error(`[DeepJelly Plugin] ❌ Access forbidden: ${details.error || 'Unknown error'}`);
+        console.error(`[DeepJelly Plugin] 💡 Tip: Enable agent-to-agent access in OpenClaw config:`);
+        console.error(`[DeepJelly Plugin]    Set tools.agentToAgent.enabled=true in ~/.openclaw/openclaw.json`);
+        return { messages: [] };
+      }
 
       // ⬅️ 修复：从 result.details.messages 读取（OpenClow 响应结构）
-      const messagesList = data.result?.details?.messages || [];
+      const messagesList = details.messages || [];
       console.log(`[DeepJelly Plugin] Found ${messagesList.length} messages in result.details.messages`);
+
+      // If no messages found, try alternative paths
+      if (messagesList.length === 0) {
+        console.warn(`[DeepJelly Plugin] ⚠️ No messages in result.details.messages, checking alternative paths...`);
+        if (data.result?.messages && Array.isArray(data.result.messages)) {
+          console.log(`[DeepJelly Plugin] Found ${data.result.messages.length} messages in result.messages (alternative path)`);
+        }
+        if (data.messages && Array.isArray(data.messages)) {
+          console.log(`[DeepJelly Plugin] Found ${data.messages.length} messages in data.messages (alternative path)`);
+        }
+      }
 
       // ⬇️ 调试：打印原始数据结构
       console.log(`[DeepJelly Plugin] 🔍 Raw message item structure:`, JSON.stringify(messagesList[0], null, 2));
@@ -809,9 +949,10 @@ export class DeepJellyServer {
    * Uses direct file-system reading from OpenClaw's sessions directory
    * to bypass API visibility restrictions and get ALL session keys.
    *
+   * @param characterId - Optional character ID to filter sessions by agent
    * @param limit - Maximum number of sessions to return (default: no limit)
    */
-  private async getAllSessions(limit?: number): Promise<{
+  private async getAllSessions(characterId?: string, limit?: number): Promise<{
     sessions: Array<{
       sessionKey: string;
       sessionId: string;
@@ -824,6 +965,7 @@ export class DeepJellyServer {
   }> {
     console.log(`[DeepJelly Plugin] =======================================`);
     console.log(`[DeepJelly Plugin] getAllSessions called (WebSocket mode)`);
+    console.log(`[DeepJelly Plugin]   characterId: ${characterId || 'none'}`);
     console.log(`[DeepJelly Plugin]   limit: ${limit || 'none'}`);
 
     const gatewayPort = this.config.gatewayPort || resolveGatewayPort();
@@ -912,6 +1054,21 @@ export class DeepJellyServer {
                 const requestParams: Record<string, any> = {};
                 if (limit !== undefined) {
                   requestParams.limit = limit;
+                }
+
+                // Add agentId filter if characterId is provided
+                if (characterId) {
+                  const agentId = this.getAgentIdByCharacterId(characterId);
+                  if (agentId) {
+                    requestParams.agentId = agentId;
+                    console.log(`[DeepJelly Plugin] 🎯 Filtering sessions by agentId: ${agentId}`);
+                  } else {
+                    console.warn(`[DeepJelly Plugin] ⚠️ Could not find agentId for characterId: ${characterId}`);
+                    // Return empty sessions if characterId provided but no agentId found
+                    clearTimeout(timeout);
+                    ws.close();
+                    return [];
+                  }
                 }
 
                 const sessionsRequest = {
@@ -1277,32 +1434,23 @@ export class DeepJellyServer {
 
           // Convert to CAP session message and broadcast
           // Use the original sessionId for session_id in response (not route.sessionKey)
-          const message = {
-            msg_id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            timestamp: Math.floor(Date.now() / 1000),
-            type: "session" as const,
-            sender: {
-              id: "openclaw",
-              type: "assistant" as const,
-              source_app: "openclaw" as const,
+          const message = Converter.createSessionMessage(
+            {
+              content: text,
+              display_mode: "bubble_and_panel",
+              session_id: sessionKey,
+              chat_type: "private",
             },
-            receiver: {
-              id: "ui_core",
-              type: "assistant" as const,
-              source_app: "deepjelly" as const,
+            // sender: AI application with routing info
+            {
+              id: this.getApplicationId(),
+              routing: { sessionKey },
             },
-            payload: {
-              session_id: sessionKey,  // Use the sessionKey we determined
-              chat_type: "private" as const,
-              display_mode: "bubble_and_panel" as const,
-              is_streaming: false,
-              message: {
-                role: "assistant",
-                type: "text",
-                content: text,
-              },
-            },
-          };
+            // receiver: DeepJelly character
+            {
+              id: this.getCharacterIdForSession(sessionKey),
+            }
+          );
 
           console.log(`[DeepJelly Plugin] Broadcasting CAP message...`);
           const sent = this.broadcast(message);
@@ -1435,32 +1583,23 @@ export class DeepJellyServer {
         console.log(`[DeepJelly Plugin] ✅ Received reply from agent (${replyText.length} chars)`);
 
         // Convert to CAP session message and broadcast to clients
-        const message = {
-          msg_id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          timestamp: Math.floor(Date.now() / 1000),
-          type: "session" as const,
-          sender: {
-            id: "openclaw",
-            type: "assistant" as const,
-            source_app: "openclaw" as const,
+        const message = Converter.createSessionMessage(
+          {
+            content: replyText,
+            display_mode: "bubble_and_panel",
+            session_id: sessionKey,
+            chat_type: "private",
           },
-          receiver: {
-            id: "ui_core",
-            type: "assistant" as const,
-            source_app: "deepjelly" as const,
+          // sender: AI application with routing info
+          {
+            id: this.getApplicationId(),
+            routing: { sessionKey },
           },
-          payload: {
-            session_id: sessionKey,  // Use the original session key, not re-formatted
-            chat_type: "private" as const,
-            display_mode: "bubble_and_panel" as const,
-            is_streaming: false,
-            message: {
-              role: "assistant",
-              type: "text",
-              content: replyText,
-            },
-          },
-        };
+          // receiver: DeepJelly character
+          {
+            id: this.getCharacterIdForSession(sessionKey),
+          }
+        );
 
         console.log(`[DeepJelly Plugin] Broadcasting CAP message...`);
         const sent = this.broadcast(message);
@@ -1559,10 +1698,22 @@ export class DeepJellyServer {
         console.log(`[DeepJelly Plugin] Broadcasting response to ${this.clients.size} client(s)...`);
 
         // Convert CLI response to CAP message and broadcast to clients
-        const responseMessage = Converter.createSessionMessage({
-          content: result.trim(),
-          display_mode: "bubble_and_panel",
-        });
+        const responseMessage = Converter.createSessionMessage(
+          {
+            content: result.trim(),
+            display_mode: "bubble_and_panel",
+            session_id: sessionId,
+          },
+          // sender: AI application with routing info
+          {
+            id: this.getApplicationId(),
+            routing: { sessionKey: sessionId },
+          },
+          // receiver: DeepJelly character
+          {
+            id: this.getCharacterIdForSession(sessionId),
+          }
+        );
 
         const sentCount = this.broadcast(responseMessage);
         console.log(`[DeepJelly Plugin] ✅ Broadcasted response to ${sentCount} client(s)`);
