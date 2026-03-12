@@ -17,13 +17,12 @@ interface InputEndpointStepProps {
 
 export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
   const { t } = useTranslation('onboarding');
-  const { setEndpoint, setStep, setError, error } = useOnboardingStore();
-  const { connectAndSetConfig, connecting, connected, config: brainConfig } = useBrainStore();
+  const { setEndpoint, setStep, setError, error, selectedAppType, appName, appDescription, setAppName, setAppDescription } = useOnboardingStore();
+  const { connectAndSetConfig, connecting } = useBrainStore();
   const { currentIntegration, addIntegration, updateIntegration, setCurrentIntegration } = useAppIntegrationStore();
 
   // Parse endpoint to get IP and port for reintegration
   const getDefaultValues = () => {
-    console.log('[InputEndpointStep] getDefaultValues called, currentIntegration:', currentIntegration);
     if (currentIntegration?.endpoint) {
       try {
         const url = new URL(currentIntegration.endpoint);
@@ -32,7 +31,6 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
           port: url.port || '18790',
           authToken: currentIntegration.authToken || ''
         };
-        console.log('[InputEndpointStep] Returning values from URL:', values);
         return values;
       } catch {
         // Fallback to regex parsing if URL constructor fails
@@ -43,13 +41,11 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
             port: match[2],
             authToken: currentIntegration.authToken || ''
           };
-          console.log('[InputEndpointStep] Returning values from regex:', values);
           return values;
         }
       }
     }
     // Default values for first-time setup
-    console.log('[InputEndpointStep] No integration, returning default values');
     return {
       ip: '',
       port: '18790',
@@ -65,27 +61,45 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
   const [logs, setLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
 
+  // 应用名称和描述状态
+  const [appNameLocal, setAppNameLocal] = useState(() => {
+    // 优先使用 store 中的值，否则使用当前集成的值，否则使用应用类型名称
+    if (appName) return appName;
+    if (currentIntegration?.name) return currentIntegration.name;
+    return selectedAppType === 'openclaw' ? 'OpenClaw' : '';
+  });
+  const [appDescriptionLocal, setAppDescriptionLocal] = useState(() => {
+    if (appDescription) return appDescription;
+    if (currentIntegration?.description) return currentIntegration.description;
+    return '';
+  });
+
   // 组件挂载时检查是否有需要回显的数据
   useEffect(() => {
-    console.log('[InputEndpointStep] Component mounted, currentIntegration:', currentIntegration);
-  }, []);
+    // 如果有 currentIntegration，恢复应用名称和描述
+    if (currentIntegration) {
+      if (currentIntegration.name && !appName) {
+        setAppNameLocal(currentIntegration.name);
+        setAppName(currentIntegration.name);
+      }
+      if (currentIntegration.description && !appDescription) {
+        setAppDescriptionLocal(currentIntegration.description);
+        setAppDescription(currentIntegration.description);
+      }
+    }
+  }, [currentIntegration, appName, appDescription]);
 
   // 监听 currentIntegration 变化，更新表单值（用于重新集成时的回显）
   useEffect(() => {
-    console.log('[InputEndpointStep] currentIntegration changed:', currentIntegration);
     if (currentIntegration?.endpoint) {
       try {
         const url = new URL(currentIntegration.endpoint);
-        console.log('[InputEndpointStep] Restoring from URL:', url.hostname, url.port);
-        console.log('[InputEndpointStep] Restoring authToken:', currentIntegration.authToken ? `${currentIntegration.authToken.substring(0, 8)}...(${currentIntegration.authToken.length} chars)` : '(none)');
         setIp(url.hostname);
         setPort(url.port || '18790');
         setAuthToken(currentIntegration.authToken || '');
       } catch {
         const match = currentIntegration.endpoint.match(/ws:\/\/([^:]+):(\d+)/);
         if (match) {
-          console.log('[InputEndpointStep] Restoring from regex:', match[1], match[2]);
-          console.log('[InputEndpointStep] Restoring authToken:', currentIntegration.authToken ? `${currentIntegration.authToken.substring(0, 8)}...(${currentIntegration.authToken.length} chars)` : '(none)');
           setIp(match[1]);
           setPort(match[2]);
           setAuthToken(currentIntegration.authToken || '');
@@ -97,7 +111,6 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
-    console.log(`[InputEndpointStep] ${message}`);
   };
 
   const validateIP = (value: string): boolean => {
@@ -148,6 +161,9 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
       // 连接成功后，立即保存集成配置到文件
       addLog('💾 保存集成配置到文件...');
 
+      // 使用用户输入的应用名称和描述
+      const finalAppName = appNameLocal.trim() || (selectedAppType === 'openclaw' ? 'OpenClaw' : 'Application');
+
       if (currentIntegration) {
         // 编辑场景：更新现有集成
         addLog(`📝 编辑模式：更新集成 ${currentIntegration.id}`);
@@ -155,8 +171,8 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
           id: currentIntegration.id,
           applicationId: currentIntegration.applicationId,
           provider: currentIntegration.provider,
-          name: currentIntegration.name,
-          description: currentIntegration.description,
+          name: finalAppName,
+          description: appDescriptionLocal.trim() || undefined,
           endpoint: fullEndpoint,
           authToken: authToken || undefined,
           enabled: true,
@@ -169,10 +185,11 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
         addLog('📝 首次模式：创建新集成');
         const newIntegration = await addIntegration({
           provider: 'openclaw',
-          name: `OpenClaw (${ip})`,
+          name: finalAppName,
+          description: appDescriptionLocal.trim() || undefined,
           endpoint: fullEndpoint,
           authToken: authToken || undefined,
-          enabled: false, // 首次连接时先设置为未启用，等到助手绑定后再启用
+          enabled: true, // 首次绑定默认启用
         });
         addLog('✅ 新集成已创建');
         // 关键：设置为当前集成，让 ConfirmAssistantStep 能找到它
@@ -186,7 +203,7 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
       setStatusMessage(t('connectSuccess'));
       addLog('✅ 连接验证通过！进入确认助手步骤');
       setTimeout(() => {
-        setStep('confirm_assistant');
+        setStep('binding_confirm');
       }, 500);
     } catch (err) {
       const errorMsg = `${t('connectFailed')}: ${err instanceof Error ? err.message : String(err)}`;
@@ -207,7 +224,6 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
   };
 
   const handleBack = () => {
-    console.log('[InputEndpointStep] ⬅️ 返回上一步');
     setStep('show_prompt');
   };
 
@@ -217,62 +233,132 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
 
   return (
     <div className="input-endpoint-step">
-      <h2>{t('connectTitle')}</h2>
-      <p>{t('connectDesc')}</p>
+      <div className="step-content-wrapper">
+        <h2>{t('connectTitle')}</h2>
+        <p>{t('connectDesc')}</p>
 
-      {/* 状态提示 */}
-      {statusMessage && (
-        <div style={{
-          padding: '10px',
-          marginBottom: '16px',
-          background: statusMessage.includes('成功') ? '#d4edda' : statusMessage.includes('失败') ? '#f8d7da' : '#e7f3ff',
-          borderRadius: '6px',
-          fontSize: '14px',
-          textAlign: 'center'
-        }}>
-          {statusMessage}
+        {/* 状态提示 */}
+        {statusMessage && (
+          <div style={{
+            padding: '10px',
+            marginBottom: '16px',
+            background: statusMessage.includes('成功') ? '#d4edda' : statusMessage.includes('失败') ? '#f8d7da' : '#e7f3ff',
+            borderRadius: '6px',
+            fontSize: '14px',
+            textAlign: 'center'
+          }}>
+            {statusMessage}
+          </div>
+        )}
+
+        <div className="endpoint-form">
+          <div className="form-group">
+            <label>{t('ipAddress')}</label>
+            <input
+              type="text"
+              value={ip}
+              onChange={(e) => setIp(e.target.value)}
+              placeholder="127.0.0.1"
+              autoFocus
+            />
+            <small>{t('ipAddressHint')}</small>
+          </div>
+
+          <div className="form-group">
+            <label>{t('port')}</label>
+            <input
+              type="text"
+              value={port}
+              onChange={(e) => setPort(e.target.value)}
+              placeholder="18790"
+            />
+            <small>{t('portHint')}</small>
+          </div>
+
+          <div className="form-group">
+            <label>{t('authToken')}</label>
+            <input
+              type="text"
+              value={authToken}
+              onChange={(e) => {
+                setAuthToken(e.target.value);
+              }}
+              placeholder=""
+            />
+            <small>{t('authTokenHint')}</small>
+          </div>
+
+          {/* 应用名称 */}
+          <div className="form-group">
+            <label>{t('appName')} <span style={{ color: 'red' }}>*</span></label>
+            <input
+              type="text"
+              value={appNameLocal}
+              onChange={(e) => {
+                setAppNameLocal(e.target.value);
+                setAppName(e.target.value);
+              }}
+              placeholder={selectedAppType === 'openclaw' ? 'OpenClaw' : 'Application'}
+            />
+            <small>{t('appNameHint')}</small>
+          </div>
+
+          {/* 应用描述 */}
+          <div className="form-group">
+            <label>{t('appDescription')}</label>
+            <input
+              type="text"
+              value={appDescriptionLocal}
+              onChange={(e) => {
+                setAppDescriptionLocal(e.target.value);
+                setAppDescription(e.target.value);
+              }}
+              placeholder={t('appDescriptionPlaceholder')}
+            />
+            <small>{t('appDescriptionHint')}</small>
+          </div>
         </div>
-      )}
 
-      <div className="endpoint-form">
-        <div className="form-group">
-          <label>{t('ipAddress')}</label>
-          <input
-            type="text"
-            value={ip}
-            onChange={(e) => setIp(e.target.value)}
-            placeholder="127.0.0.1"
-            autoFocus
-          />
-          <small>{t('ipAddressHint')}</small>
-        </div>
+        {error && <div className="error-message">{error}</div>}
 
-        <div className="form-group">
-          <label>{t('port')}</label>
-          <input
-            type="text"
-            value={port}
-            onChange={(e) => setPort(e.target.value)}
-            placeholder="18790"
-          />
-          <small>{t('portHint')}</small>
-        </div>
+        {/* 日志面板 - 移到内容区 */}
+        <div className="connection-logs-section">
+          <div className="connection-logs-header">
+            <button
+              className="btn-toggle-logs"
+              onClick={() => setShowLogs(!showLogs)}
+            >
+              {showLogs ? '▼' : '▶'} {t('connectionLog')} ({logs.length})
+            </button>
+            {logs.length > 0 && (
+              <button
+                className="btn-clear-logs"
+                onClick={handleClearLogs}
+              >
+                {t('clearLog')}
+              </button>
+            )}
+          </div>
 
-        <div className="form-group">
-          <label>{t('authToken')}</label>
-          <input
-            type="text"
-            value={authToken}
-            onChange={(e) => {
-              setAuthToken(e.target.value);
-            }}
-            placeholder=""
-          />
-          <small>{t('authTokenHint')}</small>
+          {showLogs && (
+            <div className="connection-logs-content">
+              {logs.length === 0 ? (
+                <span className="log-empty">{t('noLogs')}</span>
+              ) : (
+                logs.map((log, index) => (
+                  <div key={index} className={`log-entry ${
+                    log.includes('❌') ? 'log-error' :
+                    log.includes('✅') ? 'log-success' :
+                    log.includes('⚠️') ? 'log-warning' : ''
+                  }`}>
+                    {log}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
-
-      {error && <div className="error-message">{error}</div>}
 
       <div className="step-actions">
         <button className="btn-back" onClick={handleBack}>
@@ -289,76 +375,6 @@ export function InputEndpointStep({ onSkip }: InputEndpointStepProps) {
           <button className="btn-secondary" onClick={onSkip}>
             {t('skipButton')}
           </button>
-        )}
-      </div>
-
-      {/* 日志面板 */}
-      <div style={{ marginTop: '12px' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '8px'
-        }}>
-          <button
-            onClick={() => setShowLogs(!showLogs)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#0071e3',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: '500'
-            }}
-          >
-            {showLogs ? '▼' : '▶'} {t('connectionLog')} ({logs.length})
-          </button>
-          {logs.length > 0 && (
-            <button
-              onClick={handleClearLogs}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#86868b',
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
-            >
-              {t('clearLog')}
-            </button>
-          )}
-        </div>
-
-        {showLogs && (
-          <div style={{
-            background: '#1e1e1e',
-            color: '#d4d4d4',
-            padding: '10px',
-            borderRadius: '6px',
-            fontFamily: 'Consolas, Monaco, monospace',
-            fontSize: '11px',
-            maxHeight: '120px',
-            overflowY: 'auto',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-all',
-            border: '1px solid #3e3e42'
-          }}>
-            {logs.length === 0 ? (
-              <span style={{ color: '#858585' }}>{t('noLogs')}</span>
-            ) : (
-              logs.map((log, index) => (
-                <div key={index} style={{
-                  marginBottom: index < logs.length - 1 ? '4px' : 0,
-                  color: log.includes('❌') ? '#f48771' :
-                        log.includes('✅') ? '#89d185' :
-                        log.includes('⚠️') ? '#cca700' :
-                        '#d4d4d4'
-                }}>
-                  {log}
-                </div>
-              ))
-            )}
-          </div>
         )}
       </div>
     </div>

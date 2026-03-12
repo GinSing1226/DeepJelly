@@ -71,7 +71,23 @@ export const useAppIntegrationStore = create<AppIntegrationState>((set, get) => 
    */
   updateIntegration: async (id, updates) => {
     try {
-      await invoke('update_app_integration', { id, updates });
+      // Get the existing integration to construct a full object for the backend
+      const existingIntegration = get().integrations.find((i) => i.id === id);
+      if (!existingIntegration) {
+        throw new Error(`Integration with ID ${id} not found`);
+      }
+      // Merge partial updates with existing integration to create full object
+      const fullUpdate: AppIntegration = {
+        ...existingIntegration,
+        ...updates,
+        // Ensure these fields are preserved
+        id: existingIntegration.id,
+        applicationId: existingIntegration.applicationId,
+        provider: existingIntegration.provider,
+        assistant: updates.assistant ?? existingIntegration.assistant,
+        createdAt: existingIntegration.createdAt,
+      };
+      await invoke('update_app_integration', { id, updates: fullUpdate });
       set((state) => ({
         integrations: state.integrations.map((i) =>
           i.id === id ? { ...i, ...updates } : i

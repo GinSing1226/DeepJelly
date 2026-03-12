@@ -12,6 +12,7 @@ import { ShowPromptStep } from './steps/ShowPromptStep';
 import { InputEndpointStep } from './steps/InputEndpointStep';
 import { ConfirmAssistantStep } from './steps/ConfirmAssistantStep';
 import type { BoundAssistant } from '@/types/appConfig';
+import '@/styles/design-system.css';
 import './styles.css';
 
 export interface OnboardingProps {
@@ -32,7 +33,7 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
         return <ShowPromptStep onSkip={onSkip} />;
       case 'input_endpoint':
         return <InputEndpointStep onSkip={onSkip} />;
-      case 'confirm_assistant':
+      case 'binding_confirm':
         return <ConfirmAssistantStep onComplete={onComplete} onSkip={onSkip} />;
       case 'complete':
         return null;

@@ -3,9 +3,15 @@
     {
       "id": "default_assistant",
       "name": "christina",
-      "description": "《Steins;Gate》，maksie kurisu",
+      "description": "《Steins;Gate》，makisise kurisu",
       "appType": "openclaw",
-      "agentLabel": null
+      "agentLabel": null,
+      "characters": [
+        {
+          "characterId": "default",
+          "defaultAppearanceId": "default"
+        }
+      ]
     }
   ]
 }

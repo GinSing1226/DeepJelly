@@ -30,7 +30,6 @@ export function useSessionPolling({
 
     const pollSessions = async () => {
       try {
-        console.log(`[useSessionPolling] Polling sessions for character: ${characterId}`);
         const sessions = await getSessionsByCharacterId(characterId);
         onSessionsUpdate?.(sessions);
       } catch (error) {

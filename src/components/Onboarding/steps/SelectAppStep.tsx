@@ -27,18 +27,20 @@ export function SelectAppStep({ onSkip }: SelectAppStepProps) {
 
   return (
     <div className="select-app-step">
-      <h2>{t('selectAppTitle')}</h2>
-      <p>{t('selectAppDesc')}</p>
+      <div className="step-content-wrapper">
+        <h2>{t('selectAppTitle')}</h2>
+        <p>{t('selectAppDesc')}</p>
 
-      <div className="app-options">
-        <button
-          className="app-option"
-          onClick={() => handleSelect('openclaw')}
-        >
-          <span className="app-icon">🤖</span>
-          <span className="app-name">{t('openclawName')}</span>
-          <span className="app-desc">{t('openclawDesc')}</span>
-        </button>
+        <div className="app-options">
+          <button
+            className="app-option"
+            onClick={() => handleSelect('openclaw')}
+          >
+            <span className="app-icon">🤖</span>
+            <span className="app-name">{t('openclawName')}</span>
+            <span className="app-desc">{t('openclawDesc')}</span>
+          </button>
+        </div>
       </div>
 
       <div className="step-actions">

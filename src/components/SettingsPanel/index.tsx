@@ -10,7 +10,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { useCharacterStore } from '@/stores/characterStore';
 import CharacterManagement from '@/components/CharacterManagement';
 import './styles.css';
 
@@ -25,7 +24,7 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ isOpen, onClose, onStartOnboarding, initialTab }: SettingsPanelProps) {
-  const { t, ready } = useTranslation(['settings', 'common']);
+  const { t } = useTranslation(['settings', 'common', 'onboarding']);
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || 'character');
 
   // 当 initialTab 改变时，更新 activeTab
@@ -174,7 +173,6 @@ function IntegrationSettings({ onStartOnboarding }: IntegrationSettingsProps) {
   const { boundApp } = useSettingsStore();
 
   const handleQuickSetup = () => {
-    console.log('[IntegrationSettings] 🔧 Quick setup clicked');
     if (onStartOnboarding) {
       onStartOnboarding();
     }
@@ -185,16 +183,16 @@ function IntegrationSettings({ onStartOnboarding }: IntegrationSettingsProps) {
       {/* 快速集成说明 */}
       <div className="integration-info">
         <p style={{ color: '#6e6e73', fontSize: '14px', lineHeight: '1.5' }}>
-          快速集成 OpenClaw，只需几步即可完成设置。
+          {t('integration.quickSetupDescription')}
         </p>
       </div>
 
       {/* 当前绑定状态 */}
       {boundApp && (
         <div className="settings-item">
-          <label>当前绑定</label>
+          <label>{t('integration.currentBinding')}</label>
           <div className="bound-info">
-            <span className="status-badge connected">已绑定</span>
+            <span className="status-badge connected">{t('integration.bound')}</span>
             <small style={{ color: '#86868b', marginLeft: '8px' }}>
               {boundApp.appType} - {boundApp.assistantId}
             </small>
@@ -210,23 +208,23 @@ function IntegrationSettings({ onStartOnboarding }: IntegrationSettingsProps) {
           style={{
             width: '100%',
             padding: '14px 24px',
-            background: '#0071e3',
-            color: 'white',
+            background: '#1A1A1A',
+            color: '#FAF9F6',
             border: 'none',
-            borderRadius: '8px',
+            borderRadius: '10px',
             fontSize: '15px',
             fontWeight: '500',
             cursor: 'pointer',
             transition: 'all 0.15s ease',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#0077ed';
+            e.currentTarget.style.background = '#4A4A4A';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = '#0071e3';
+            e.currentTarget.style.background = '#1A1A1A';
           }}
         >
-          {boundApp ? '重新集成' : '快速集成'}
+          {boundApp ? t('integration.reintegrate') : t('onboarding:quickSetup')}
         </button>
       </div>
 

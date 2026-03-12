@@ -1,5 +1,7 @@
 /**
- * Onboarding Styles - Mac Minimalist
+ * Onboarding Styles - Claude Style v3
+ * name: 引导页样式
+ * description: 米白+黑色淡雅风格，温暖专业的集成引导界面
  */
 
 .onboarding-container {
@@ -13,15 +15,50 @@
 }
 
 .onboarding-content {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 32px;
+  background: var(--dj-bg-elevated);
+  border-radius: 16px;
   max-width: 600px;
   width: 100%;
   max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1),
+              0 0 0 1px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+/* Step wrapper - makes each step a flex column */
+.onboarding-content > div {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Step content wrapper for scrollable area */
+.step-content-wrapper {
+  flex: 1;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15),
-              0 0 0 1px rgba(0, 0, 0, 0.05);
+  min-height: 0;
+  padding: 32px;
+}
+
+/* 滚动条样式 */
+.step-content-wrapper::-webkit-scrollbar {
+  width: 6px;
+}
+
+.step-content-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.step-content-wrapper::-webkit-scrollbar-thumb {
+  background: var(--dj-border-strong);
+  border-radius: 3px;
+}
+
+.step-content-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--dj-text-muted);
 }
 
 @keyframes onboarding-fade-in {
@@ -35,31 +72,13 @@
   }
 }
 
-/* 滚动条样式 */
-.onboarding-content::-webkit-scrollbar {
-  width: 8px;
-}
-
-.onboarding-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.onboarding-content::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 4px;
-}
-
-.onboarding-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
-}
-
 /* 步骤标题 */
 .onboarding-content h1 {
   font-size: 28px;
   font-weight: 600;
   margin: 0 0 8px 0;
   text-align: center;
-  color: #1d1d1f;
+  color: var(--dj-text-primary);
   letter-spacing: -0.5px;
 }
 
@@ -67,35 +86,36 @@
   font-size: 22px;
   font-weight: 600;
   margin: 0 0 8px 0;
-  color: #1d1d1f;
+  color: var(--dj-text-primary);
   letter-spacing: -0.3px;
 }
 
 .onboarding-content p {
-  color: #6e6e73;
+  color: var(--dj-text-secondary);
   text-align: center;
   margin: 0 0 28px 0;
   line-height: 1.5;
   font-size: 15px;
 }
 
-/* 按钮样式 */
+/* 按钮样式 - 主按钮使用深色 */
 .btn-primary {
-  background: #0071e3;
-  color: white;
+  background: var(--dj-text-primary);
+  color: var(--dj-bg-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 12px 24px;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
   letter-spacing: -0.2px;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0077ed;
-  transform: scale(1.02);
+  background: var(--dj-text-secondary);
+  transform: translateY(-1px);
+  box-shadow: var(--dj-shadow-md);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -103,16 +123,17 @@
 }
 
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
-  background: #0071e3;
+  background: var(--dj-text-muted);
 }
 
+/* 次级按钮 */
 .btn-secondary {
   background: transparent;
-  color: #0071e3;
-  border: none;
-  border-radius: 8px;
+  color: var(--dj-text-primary);
+  border: 1px solid var(--dj-border-strong);
+  border-radius: 12px;
   padding: 12px 20px;
   font-size: 15px;
   font-weight: 500;
@@ -121,21 +142,23 @@
 }
 
 .btn-secondary:hover {
-  background: rgba(0, 113, 227, 0.08);
+  background: var(--dj-bg-secondary);
+  border-color: var(--dj-text-muted);
 }
 
 .btn-back {
   background: transparent;
-  color: #6e6e73;
+  color: var(--dj-text-tertiary);
   border: none;
-  padding: 10px 16px;
-  font-size: 14px;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 500;
   cursor: pointer;
   transition: color 0.15s ease;
 }
 
 .btn-back:hover {
-  color: #1d1d1f;
+  color: var(--dj-text-primary);
 }
 
 /* 表单样式 */
@@ -145,8 +168,8 @@
 
 .form-group label {
   display: block;
-  font-size: 13px;
-  color: #6e6e73;
+  font-size: 14px;
+  color: var(--dj-text-secondary);
   margin-bottom: 8px;
   font-weight: 500;
 }
@@ -155,33 +178,33 @@
 .form-group textarea {
   width: 100%;
   padding: 12px 14px;
-  background: #ffffff;
-  border: 1px solid #d2d2d7;
-  border-radius: 8px;
-  color: #1d1d1f;
+  background: var(--dj-bg-primary);
+  border: 1px solid var(--dj-border-strong);
+  border-radius: 10px;
+  color: var(--dj-text-primary);
   font-size: 15px;
   box-sizing: border-box;
   transition: all 0.15s ease;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--dj-font-sans);
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #0071e3;
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+  border-color: var(--dj-border-strong);
+  box-shadow: 0 0 0 3px var(--dj-accent-glow);
 }
 
 .form-group input:disabled,
 .form-group textarea:disabled {
   opacity: 0.5;
-  background: #f5f5f7;
+  background: var(--dj-bg-secondary);
   cursor: not-allowed;
 }
 
 .form-group input::placeholder,
 .form-group textarea::placeholder {
-  color: #a1a1a6;
+  color: var(--dj-text-muted);
 }
 
 .form-group textarea {
@@ -192,29 +215,79 @@
 .form-group small {
   display: block;
   margin-top: 6px;
-  font-size: 12px;
-  color: #86868b;
+  font-size: 14px;
+  color: var(--dj-text-tertiary);
 }
 
 /* 错误消息 */
 .error-message {
-  color: #ff3b30;
-  font-size: 13px;
+  color: var(--dj-danger);
+  font-size: 14px;
   margin: 12px 0;
   text-align: center;
-  padding: 10px 14px;
-  background: rgba(255, 59, 48, 0.1);
-  border-radius: 8px;
+  padding: 12px 16px;
+  background: rgba(220, 38, 38, 0.06);
+  border-radius: 10px;
+  border: 1px solid rgba(220, 38, 38, 0.1);
 }
 
-/* 步骤操作区 */
+/* 步骤操作区 - 固定底部 */
 .step-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid #e5e5ea;
+  gap: 12px;
+  padding: 20px 32px 24px;
+  border-top: 1px solid var(--dj-border);
+  flex-shrink: 0;
+  background: var(--dj-bg-elevated);
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  min-height: 64px;
+}
+
+/* Step containers - make them flex columns */
+.onboarding-content > div {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Step content area - elements before step-actions */
+.onboarding-content > div > :is(h1, h2, p, .app-options, .form-group, .endpoint-form, .assistant-form, .binding-form, .auth-info-section, .prompt-section, .prompt-box, .language-selector, .welcome-actions, .prompt-actions, .error-message, .loading, .empty, .step-scrollable-content) {
+  padding-left: 32px;
+  padding-right: 32px;
+}
+
+.onboarding-content > div > :is(h1, h2):first-child {
+  padding-top: 32px;
+}
+
+.onboarding-content > div > :is(.app-options, .endpoint-form, .assistant-form, .binding-form, .auth-info-section, .prompt-section, .prompt-box, .language-selector, .welcome-actions) {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 20px;
+}
+
+/* 滚动条样式 */
+.onboarding-content > div > :is(.app-options, .endpoint-form, .assistant-form, .binding-form, .auth-info-section, .prompt-section, .prompt-box, .language-selector)::-webkit-scrollbar {
+  width: 6px;
+}
+
+.onboarding-content > div > :is(.app-options, .endpoint-form, .assistant-form, .binding-form, .auth-info-section, .prompt-section, .prompt-box, .language-selector)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.onboarding-content > div > :is(.app-options, .endpoint-form, .assistant-form, .binding-form, .auth-info-section, .prompt-section, .prompt-box, .language-selector)::-webkit-scrollbar-thumb {
+  background: var(--dj-border-strong);
+  border-radius: 3px;
+}
+
+.onboarding-content > div > :is(.app-options, .endpoint-form, .assistant-form, .binding-form, .auth-info-section, .prompt-section, .prompt-box, .language-selector)::-webkit-scrollbar-thumb:hover {
+  background: var(--dj-text-muted);
 }
 
 .welcome-actions {
@@ -226,9 +299,9 @@
 }
 
 .prompt-box {
-  background: #f5f5f7;
-  border: 1px solid #e5e5ea;
-  border-radius: 10px;
+  background: var(--dj-bg-secondary);
+  border: 1px solid var(--dj-border);
+  border-radius: 12px;
   padding: 16px;
   margin: 20px 0;
   max-height: 400px;
@@ -240,8 +313,8 @@
   white-space: pre-wrap;
   word-break: break-word;
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-  font-size: 13px;
-  color: #1d1d1f;
+  font-size: 14px;
+  color: var(--dj-text-primary);
   line-height: 1.5;
 }
 
@@ -250,6 +323,10 @@
   justify-content: center;
   align-items: center;
   margin: 16px 0;
+}
+
+.prompt-actions .btn-primary {
+  min-width: 140px;
 }
 
 .endpoint-form,
@@ -270,22 +347,22 @@
   flex-direction: column;
   align-items: center;
   padding: 24px;
-  background: #f5f5f7;
+  background: var(--dj-bg-secondary);
   border: 1.5px solid transparent;
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .app-option:hover {
-  border-color: #0071e3;
-  background: #ffffff;
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--dj-text-tertiary);
+  background: var(--dj-bg-elevated);
+  transform: scale(1.01);
+  box-shadow: var(--dj-shadow-md);
 }
 
 .app-option:active {
-  transform: scale(0.98);
+  transform: scale(0.99);
 }
 
 .app-icon {
@@ -296,27 +373,27 @@
 .app-name {
   font-size: 17px;
   font-weight: 600;
-  color: #1d1d1f;
+  color: var(--dj-text-primary);
   margin-bottom: 4px;
 }
 
 .app-desc {
-  font-size: 13px;
-  color: #6e6e73;
+  font-size: 14px;
+  color: var(--dj-text-secondary);
   text-align: center;
   line-height: 1.4;
 }
 
 .loading {
   text-align: center;
-  color: #6e6e73;
+  color: var(--dj-text-secondary);
   padding: 40px;
   font-size: 15px;
 }
 
 .empty {
   text-align: center;
-  color: #6e6e73;
+  color: var(--dj-text-secondary);
   padding: 40px;
   font-size: 15px;
 }
@@ -338,22 +415,37 @@
   flex: 1;
 }
 
-.binding-form select {
+.binding-form select,
+.form-group select {
   width: 100%;
-  padding: 12px 14px;
-  background: #ffffff;
-  border: 1px solid #d2d2d7;
-  border-radius: 8px;
-  color: #1d1d1f;
+  padding: 12px 36px 12px 14px;
+  background: var(--dj-bg-primary);
+  border: 1px solid var(--dj-border-strong);
+  border-radius: 10px;
+  color: var(--dj-text-primary);
   font-size: 15px;
   cursor: pointer;
   transition: all 0.15s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23737373' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
 }
 
-.binding-form select:focus {
+.binding-form select:focus,
+.form-group select:focus {
   outline: none;
-  border-color: #0071e3;
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+  border-color: var(--dj-border-strong);
+  box-shadow: 0 0 0 3px var(--dj-accent-glow);
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%234A4A4A' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.binding-form select:disabled,
+.form-group select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--dj-bg-secondary);
 }
 
 /* 认证信息卡片 */
@@ -362,9 +454,9 @@
 }
 
 .auth-info-card {
-  background: #f5f5f7;
-  border: 1px solid #e5e5ea;
-  border-radius: 10px;
+  background: var(--dj-bg-secondary);
+  border: 1px solid var(--dj-border);
+  border-radius: 12px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -378,43 +470,43 @@
 }
 
 .auth-label {
-  font-size: 12px;
-  color: #6e6e73;
+  font-size: 14px;
+  color: var(--dj-text-tertiary);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .auth-value {
-  background: #ffffff;
-  border: 1px solid #d2d2d7;
-  border-radius: 6px;
+  background: var(--dj-bg-elevated);
+  border: 1px solid var(--dj-border);
+  border-radius: 8px;
   padding: 10px 12px;
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-  font-size: 13px;
-  color: #1d1d1f;
+  font-size: 14px;
+  color: var(--dj-text-primary);
   word-break: break-all;
   display: block;
 }
 
 .btn-copy {
-  background: #f5f5f7;
-  color: #0071e3;
-  border: 1px solid #d2d2d7;
-  border-radius: 6px;
+  background: var(--dj-bg-secondary);
+  color: var(--dj-text-primary);
+  border: 1px solid var(--dj-border);
+  border-radius: 8px;
   padding: 8px 16px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .btn-copy:hover {
-  background: #e5e5ea;
-  border-color: #0071e3;
+  background: var(--dj-bg-tertiary);
+  border-color: var(--dj-text-muted);
 }
 
-/* 提示词卡片 */
+/* 提示词卡片 - 使用深色代码块 */
 .prompt-section {
   margin-top: 8px;
 }
@@ -422,7 +514,7 @@
 .prompt-card {
   background: #1e1e1e;
   border: 1px solid #3e3e42;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -434,7 +526,7 @@
   white-space: pre-wrap;
   word-break: break-word;
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-  font-size: 12px;
+  font-size: 14px;
   color: #d4d4d4;
   line-height: 1.6;
 }
@@ -462,7 +554,7 @@
 
 .language-selector label {
   font-size: 14px;
-  color: #6e6e73;
+  color: var(--dj-text-secondary);
   font-weight: 500;
 }
 
@@ -473,10 +565,10 @@
 }
 
 .btn-language {
-  background: #f5f5f7;
-  color: #1d1d1f;
+  background: var(--dj-bg-secondary);
+  color: var(--dj-text-primary);
   border: 1.5px solid transparent;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 500;
@@ -485,11 +577,132 @@
 }
 
 .btn-language:hover {
-  background: #e5e5ea;
+  background: var(--dj-bg-tertiary);
 }
 
 .btn-language.active {
-  background: #0071e3;
-  color: white;
-  border-color: #0071e3;
+  background: var(--dj-text-primary);
+  color: var(--dj-bg-primary);
+  border-color: var(--dj-text-primary);
+}
+
+/* 连接日志区域 */
+.connection-logs-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--dj-border);
+}
+
+.connection-logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.btn-toggle-logs {
+  background: none;
+  border: none;
+  color: var(--dj-text-primary);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.btn-toggle-logs:hover {
+  background: var(--dj-bg-secondary);
+}
+
+.btn-clear-logs {
+  background: none;
+  border: none;
+  color: var(--dj-text-tertiary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-clear-logs:hover {
+  background: var(--dj-bg-secondary);
+  color: var(--dj-text-primary);
+}
+
+.connection-logs-content {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 12px;
+  border-radius: 10px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 14px;
+  max-height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid #3e3e42;
+}
+
+.connection-logs-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.connection-logs-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.connection-logs-content::-webkit-scrollbar-thumb {
+  background: #4a4a4e;
+  border-radius: 3px;
+}
+
+.connection-logs-content::-webkit-scrollbar-thumb:hover {
+  background: #5a5a5e;
+}
+
+.log-entry {
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.log-entry:last-child {
+  margin-bottom: 0;
+}
+
+.log-entry.log-error {
+  color: #f48771;
+}
+
+.log-entry.log-success {
+  color: #89d185;
+}
+
+.log-entry.log-warning {
+  color: #cca700;
+}
+
+.log-empty {
+  color: #858585;
+  font-style: italic;
+}
+
+/* Select dropdown with ellipsis for overflow */
+.input-endpoint-step select,
+.confirm-assistant-step select {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ensure option text shows ellipsis when too long */
+.input-endpoint-step select option,
+.confirm-assistant-step select option {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }

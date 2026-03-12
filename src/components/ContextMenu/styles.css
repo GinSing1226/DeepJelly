@@ -1,11 +1,18 @@
+/**
+ * ContextMenu Styles - Claude Style v3
+ * name: 右键菜单样式
+ * description: 右键上下文菜单，米白主题风格
+ */
+
 .context-menu {
   position: fixed;
-  min-width: 160px;
-  background-color: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 180px;
+  background: var(--dj-bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--dj-border);
+  border-radius: 12px;
+  box-shadow: var(--dj-shadow-lg);
   padding: 6px;
   z-index: 9999;
   animation: context-menu-fade-in 0.15s ease-out;
@@ -24,25 +31,28 @@
 }
 
 .context-menu-item {
-  padding: 8px 12px;
-  color: rgba(255, 255, 255, 0.9);
+  padding: 10px 14px;
+  color: var(--dj-text-primary);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: all 0.15s ease;
   font-size: 14px;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .context-menu-item:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background: var(--dj-bg-secondary);
 }
 
 .context-menu-item.checked {
-  color: #4a9eff;
+  color: var(--dj-accent);
 }
 
 .context-menu-check {
   margin-right: 8px;
   font-weight: bold;
-  font-size: 12px;
+  font-size: 14px;
 }

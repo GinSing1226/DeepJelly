@@ -1,3 +1,9 @@
+/**
+ * CharacterWindow Styles - Claude Style v3
+ * name: 角色窗口样式
+ * description: 桌面宠物主窗口样式，透明背景，米白主题输入框
+ */
+
 /* 桌面宠物核心样式：无边框、背景透明 */
 .character-window {
   user-select: none;
@@ -6,21 +12,19 @@
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  position: relative; /* 关键：作为绝对定位子元素(StatusBubble, thought-bubble等)的参考容器 */
+  position: relative;
   background: transparent !important;
   border: none !important;
   outline: none !important;
   box-shadow: none !important;
   border-radius: 0 !important;
   transition: opacity 0.3s ease;
-  /* 移除上边框和左边框的灰色边框 */
   border-top: none !important;
   border-left: none !important;
   border-right: none !important;
   border-bottom: none !important;
   padding: 0 !important;
   margin: 0 !important;
-  /* 禁用所有可能的边框样式 */
   border-width: 0 !important;
   border-style: none !important;
   border-color: transparent !important;
@@ -43,7 +47,7 @@
 
 .character-canvas {
   width: 100%;
-  height: calc(100% - 60px); /* 为底部输入框预留 60px 空间 */
+  height: calc(100% - 60px);
   border: none !important;
   outline: none !important;
   box-shadow: none !important;
@@ -51,7 +55,6 @@
   margin: 0 !important;
   overflow: hidden;
   position: relative;
-  /* 关键：确保容器本身没有边框效果 */
   background: transparent !important;
 }
 
@@ -64,16 +67,11 @@
   background: transparent !important;
   padding: 0 !important;
   margin: 0 !important;
-  /* 让canvas自动填充容器 */
   width: 100%;
   height: 100%;
-  /* 避免任何可能的边框效果 */
   vertical-align: top;
-  /* 处理高DPI缩放 */
   image-rendering: auto;
-  /* 裁剪掉可能的透明边缘 */
   clip-path: inset(0 0 0 0);
-  /* 确保没有溢出 */
   overflow: hidden;
 }
 
@@ -90,16 +88,16 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background-color: #4caf50;
+  background-color: var(--dj-success);
   animation: pulse 2s ease-in-out infinite;
 }
 
 .status-indicator.disconnected {
-  background-color: #f44336;
+  background-color: var(--dj-danger);
 }
 
 .status-indicator.connecting {
-  background-color: #ff9800;
+  background-color: var(--dj-accent);
 }
 
 @keyframes pulse {
@@ -111,10 +109,10 @@
   }
 }
 
-/* 心理气泡 */
+/* 心理气泡 - 使用米白主题 */
 .thought-bubble {
   position: absolute;
-  top: 50px; /* 临时：改为容器内 50px，便于调试 */
+  top: 50px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
@@ -133,14 +131,15 @@
 }
 
 .bubble-content {
-  background: rgba(255, 0, 255, 0.5); /* 临时：紫色半透明背景，便于调试 */
+  background: var(--dj-bg-elevated);
+  color: var(--dj-text-primary);
   padding: 12px 16px;
-  border-radius: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 18px;
+  box-shadow: var(--dj-shadow-md);
   font-size: 14px;
   white-space: nowrap;
   position: relative;
-  border: 3px solid orange; /* 临时：橙色边框，便于调试 */
+  border: 1px solid var(--dj-border);
 }
 
 .bubble-content::after {
@@ -153,10 +152,46 @@
   height: 0;
   border-left: 8px solid transparent;
   border-right: 8px solid transparent;
-  border-top: 8px solid orange;
+  border-top: 8px solid var(--dj-border);
 }
 
 /* 触碰区域悬停状态 */
 .character-window.zone-hovered {
   /* 可以添加微妙的视觉反馈 */
+}
+
+/* 加载动画样式 - Display slot 窗口初始加载时显示 */
+.character-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: calc(100% - 60px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--dj-background, rgba(30, 30, 30, 0.95));
+  z-index: 10;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--dj-border, rgba(0, 0, 0, 0.1));
+  border-top-color: var(--dj-primary, #7c3aed);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  color: var(--dj-text-secondary, rgba(0, 0, 0, 0.5));
+  font-size: 12px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

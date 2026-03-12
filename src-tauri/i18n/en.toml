@@ -3,6 +3,7 @@
 # ============ Tray Menu ============
 tray_open_dialog = "Open Dialog"
 tray_settings = "Settings"
+tray_display_management = "Display Management"
 tray_debug_panel = "Debug Panel"
 tray_switch_character = "Switch Character/Appearance"
 tray_enter_dnd = "Enter Do Not Disturb"

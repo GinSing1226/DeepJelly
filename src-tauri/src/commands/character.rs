@@ -3,6 +3,9 @@
 //! Tauri commands for managing character configurations.
 
 use crate::logic::character::{CharacterConfig, CharacterManager};
+use crate::logic::character::assistant::AssistantManager;
+use crate::models::{Character as ModelCharacter, Appearance as ModelAppearance, Action as ModelAction, ActionType};
+use crate::logic::character::types::{AnimationResource, ResourceType};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use std::sync::Mutex;
 use tauri::State;
@@ -36,7 +39,7 @@ fn validate_path_component(component: &str) -> Result<(), String> {
 /// Get all characters
 ///
 /// Returns a list of all character configurations.
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn get_all_characters(
     manager: State<'_, CharacterManagerState>,
 ) -> Result<Vec<CharacterConfig>, String> {
@@ -54,19 +57,102 @@ pub fn get_all_characters(
 /// Get a specific character by ID
 ///
 /// Returns the character configuration if found.
-#[tauri::command]
+/// First tries to find in CharacterManager (data/characters/*.json),
+/// then falls back to AssistantManager (assistants.json).
+#[tauri::command(rename_all = "camelCase")]
 pub fn get_character(
     character_id: String,
     manager: State<'_, CharacterManagerState>,
+    assistant_manager: State<'_, crate::commands::assistant::AssistantManagerState>,
 ) -> Result<Option<CharacterConfig>, String> {
-    let manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
-    Ok(manager.get_character(&character_id).cloned())
+    // First try CharacterManager (data/characters/*.json)
+    let char_manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
+    if let Some(config) = char_manager.get_character(&character_id) {
+        println!("[get_character] Found in CharacterManager: {}", character_id);
+        return Ok(Some(config.clone()));
+    }
+    drop(char_manager);
+
+    // Fallback to AssistantManager (assistants.json)
+    println!("[get_character] Not found in CharacterManager, trying AssistantManager: {}", character_id);
+    let ass_manager = assistant_manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
+
+    if let Some(model_char) = ass_manager.get_character(&character_id) {
+        println!("[get_character] Found in AssistantManager: {} ({})", character_id, model_char.name);
+        // Convert Model::Character to CharacterConfig
+        let config = convert_character_to_config(&model_char);
+        return Ok(Some(config));
+    }
+
+    println!("[get_character] Character not found: {}", character_id);
+    Ok(None)
+}
+
+/// Reload a character configuration from file
+///
+/// Forces reload of the character config from disk, useful when
+/// the config file has been modified externally.
+#[tauri::command(rename_all = "camelCase")]
+pub fn reload_character(
+    character_id: String,
+    manager: State<'_, CharacterManagerState>,
+) -> Result<CharacterConfig, String> {
+    println!("[reload_character] Reloading character: {}", character_id);
+
+    let mut char_manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
+
+    char_manager
+        .reload_character(&character_id)
+        .map_err(|e| format!("重新加载角色失败: {}", e))
+}
+
+/// Convert a Model::Character to CharacterConfig
+///
+/// This bridges the gap between the assistant.json Character model
+/// and the CharacterConfig used by the rendering engine.
+fn convert_character_to_config(character: &ModelCharacter) -> CharacterConfig {
+    let appearances = character.appearances.iter().map(|model_appearance| {
+        // Convert Model::Action to AnimationResource
+        let actions: std::collections::HashMap<String, AnimationResource> = model_appearance.actions.iter().map(|(key, action)| {
+            let animation_resource = AnimationResource {
+                r#type: match action.action_type {
+                    ActionType::Frames => ResourceType::Frames,
+                    ActionType::Gif => ResourceType::Gif,
+                    ActionType::Live2d => ResourceType::Live2D,
+                    ActionType::Model3D => ResourceType::Model3D,
+                    ActionType::DigitalHuman => ResourceType::Model3D, // Map to 3D model
+                    ActionType::Spritesheet => ResourceType::Spritesheet,
+                },
+                resources: action.resources.clone(),
+                fps: action.fps,
+                r#loop: Some(action.r#loop),
+                description: action.description.clone(),
+            };
+            (key.clone(), animation_resource)
+        }).collect();
+
+        crate::logic::character::types::AppearanceConfig {
+            id: model_appearance.id.clone(),
+            name: model_appearance.name.clone(),
+            description: model_appearance.description.clone(),
+            is_default: model_appearance.is_default,
+            actions,
+        }
+    }).collect();
+
+    CharacterConfig {
+        character_id: character.id.clone(),
+        name: character.name.clone(),
+        description: character.description.clone(),
+        assistant_id: character.assistant_id.clone(),
+        appearances,
+    }
 }
 
 /// Set the current appearance
 ///
 /// Updates the currently displayed appearance ID.
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn set_current_appearance(
     appearance_id: String,
     manager: State<'_, CharacterManagerState>,
@@ -79,7 +165,7 @@ pub fn set_current_appearance(
 /// Get the current appearance ID
 ///
 /// Returns the ID of the currently displayed appearance.
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn get_current_appearance(
     manager: State<'_, CharacterManagerState>,
 ) -> Result<Option<String>, String> {
@@ -156,16 +242,18 @@ pub fn remove_character(
 /// Get character resource path
 ///
 /// Returns the file path for a character resource (image, etc.)
-/// Path format: `data/characters/{assistant_id}/{character_id}/{resource_name}`
-#[tauri::command]
+/// Path format: `data/characters/{character_id}/{resource_name}`
+#[tauri::command(rename_all = "camelCase")]
 pub fn get_character_resource_path(
-    assistant_id: String,
+    assistant_id: Option<String>,
     character_id: String,
     resource_name: String,
     manager: State<'_, CharacterManagerState>,
 ) -> Result<String, String> {
     // Validate inputs to prevent path traversal
-    validate_path_component(&assistant_id)?;
+    if let Some(ref id) = assistant_id {
+        validate_path_component(id)?;
+    }
     validate_path_component(&character_id)?;
     // resource_name can contain slashes for subdirectories (e.g., "action/0001.png")
     // so we validate each component separately
@@ -173,10 +261,11 @@ pub fn get_character_resource_path(
         validate_path_component(component)?;
     }
 
+    let assistant_id_str = assistant_id.as_deref().unwrap_or("");
     let manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
 
-    let path = manager.get_resource_path(&assistant_id, &character_id, &resource_name)
-        .ok_or_else(|| format!("资源未找到: {}/{}/{}", assistant_id, character_id, resource_name))?;
+    let path = manager.get_resource_path(assistant_id_str, &character_id, &resource_name)
+        .ok_or_else(|| format!("资源未找到: {}/{}/{}", assistant_id_str, character_id, resource_name))?;
 
     // Normalize the path for Tauri's convertFileSrc:
     // 1. Strip the Windows extended-length path prefix (\\?\)
@@ -199,15 +288,17 @@ pub fn get_character_resource_path(
 /// Get multiple character resource paths
 ///
 /// Batch version of get_character_resource_path.
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn get_character_resource_paths(
-    assistant_id: String,
+    assistant_id: Option<String>,
     character_id: String,
     resource_names: Vec<String>,
     manager: State<'_, CharacterManagerState>,
 ) -> Result<Vec<Option<String>>, String> {
     // Validate inputs to prevent path traversal
-    validate_path_component(&assistant_id)?;
+    if let Some(ref id) = assistant_id {
+        validate_path_component(id)?;
+    }
     validate_path_component(&character_id)?;
     for resource_name in &resource_names {
         for component in resource_name.split(['/', '\\']) {
@@ -215,12 +306,13 @@ pub fn get_character_resource_paths(
         }
     }
 
+    let assistant_id_str = assistant_id.as_deref().unwrap_or("");
     let manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
 
     let paths: Vec<Option<String>> = resource_names
         .into_iter()
         .map(|name| {
-            manager.get_resource_path(&assistant_id, &character_id, &name)
+            manager.get_resource_path(assistant_id_str, &character_id, &name)
                 .map(|p| p.to_string_lossy().to_string())
         })
         .collect();
@@ -245,9 +337,9 @@ pub fn is_character_user_defined(
 /// Reads a resource file (image, Live2D, 3D model, etc.) and returns it as base64-encoded data URL.
 /// This avoids path issues with Tauri's convertFileSrc on Windows.
 /// Supports all resource types: frames (images), gif, live2d, model3d.
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn load_character_resource(
-    assistant_id: String,
+    assistant_id: Option<String>,
     character_id: String,
     resource_name: String,
     manager: State<'_, CharacterManagerState>,
@@ -255,20 +347,23 @@ pub fn load_character_resource(
     use std::fs;
 
     // Validate inputs to prevent path traversal
-    validate_path_component(&assistant_id)?;
+    if let Some(ref id) = assistant_id {
+        validate_path_component(id)?;
+    }
     validate_path_component(&character_id)?;
     for component in resource_name.split(['/', '\\']) {
         validate_path_component(component)?;
     }
 
-    println!("[load_character_resource] Loading: {}/{}/{}", assistant_id, character_id, resource_name);
+    let assistant_id_str = assistant_id.as_deref().unwrap_or("");
+    println!("[load_character_resource] Loading: {}/{}/{}", assistant_id_str, character_id, resource_name);
 
     let manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
 
-    let path = manager.get_resource_path(&assistant_id, &character_id, &resource_name)
+    let path = manager.get_resource_path(assistant_id_str, &character_id, &resource_name)
         .ok_or_else(|| {
-            println!("[load_character_resource] Resource not found: {}/{}/{}", assistant_id, character_id, resource_name);
-            format!("资源未找到: {}/{}/{}", assistant_id, character_id, resource_name)
+            println!("[load_character_resource] Resource not found: {}/{}/{}", assistant_id_str, character_id, resource_name);
+            format!("资源未找到: {}/{}/{}", assistant_id_str, character_id, resource_name)
         })?;
 
     println!("[load_character_resource] Path: {:?}", path);
@@ -309,9 +404,11 @@ pub fn load_character_resource(
 ///
 /// Batch version of load_character_resource. Returns a map of resource names to data URLs.
 /// Significantly faster than loading resources one by one due to reduced IPC overhead.
-#[tauri::command]
+///
+/// Falls back to direct path construction for characters not in CharacterManager cache.
+#[tauri::command(rename_all = "camelCase")]
 pub fn load_character_resources(
-    assistant_id: String,
+    assistant_id: Option<String>,
     character_id: String,
     resource_names: Vec<String>,
     manager: State<'_, CharacterManagerState>,
@@ -320,7 +417,9 @@ pub fn load_character_resources(
     use std::collections::HashMap;
 
     // Validate inputs to prevent path traversal
-    validate_path_component(&assistant_id)?;
+    if let Some(ref id) = assistant_id {
+        validate_path_component(id)?;
+    }
     validate_path_component(&character_id)?;
     for resource_name in &resource_names {
         for component in resource_name.split(['/', '\\']) {
@@ -331,44 +430,54 @@ pub fn load_character_resources(
     let manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
 
     let mut result = HashMap::new();
+    let characters_dir = manager.characters_dir();
+    let assistant_id_str = assistant_id.as_deref().unwrap_or("");
 
     for (_index, resource_name) in resource_names.iter().enumerate() {
-        let path = manager.get_resource_path(&assistant_id, &character_id, &resource_name);
+        // First try CharacterManager's cached path
+        let path = manager.get_resource_path(assistant_id_str, &character_id, &resource_name);
 
-        // Debug logging
-        // log::info!("Loading resource: {}/{} -> {:?}", assistant_id, resource_name, path);
-
-        match path {
-            Some(actual_path) => {
-                // Read the file
-                match fs::read(&actual_path) {
-                    Ok(image_data) => {
-                        // Detect mime type from extension
-                        let mime_type = if resource_name.ends_with(".png") {
-                            "image/png"
-                        } else if resource_name.ends_with(".jpg") || resource_name.ends_with(".jpeg") {
-                            "image/jpeg"
-                        } else if resource_name.ends_with(".gif") {
-                            "image/gif"
-                        } else if resource_name.ends_with(".webp") {
-                            "image/webp"
-                        } else {
-                            "image/png"  // Default to PNG
-                        };
-
-                        // Encode to base64
-                        let base64_data = STANDARD.encode(&image_data);
-
-                        // Return as data URL
-                        result.insert(resource_name.clone(), format!("data:{};base64,{}", mime_type, base64_data));
-                    }
-                    Err(_) => {
-                        // Silently skip unreadable files
-                    }
-                }
-            }
+        let actual_path = match path {
+            Some(p) => p,
             None => {
-                // Silently skip missing resources
+                // Fallback: construct path directly (same format as get_resource_path)
+                // Path format: {characters_dir}/{assistant_id}/{character_id}/{resource_name}
+                let mut fallback_path = characters_dir.join(assistant_id_str).join(&character_id);
+
+                // Add resource path components (handle "action-key/0001.png" format)
+                for component in resource_name.split(['/', '\\']) {
+                    fallback_path = fallback_path.join(component);
+                }
+
+                println!("[load_character_resources] Using fallback path for: {} -> {:?}", resource_name, fallback_path);
+                fallback_path
+            }
+        };
+
+        // Read the file
+        match fs::read(&actual_path) {
+            Ok(image_data) => {
+                // Detect mime type from extension
+                let mime_type = if resource_name.ends_with(".png") {
+                    "image/png"
+                } else if resource_name.ends_with(".jpg") || resource_name.ends_with(".jpeg") {
+                    "image/jpeg"
+                } else if resource_name.ends_with(".gif") {
+                    "image/gif"
+                } else if resource_name.ends_with(".webp") {
+                    "image/webp"
+                } else {
+                    "image/png"  // Default to PNG
+                };
+
+                // Encode to base64
+                let base64_data = STANDARD.encode(&image_data);
+
+                // Return as data URL
+                result.insert(resource_name.clone(), format!("data:{};base64,{}", mime_type, base64_data));
+            }
+            Err(_) => {
+                // Silently skip unreadable files
             }
         }
     }
@@ -381,7 +490,7 @@ pub fn load_character_resources(
 /// Copies selected files to the character's resource directory with auto-naming.
 /// Files are named sequentially: 0001.png, 0002.png, etc.
 /// Returns the list of new resource names (without path prefix).
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn add_character_resources(
     assistant_id: String,
     character_id: String,
@@ -480,7 +589,7 @@ pub fn update_appearance(
 /// Add action to appearance
 ///
 /// Adds a new action to the appearance's actions HashMap.
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn add_action(
     character_id: String,
     appearance_id: String,
@@ -517,26 +626,27 @@ pub fn add_action(
 
 /// Update action properties
 ///
-/// Updates an action's key name, loop value, and description.
-#[tauri::command]
+/// Updates an action's key name, fps, loop value, and description.
+#[tauri::command(rename_all = "camelCase")]
 pub fn update_action(
     character_id: String,
     appearance_id: String,
     old_key: String,
     new_key: String,
+    fps: Option<Option<u32>>,
     loop_value: Option<bool>,
     description: Option<String>,
     manager: State<'_, CharacterManagerState>,
 ) -> Result<(), String> {
     let mut manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
-    manager.update_action(&character_id, &appearance_id, &old_key, new_key, loop_value, description)
+    manager.update_action(&character_id, &appearance_id, &old_key, new_key, fps, loop_value, description)
         .map_err(|e| e.to_string())
 }
 
 /// Delete action
 ///
 /// Removes an action from the appearance and deletes its resource directory.
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn delete_action(
     character_id: String,
     appearance_id: String,
@@ -551,7 +661,7 @@ pub fn delete_action(
 /// Update action resources
 ///
 /// Updates the resource list for an action.
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn update_action_resources(
     character_id: String,
     appearance_id: String,
@@ -567,7 +677,7 @@ pub fn update_action_resources(
 /// Remove action resource
 ///
 /// Removes a single resource file from an action's resource list.
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub fn remove_action_resource(
     character_id: String,
     appearance_id: String,
@@ -651,6 +761,179 @@ pub fn add_action_resources(
     }
 
     Ok(new_resources)
+}
+
+/// Load character resource as thumbnail (resized image)
+///
+/// Reads an image file, resizes it to fit within max_width/max_height while maintaining aspect ratio,
+/// and returns it as base64-encoded data URL. This is useful for preview/cover images.
+/// If the image is already smaller than the max dimensions, it returns the original image.
+#[tauri::command(rename_all = "camelCase")]
+pub fn load_character_resource_thumbnail(
+    assistant_id: Option<String>,
+    character_id: String,
+    resource_name: String,
+    max_width: Option<u32>,
+    max_height: Option<u32>,
+    manager: State<'_, CharacterManagerState>,
+) -> Result<String, String> {
+    use std::fs;
+    use image::ImageReader;
+
+    let max_width = max_width.unwrap_or(300);
+    let max_height = max_height.unwrap_or(300);
+
+    // Validate inputs to prevent path traversal
+    if let Some(ref id) = assistant_id {
+        validate_path_component(id)?;
+    }
+    validate_path_component(&character_id)?;
+    for component in resource_name.split(['/', '\\']) {
+        validate_path_component(component)?;
+    }
+
+    let assistant_id_str = assistant_id.as_deref().unwrap_or("");
+    println!("[load_character_resource_thumbnail] Loading: {}/{}/{} (max: {}x{})",
+        assistant_id_str, character_id, resource_name, max_width, max_height);
+
+    let manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
+
+    let path = manager.get_resource_path(assistant_id_str, &character_id, &resource_name)
+        .ok_or_else(|| {
+            println!("[load_character_resource_thumbnail] Resource not found: {}/{}/{}",
+                assistant_id_str, character_id, resource_name);
+            format!("资源未找到: {}/{}/{}", assistant_id_str, character_id, resource_name)
+        })?;
+
+    println!("[load_character_resource_thumbnail] Path: {:?}", path);
+
+    // Read the file
+    let image_data = fs::read(&path)
+        .map_err(|e| format!("读取文件失败: {}", e))?;
+
+    let file_size = image_data.len();
+    println!("[load_character_resource_thumbnail] Original file size: {} bytes ({:.2} MB)",
+        file_size, file_size as f64 / (1024.0 * 1024.0));
+
+    // 强硬措施：文件超过 10MB 直接拒绝，不尝试解码
+    const MAX_FILE_SIZE: usize = 10 * 1024 * 1024; // 10MB
+    if file_size > MAX_FILE_SIZE {
+        let size_mb = file_size as f64 / (1024.0 * 1024.0);
+        return Err(format!("图片文件过大 ({:.2} MB)，超过 10MB 限制。请使用更小的图片文件。", size_mb));
+    }
+
+    // 警告：文件超过 5MB 可能会慢
+    const LARGE_FILE_THRESHOLD: usize = 5 * 1024 * 1024; // 5MB
+    if file_size > LARGE_FILE_THRESHOLD {
+        let size_mb = file_size as f64 / (1024.0 * 1024.0);
+        println!("[load_character_resource_thumbnail] WARNING: Large file ({:.2} MB) - loading may be slow.", size_mb);
+    }
+
+    // Try to decode and resize the image with memory limits
+    let resized_data = match ImageReader::new(std::io::Cursor::new(&image_data))
+        .with_guessed_format()
+        .map_err(|e| format!("无法识别图片格式: {}", e))?
+        .decode() {
+        Ok(img) => {
+            let (orig_width, orig_height) = (img.width(), img.height());
+            println!("[load_character_resource_thumbnail] Original dimensions: {}x{}", orig_width, orig_height);
+
+            // Check if resizing is needed
+            if orig_width <= max_width && orig_height <= max_height {
+                println!("[load_character_resource_thumbnail] Image already small enough, using original");
+                image_data
+            } else {
+                // Resize while maintaining aspect ratio
+                let thumbnail = img.thumbnail(max_width, max_height);
+                println!("[load_character_resource_thumbnail] Resized to: {}x{}", thumbnail.width(), thumbnail.height());
+
+                // Encode based on original format
+                let mut buffer = Vec::new();
+                let format = image::ImageFormat::from_path(&path)
+                    .unwrap_or(image::ImageFormat::Png);
+
+                thumbnail.write_to(&mut std::io::Cursor::new(&mut buffer), format)
+                    .map_err(|e| format!("压缩图片失败: {}", e))?;
+
+                println!("[load_character_resource_thumbnail] Compressed size: {} bytes", buffer.len());
+                buffer
+            }
+        }
+        Err(e) => {
+            println!("[load_character_resource_thumbnail] Failed to decode image ({}), returning original", e);
+            image_data
+        }
+    };
+
+    // Detect mime type from extension
+    let mime_type = if resource_name.ends_with(".png") {
+        "image/png"
+    } else if resource_name.ends_with(".jpg") || resource_name.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if resource_name.ends_with(".gif") {
+        "image/gif"
+    } else if resource_name.ends_with(".webp") {
+        "image/webp"
+    } else {
+        "image/png"
+    };
+
+    // Encode to base64
+    let base64_data = STANDARD.encode(&resized_data);
+    println!("[load_character_resource_thumbnail] Final data URL length: {}", base64_data.len());
+
+    Ok(format!("data:{};base64,{}", mime_type, base64_data))
+}
+
+/// 资源文件信息
+#[derive(serde::Serialize)]
+pub struct ResourceInfo {
+    /// 文件大小（字节）
+    pub file_size: u64,
+    /// 文件大小（MB）
+    pub size_mb: f32,
+    /// 是否是大文件（>5MB）
+    pub is_large: bool,
+}
+
+/// 获取资源文件信息（不读取文件内容）
+#[tauri::command]
+pub fn get_resource_info(
+    assistant_id: Option<String>,
+    character_id: String,
+    resource_name: String,
+    manager: State<'_, CharacterManagerState>,
+) -> Result<ResourceInfo, String> {
+    use std::fs;
+
+    // Validate inputs
+    if let Some(ref id) = assistant_id {
+        validate_path_component(id)?;
+    }
+    validate_path_component(&character_id)?;
+    for component in resource_name.split(['/', '\\']) {
+        validate_path_component(component)?;
+    }
+
+    let assistant_id_str = assistant_id.as_deref().unwrap_or("");
+
+    let manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
+
+    let path = manager.get_resource_path(assistant_id_str, &character_id, &resource_name)
+        .ok_or_else(|| format!("资源未找到: {}/{}/{}", assistant_id_str, character_id, resource_name))?;
+
+    // 获取文件元数据，不读取内容
+    let metadata = fs::metadata(&path)
+        .map_err(|e| format!("获取文件信息失败: {}", e))?;
+
+    let file_size = metadata.len();
+    let size_mb = file_size as f64 / (1024.0 * 1024.0);
+
+    Ok(ResourceInfo {
+        file_size,
+        size_mb: size_mb as f32,
+        is_large: file_size > 10 * 1024 * 1024, // 10MB
+    })
 }
 
 #[cfg(test)]

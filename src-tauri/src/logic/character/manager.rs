@@ -1,7 +1,7 @@
 //! Character configuration manager
 //!
 //! Manages loading, saving, and querying character configurations.
-//! Uses single-path design: all data stored in `data/characters/`.
+//! Uses assistant-grouped design: data stored in `data/characters/{assistant_id}/{character_id}/`.
 
 use super::types::*;
 use crate::utils::error::DeepJellyError;
@@ -14,11 +14,12 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone)]
 struct CharacterSource {
     base_dir: PathBuf,
+    assistant_id: String,
 }
 
 /// 角色管理器
 ///
-/// 单路径设计：所有角色数据存储在 `data/characters/` 目录
+/// 助手分组设计：角色数据存储在 `data/characters/{assistant_id}/{character_id}/` 目录
 pub struct CharacterManager {
     /// 数据目录（`data/`）
     data_dir: PathBuf,
@@ -68,6 +69,8 @@ impl CharacterManager {
     }
 
     /// 从指定目录加载角色
+    ///
+    /// 助手分组架构: {assistant_id}/{character_id}/config.json
     fn load_from_dir(&mut self, dir: &Path) -> Result<usize, DeepJellyError> {
         if !dir.exists() {
             println!("[CharacterManager] Directory does not exist: {:?}", dir);
@@ -96,65 +99,75 @@ impl CharacterManager {
             let path = entry.path();
             println!("[CharacterManager] Found entry: {:?}", path);
 
-            // 角色目录结构: {assistant_id}/{character_id}/config.json
+            // 新的目录结构: {assistant_id}/{character_id}/config.json
             if path.is_dir() {
-                println!("[CharacterManager] Entering directory: {:?}", path);
-                // 检查是否是 assistant_id 目录
-                match fs::read_dir(&path) {
-                    Ok(assistant_entries) => {
-                        println!("[CharacterManager] Subdirectory read succeeded");
-                        for assistant_entry_result in assistant_entries {
-                            let assistant_entry = match assistant_entry_result {
-                                Ok(e) => e,
-                                Err(e) => {
-                                    println!("[CharacterManagement] Error reading sub-entry: {}", e);
-                                    continue;
-                                }
-                            };
+                // 第一层是 assistant_id 目录
+                let assistant_id = path.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
 
-                            let character_path = assistant_entry.path();
-                            println!("[CharacterManagement] Found character entry: {:?}", character_path);
-
-                            if character_path.is_dir() {
-                                let config_file = character_path.join("config.json");
-                                println!("[CharacterManagement] Config file path: {:?}", config_file);
-                                println!("[CharacterManagement] Config file exists: {}", config_file.exists());
-
-                                if config_file.exists() {
-                                    match self.load_config(&config_file) {
-                                        Ok(config) => {
-                                            let character_id = config.character_id.clone();
-                                            let assistant_id = config.assistant_id.as_ref().map(|s| s.as_str()).unwrap_or("None");
-                                            println!("[CharacterManagement] Successfully loaded config for: {} (assistant_id: {})", character_id, assistant_id);
-
-                                            self.character_sources.insert(
-                                                character_id.clone(),
-                                                CharacterSource {
-                                                    base_dir: character_path.clone(),
-                                                }
-                                            );
-
-                                            self.characters.insert(character_id, config);
-                                            count += 1;
-                                        }
-                                        Err(e) => {
-                                            println!("[CharacterManagement] Failed to load config: {}", e);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        println!("[CharacterManagement] Failed to read subdirectory {:?}: {}", path, e);
-                    }
-                }
-            } else {
-                println!("[CharacterManagement] Entry is not a directory, skipping");
+                // 递归扫描该助手下的角色目录
+                count += self.load_characters_for_assistant(&path, &assistant_id)?;
             }
         }
 
-        println!("[CharacterManagement] Final count: {}", count);
+        println!("[CharacterManager] Final count: {}", count);
+        Ok(count)
+    }
+
+    /// 加载指定助手下的所有角色
+    fn load_characters_for_assistant(&mut self, assistant_dir: &Path, assistant_id: &str) -> Result<usize, DeepJellyError> {
+        if !assistant_dir.exists() {
+            return Ok(0);
+        }
+
+        let mut count = 0;
+        let entries = fs::read_dir(assistant_dir)?;
+
+        for entry_result in entries {
+            let entry = match entry_result {
+                Ok(e) => e,
+                Err(e) => {
+                    println!("[CharacterManager] Error reading character entry: {}", e);
+                    continue;
+                }
+            };
+
+            let path = entry.path();
+            println!("[CharacterManager] Found character entry: {:?}", path);
+
+            // 第二层是 character_id 目录
+            if path.is_dir() {
+                let config_file = path.join("config.json");
+                println!("[CharacterManager] Config file path: {:?}", config_file);
+                println!("[CharacterManager] Config file exists: {}", config_file.exists());
+
+                if config_file.exists() {
+                    match self.load_config(&config_file) {
+                        Ok(config) => {
+                            let character_id = config.character_id.clone();
+                            println!("[CharacterManager] Successfully loaded config for: {} (assistant_id: {})", character_id, assistant_id);
+
+                            self.character_sources.insert(
+                                character_id.clone(),
+                                CharacterSource {
+                                    base_dir: path.clone(),
+                                    assistant_id: assistant_id.to_string(),
+                                }
+                            );
+
+                            self.characters.insert(character_id, config);
+                            count += 1;
+                        }
+                        Err(e) => {
+                            println!("[CharacterManager] Failed to load config: {}", e);
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(count)
     }
 
@@ -175,6 +188,32 @@ impl CharacterManager {
         self.characters.values().collect()
     }
 
+    /// 重新加载指定角色的配置
+    ///
+    /// 从文件重新读取角色配置，用于刷新场景
+    pub fn reload_character(&mut self, character_id: &str) -> Result<CharacterConfig, DeepJellyError> {
+        // 从 character_sources 获取 assistant_id 和 base_dir
+        let source = self.character_sources.get(character_id)
+            .ok_or_else(|| DeepJellyError::NotFound(format!("角色来源不存在: {}", character_id)))?;
+
+        let config_path = source.base_dir.join("config.json");
+
+        if !config_path.exists() {
+            return Err(DeepJellyError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Character config not found: {:?}", config_path)
+            )));
+        }
+
+        let config = self.load_config(&config_path)?;
+
+        // 更新缓存
+        self.characters.insert(character_id.to_string(), config.clone());
+
+        println!("[CharacterManager] Reloaded character: {}", character_id);
+        Ok(config)
+    }
+
     /// 设置当前展示的形象
     pub fn set_current_appearance(&mut self, appearance_id: String) {
         self.current_appearance = Some(appearance_id);
@@ -187,13 +226,11 @@ impl CharacterManager {
 
     /// 获取资源文件路径
     ///
-    /// 路径格式: `data/characters/{assistant_id}/{character_id}/{resource_name}`
-    /// resource_name 可以包含路径分隔符，如 "action-key/0001.png"
+    /// 助手分组架构路径格式: `data/characters/{assistant_id}/{character_id}/{resource_name}`
+    /// resource_name 可以包含路径分隔符，如 "{appearance_id}/{action_key}/{frame_name}"
     pub fn get_resource_path(&self, assistant_id: &str, character_id: &str, resource_name: &str) -> Option<PathBuf> {
-        // 分割 resource_name 以支持多级路径（如 "action-key/0001.png"）
-        let mut path = self.characters_dir
-            .join(assistant_id)
-            .join(character_id);
+        // 新结构: characters/{assistant_id}/{character_id}/{appearance_id}/{action_key}/{frame_name}
+        let mut path = self.characters_dir.join(assistant_id).join(character_id);
 
         // 逐级添加路径组件（处理 Unix 和 Windows 路径分隔符）
         for component in resource_name.split(['/', '\\']) {
@@ -211,6 +248,12 @@ impl CharacterManager {
     pub fn get_character_base_dir(&self, character_id: &str) -> Option<PathBuf> {
         self.character_sources.get(character_id)
             .map(|source| source.base_dir.clone())
+    }
+
+    /// 获取角色所属的 assistant_id
+    pub fn get_character_assistant_id(&self, character_id: &str) -> Option<&str> {
+        self.character_sources.get(character_id)
+            .map(|source| source.assistant_id.as_str())
     }
 
     /// 检查角色是否存在
@@ -291,8 +334,8 @@ impl CharacterManager {
 
         if let Some(config) = self.characters.get_mut(character_id) {
             if let Some(appearance) = config.appearances.iter_mut().find(|a| a.id == appearance_id) {
-                // Create resource directory
-                let resource_dir = base_dir.join(&action_key);
+                // Create resource directory: {base_dir}/{appearance_id}/{action_key}
+                let resource_dir = base_dir.join(appearance_id).join(&action_key);
                 fs::create_dir_all(&resource_dir)?;
 
                 appearance.actions.insert(action_key, resource);
@@ -307,7 +350,7 @@ impl CharacterManager {
     }
 
     /// 更新动作
-    pub fn update_action(&mut self, character_id: &str, appearance_id: &str, old_key: &str, new_key: String, loop_value: Option<bool>, description: Option<String>) -> Result<(), DeepJellyError> {
+    pub fn update_action(&mut self, character_id: &str, appearance_id: &str, old_key: &str, new_key: String, fps: Option<Option<u32>>, loop_value: Option<bool>, description: Option<String>) -> Result<(), DeepJellyError> {
         // 先获取 base_dir，避免后续借用冲突
         let base_dir_option = self.get_character_base_dir(character_id);
         let need_rename = old_key != new_key;
@@ -324,17 +367,25 @@ impl CharacterManager {
 
                 // Update resource properties
                 let mut updated_resource = resource;
-                updated_resource.r#loop = loop_value;
-                updated_resource.description = description;
+                if let Some(fps_value) = fps {
+                    updated_resource.fps = fps_value;
+                }
+                if let Some(loop_val) = loop_value {
+                    updated_resource.r#loop = Some(loop_val);
+                }
+                if let Some(desc) = description {
+                    updated_resource.description = Some(desc);
+                }
 
                 // Insert with new key
                 appearance.actions.insert(new_key.clone(), updated_resource);
 
                 // Rename resource directory if key changed
+                // 目录格式: {base_dir}/{appearance_id}/{action_key}
                 if need_rename {
                     if let Some(base_dir) = base_dir_option {
-                        let old_dir = base_dir.join(old_key);
-                        let new_dir = base_dir.join(&new_key);
+                        let old_dir = base_dir.join(appearance_id).join(old_key);
+                        let new_dir = base_dir.join(appearance_id).join(&new_key);
 
                         if old_dir.exists() {
                             fs::rename(&old_dir, &new_dir)?;
@@ -357,7 +408,8 @@ impl CharacterManager {
         // 先获取 base_dir，避免后续借用冲突
         let base_dir = self.get_character_base_dir(character_id)
             .ok_or_else(|| DeepJellyError::NotFound(format!("角色目录不存在: {}", character_id)))?;
-        let resource_dir = base_dir.join(action_key);
+        // 资源目录格式: {base_dir}/{appearance_id}/{action_key}
+        let resource_dir = base_dir.join(appearance_id).join(action_key);
 
         if let Some(config) = self.characters.get_mut(character_id) {
             if let Some(appearance) = config.appearances.iter_mut().find(|a| a.id == appearance_id) {
@@ -401,7 +453,8 @@ impl CharacterManager {
     pub fn remove_action_resource(&mut self, character_id: &str, appearance_id: &str, action_key: &str, resource_name: &str) -> Result<(), DeepJellyError> {
         // 先获取 base_dir 和 resource_path，避免后续借用冲突
         let base_dir_option = self.get_character_base_dir(character_id);
-        let resource_path_option = base_dir_option.as_ref().map(|bd| bd.join(action_key).join(resource_name));
+        // 资源路径格式: {base_dir}/{appearance_id}/{action_key}/{resource_name}
+        let resource_path_option = base_dir_option.as_ref().map(|bd| bd.join(appearance_id).join(action_key).join(resource_name));
 
         if let Some(config) = self.characters.get_mut(character_id) {
             if let Some(appearance) = config.appearances.iter_mut().find(|a| a.id == appearance_id) {
@@ -427,11 +480,6 @@ impl CharacterManager {
         } else {
             Err(DeepJellyError::NotFound(format!("角色不存在: {}", character_id)))
         }
-    }
-
-    /// 获取角色所属的 assistant_id
-    pub fn get_character_assistant_id(&self, character_id: &str) -> Option<String> {
-        self.characters.get(character_id)?.assistant_id.clone()
     }
 }
 
@@ -463,14 +511,15 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let data_dir = temp_dir.path().to_path_buf();
 
-        // 创建测试资源
-        let resource_dir = data_dir.join("characters/asst_001/char_001");
+        // 创建测试资源（新结构: characters/{assistant_id}/{character_id}/...）
+        let resource_dir = data_dir.join("characters/asst_001/char_001/default/action-key");
         fs::create_dir_all(&resource_dir).unwrap();
         fs::write(resource_dir.join("test.png"), "test").unwrap();
 
         let manager = CharacterManager::new(data_dir);
 
-        let path = manager.get_resource_path("asst_001", "char_001", "test.png");
+        // 资源名称包含完整路径: {appearance_id}/{action_key}/{frame_name}
+        let path = manager.get_resource_path("asst_001", "char_001", "default/action-key/test.png");
         assert!(path.is_some());
     }
 
@@ -497,7 +546,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let data_dir = temp_dir.path().to_path_buf();
 
-        // 创建角色配置
+        // 创建角色配置（新结构: characters/{assistant_id}/{character_id}/config.json）
         let config_dir = data_dir.join("characters/asst_001/char_001");
         fs::create_dir_all(&config_dir).unwrap();
 
@@ -505,7 +554,7 @@ mod tests {
             character_id: "char_001".to_string(),
             name: "测试角色".to_string(),
             description: None,
-            assistant_id: None,
+            assistant_id: Some("asst_001".to_string()),
             appearances: vec![],
         };
 

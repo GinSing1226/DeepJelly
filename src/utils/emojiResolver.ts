@@ -13,7 +13,6 @@ const MAX_CACHE_SIZE = 100;
 
 // 懒加载状态
 let emojiLib: typeof import('node-emoji') | null = null;
-let isLoading = false;
 let loadPromise: Promise<typeof import('node-emoji')> | null = null;
 
 /**
@@ -93,7 +92,9 @@ export async function resolveEmoji(input: string): Promise<string> {
     if (cache.size >= MAX_CACHE_SIZE) {
       // LRU: 删除最旧的条目
       const firstKey = cache.keys().next().value;
-      cache.delete(firstKey);
+      if (firstKey !== undefined) {
+        cache.delete(firstKey);
+      }
     }
     cache.set(input, result);
 

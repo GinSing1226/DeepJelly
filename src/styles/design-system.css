@@ -1,0 +1,215 @@
+/**
+ * DeepJelly Design System v3 - Claude Style
+ * name: 设计系统
+ * description: 米白+黑色淡雅风格，Claude官网灵感，温暖专业的AI助手界面
+ */
+
+/* ==================== Design Tokens ==================== */
+
+:root {
+  /* Color System - Cream/Light Theme (Claude Style) */
+  --dj-bg-primary: #FAF9F6;
+  --dj-bg-secondary: #F5F3EE;
+  --dj-bg-tertiary: #EFEDE8;
+  --dj-bg-elevated: #FFFFFF;
+  --dj-bg-glass: rgba(255, 255, 255, 0.85);
+
+  /* Accent - Warm Amber/Orange (elegant, not purple) */
+  --dj-accent: #D97706;
+  --dj-accent-light: #F59E0B;
+  --dj-accent-dark: #B45309;
+  --dj-accent-glow: rgba(217, 119, 6, 0.15);
+
+  /* Semantic Colors */
+  --dj-success: #059669;
+  --dj-warning: #D97706;
+  --dj-danger: #DC2626;
+  --dj-info: #2563EB;
+
+  /* Text Colors - Warm dark tones */
+  --dj-text-primary: #1A1A1A;
+  --dj-text-secondary: #4A4A4A;
+  --dj-text-tertiary: #737373;
+  --dj-text-muted: #A3A3A3;
+
+  /* Borders - Soft warm grays */
+  --dj-border: rgba(0, 0, 0, 0.06);
+  --dj-border-strong: rgba(0, 0, 0, 0.12);
+
+  /* Shadows - Soft and subtle */
+  --dj-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --dj-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --dj-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --dj-shadow-glow: 0 0 20px rgba(217, 119, 6, 0.1);
+
+  /* Border Radius - Rounded and friendly */
+  --dj-radius-sm: 8px;
+  --dj-radius-md: 12px;
+  --dj-radius-lg: 16px;
+  --dj-radius-xl: 24px;
+  --dj-radius-full: 9999px;
+
+  /* Spacing - Generous breathing room */
+  --dj-space-1: 4px;
+  --dj-space-2: 8px;
+  --dj-space-3: 12px;
+  --dj-space-4: 16px;
+  --dj-space-5: 20px;
+  --dj-space-6: 24px;
+  --dj-space-8: 32px;
+
+  /* Typography */
+  --dj-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --dj-text-sm: 13px;
+  --dj-text-base: 14px;
+  --dj-text-lg: 16px;
+
+  /* Transitions */
+  --dj-transition-fast: 150ms ease;
+  --dj-transition-normal: 250ms ease;
+}
+
+/* ==================== Base Styles ==================== */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--dj-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--dj-bg-primary);
+  color: var(--dj-text-primary);
+}
+
+/* ==================== Glass Effect ==================== */
+
+.glass {
+  background: var(--dj-bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* ==================== Button Components ==================== */
+
+.dj-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--dj-space-2);
+  height: 36px;
+  padding: 0 var(--dj-space-4);
+  font-size: var(--dj-text-base);
+  font-weight: 500;
+  border-radius: var(--dj-radius-md);
+  border: none;
+  cursor: pointer;
+  transition: all var(--dj-transition-fast);
+}
+
+.dj-btn-primary {
+  background: var(--dj-text-primary);
+  color: var(--dj-bg-primary);
+}
+
+.dj-btn-primary:hover {
+  background: var(--dj-text-secondary);
+  transform: translateY(-1px);
+  box-shadow: var(--dj-shadow-md);
+}
+
+.dj-btn-secondary {
+  background: var(--dj-bg-elevated);
+  color: var(--dj-text-primary);
+  border: 1px solid var(--dj-border-strong);
+}
+
+.dj-btn-secondary:hover {
+  background: var(--dj-bg-secondary);
+  border-color: var(--dj-text-muted);
+}
+
+/* ==================== Input Components ==================== */
+
+.dj-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--dj-space-4);
+  font-size: var(--dj-text-base);
+  background: var(--dj-bg-elevated);
+  border: 1px solid var(--dj-border-strong);
+  border-radius: var(--dj-radius-md);
+  color: var(--dj-text-primary);
+  transition: all var(--dj-transition-fast);
+}
+
+.dj-input:focus {
+  outline: none;
+  border-color: var(--dj-accent);
+  box-shadow: 0 0 0 3px var(--dj-accent-glow);
+}
+
+.dj-input::placeholder {
+  color: var(--dj-text-muted);
+}
+
+/* ==================== Card Component ==================== */
+
+.dj-card {
+  background: var(--dj-bg-elevated);
+  border: 1px solid var(--dj-border);
+  border-radius: var(--dj-radius-lg);
+  transition: all var(--dj-transition-fast);
+}
+
+.dj-card:hover {
+  border-color: var(--dj-border-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--dj-shadow-md);
+}
+
+/* ==================== Status Dot ==================== */
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dj-text-muted);
+}
+
+.status-dot.online {
+  background: var(--dj-success);
+  box-shadow: 0 0 6px rgba(5, 150, 105, 0.4);
+}
+
+.status-dot.thinking {
+  background: var(--dj-accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ==================== Scrollbar - Minimal ==================== */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--dj-border-strong);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--dj-text-muted);
+}

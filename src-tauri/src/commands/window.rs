@@ -5,7 +5,13 @@
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use log::{info, error, debug};
 use crate::utils::logging::{LogCategory, format_log, format_log_arg1};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
+
+// 🔒 全局标志：防止引导窗口被多次创建
+static ONBOARDING_WINDOW_CREATING: AtomicBool = AtomicBool::new(false);
+
+// 🔒 全局标志：防止退出确认窗口被多次创建
+static QUIT_CONFIRM_WINDOW_CREATING: AtomicBool = AtomicBool::new(false);
 
 /// Dialog window label
 pub const DIALOG_WINDOW_LABEL: &str = "dialog";
@@ -27,9 +33,25 @@ pub const ONBOARDING_WINDOW_LABEL: &str = "onboarding";
 
 /// Open or focus the settings window
 #[tauri::command]
-pub async fn open_settings_window(app: AppHandle) -> Result<(), String> {
+pub async fn open_settings_window(app: AppHandle, tab: Option<String>) -> Result<(), String> {
+    info!("{}", format_log(LogCategory::Window, "open_settings_window called"));
+
+    let tab_for_later = tab.clone();
+
     if let Some(window) = app.get_webview_window(SETTINGS_WINDOW_LABEL) {
-        debug!("{}", format_log(LogCategory::Window, "Settings window already exists"));
+        info!("{}", format_log(LogCategory::Window, "Settings window already exists"));
+
+        // Window already exists - emit event immediately (listener is already set up)
+        if let Some(ref tab_name) = tab {
+            info!("{}", format_log_arg1(LogCategory::Window, "Emitting settings:open-tab event with tab: ", tab_name));
+            let result = app.emit("settings:open-tab", tab_name.clone());
+            if let Err(e) = result {
+                println!("[open_settings_window] Failed to emit event: {}", e);
+            } else {
+                println!("[open_settings_window] Successfully emitted settings:open-tab with tab: {}", tab_name);
+            }
+        }
+
         window
             .set_focus()
             .map_err(|e| format!("Failed to focus settings window: {}", e))?;
@@ -43,14 +65,15 @@ pub async fn open_settings_window(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
+    // Create new window
     let _window = WebviewWindowBuilder::new(
         &app,
         SETTINGS_WINDOW_LABEL,
         WebviewUrl::default(),
     )
     .title("DeepJelly - Settings")
-    .inner_size(1000.0, 800.0)
-    .min_inner_size(900.0, 700.0)
+    .inner_size(1200.0, 800.0)
+    .min_inner_size(1000.0, 700.0)
     .resizable(true)
     .decorations(false)  // Use custom title bar with programmatic drag (smooth)
     .transparent(false)
@@ -64,6 +87,19 @@ pub async fn open_settings_window(app: AppHandle) -> Result<(), String> {
     })?;
 
     info!("{}", format_log(LogCategory::Window, "Settings window created"));
+
+    // For newly created windows, delay the tab event to allow frontend to initialize listeners
+    if let Some(tab_name) = tab_for_later {
+        info!("{}", format_log_arg1(LogCategory::Window, "Scheduling delayed settings:open-tab event with tab: ", &tab_name));
+        let app_clone = app.clone();
+        tokio::spawn(async move {
+            // Wait for frontend to initialize (500ms should be enough)
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            info!("{}", format_log_arg1(LogCategory::Window, "Emitting delayed settings:open-tab event with tab: ", &tab_name));
+            let _ = app_clone.emit("settings:open-tab", tab_name);
+        });
+    }
+
     Ok(())
 }
 
@@ -169,6 +205,7 @@ pub async fn is_dialog_window_open(app: AppHandle) -> bool {
 /// Open or focus the quit confirm window
 #[tauri::command]
 pub async fn open_quit_confirm_window(app: AppHandle) -> Result<(), String> {
+    // 如果窗口已存在，聚焦并返回
     if let Some(window) = app.get_webview_window(QUIT_CONFIRM_WINDOW_LABEL) {
         debug!("{}", format_log(LogCategory::Window, "Quit confirm window already exists"));
         window
@@ -184,21 +221,33 @@ pub async fn open_quit_confirm_window(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    let _window = WebviewWindowBuilder::new(
+    // 🔒 防止并发创建：使用原子操作设置标志
+    if QUIT_CONFIRM_WINDOW_CREATING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        // 如果设置失败，说明已经有另一个线程在创建窗口
+        debug!("{}", format_log(LogCategory::Window, "Quit confirm window is already being created, skipping"));
+        return Ok(());
+    }
+
+    // 创建窗口
+    let result = WebviewWindowBuilder::new(
         &app,
         QUIT_CONFIRM_WINDOW_LABEL,
         WebviewUrl::default(),
     )
     .title("DeepJelly")
-    .inner_size(400.0, 200.0)
+    .inner_size(400.0, 260.0)
     .resizable(false)
     .decorations(false)  // Use custom title bar with programmatic drag (smooth)
     .transparent(true)   // Allow transparent background for clean dialog look
     .always_on_top(true)
     .skip_taskbar(false)
     .center()
-    .build()
-    .map_err(|e| {
+    .build();
+
+    // 🔒 创建完成后重置标志
+    QUIT_CONFIRM_WINDOW_CREATING.store(false, Ordering::SeqCst);
+
+    let _window = result.map_err(|e| {
         error!("{}", format_log_arg1(LogCategory::Window, "Failed to create quit confirm window: ", &e.to_string()));
         format!("Failed to create quit confirm window: {}", e)
     })?;
@@ -437,7 +486,9 @@ pub async fn open_onboarding_window(
     app: AppHandle,
     edit_integration_id: Option<String>,
 ) -> Result<(), String> {
+    // 🔒 首先检查窗口是否已存在
     if let Some(window) = app.get_webview_window(ONBOARDING_WINDOW_LABEL) {
+        debug!("{}", format_log(LogCategory::Window, "Onboarding window already exists"));
         window
             .set_focus()
             .map_err(|e| format!("Failed to focus onboarding window: {}", e))?;
@@ -455,6 +506,14 @@ pub async fn open_onboarding_window(
         return Ok(());
     }
 
+    // 🔒 检查是否正在创建窗口（防止竞态条件）
+    if ONBOARDING_WINDOW_CREATING.swap(true, Ordering::SeqCst) {
+        debug!("{}", format_log(LogCategory::Window, "Onboarding window creation already in progress"));
+        return Ok(()); // 另一个调用已经在创建窗口了
+    }
+
+    debug!("{}", format_log(LogCategory::Window, "Starting onboarding window creation"));
+
     // Build URL with edit_integration_id as query parameter for new windows
     let url = if let Some(ref id) = edit_integration_id {
         format!("onboarding.html?edit={}", id)
@@ -462,7 +521,7 @@ pub async fn open_onboarding_window(
         "onboarding.html".to_string()
     };
 
-    let _window = WebviewWindowBuilder::new(
+    let result = WebviewWindowBuilder::new(
         &app,
         ONBOARDING_WINDOW_LABEL,
         WebviewUrl::App(url.into()),
@@ -476,12 +535,17 @@ pub async fn open_onboarding_window(
     .always_on_top(false)
     .skip_taskbar(false)
     .center()
-    .build()
-    .map_err(|e| {
+    .build();
+
+    // 🔒 重置创建标志（无论成功或失败）
+    ONBOARDING_WINDOW_CREATING.store(false, Ordering::SeqCst);
+
+    result.map_err(|e| {
         error!("{}", format_log_arg1(LogCategory::Window, "Failed to create onboarding window: ", &e.to_string()));
         format!("Failed to create onboarding window: {}", e)
     })?;
 
+    info!("{}", format_log(LogCategory::Window, "Onboarding window created successfully"));
     Ok(())
 }
 

@@ -24,7 +24,7 @@ interface BindingResult {
 
 export function BindingConfirmStep({ onComplete, onSkip }: BindingConfirmStepProps) {
   const { t } = useTranslation('onboarding');
-  const { selectedAppType, endpoint, isConnecting, setConnecting, setError } = useOnboardingStore();
+  const { selectedAppType, endpoint, setConnecting } = useOnboardingStore();
   const [status, setStatus] = useState<'waiting' | 'connecting' | 'received' | 'success'>('waiting');
   const [bindingData, setBindingData] = useState<BindingResult | null>(null);
 

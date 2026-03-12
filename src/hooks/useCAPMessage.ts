@@ -6,15 +6,11 @@
  * Related: [3.2.消息类型](../../../docs/private_docs/Tech/3.2.消息类型.md)
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { parseCAPMessage } from '@/utils/capParser';
 import { CAP_EVENT_NAME } from '@/types/cap';
 import type {
-  BehaviorMentalPayload,
-  SessionPayload,
-  NotificationPayload,
-  EventPayload,
   AnyTypedCAPMessage,
 } from '@/types/cap';
 
@@ -72,7 +68,7 @@ let componentId = 0;
 export function useCAPMessage(options: UseCAPMessageOptions = {}): {
   isConnected: boolean;
 } {
-  const myId = ++componentId;
+  ++componentId;
   const {
     onBehaviorMental,
     onSession,

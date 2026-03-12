@@ -32,8 +32,6 @@ export function useMessagePagination(sessionKey: string, initialLimit = 50) {
 
     setIsLoading(true);
     try {
-      console.log(`[useMessagePagination] Loading messages: sessionKey=${sessionKey}, beforeTs=${beforeTs}`);
-
       const newMessages = await getSessionHistory(sessionKey, initialLimit, 0, beforeTs);
 
       // Deduplicate by message_id or timestamp+content

@@ -68,14 +68,6 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       timestamp: Date.now(),
     };
 
-    const typeTag = `[MSG#${String(seqNo).padStart(3, '0')}:${message.type}]`;
-    console.log(`${typeTag} ADDED:`, {
-      content: message.content?.substring(0, 50),
-      emoji: message.emoji,
-      behavior: message.behavior?.action_id,
-      receiverId: message.receiverId,
-    });
-
     set((state) => ({
       messages: [...state.messages, newMessage],
       // 不自动设置 currentBubble，由调用者决定
@@ -110,10 +102,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
 
   removeMessage: (id) => {
     set((state) => {
-      const msgToRemove = state.messages.find(m => m.id === id);
-      if (msgToRemove) {
-        console.log(`[MSG#${String(msgToRemove.seqNo).padStart(3, '0')}:${msgToRemove.type}] REMOVED`);
-      }
+      state.messages.find(m => m.id === id);
       const messages = state.messages.filter((m) => m.id !== id);
       const currentBubble =
         state.currentBubble?.id === id
@@ -126,17 +115,12 @@ export const useMessageStore = create<MessageState>((set, get) => ({
 
   removeMessages: (type, receiverId) => {
     set((state) => {
-      const toRemove = state.messages.filter(m => {
+      state.messages.filter(m => {
         if (receiverId) {
           return m.type === type && m.receiverId === receiverId;
         }
         return m.type === type;
       });
-
-      if (toRemove.length > 0) {
-        const seqNos = toRemove.map(m => `#${String(m.seqNo).padStart(3, '0')}`).join(', ');
-        console.log(`[MSG:${type}] BATCH REMOVE: ${seqNos} (receiverId: ${receiverId || 'all'})`);
-      }
 
       const messages = state.messages.filter((m) => {
         // 如果指定了 receiverId，只删除匹配的
@@ -157,10 +141,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   setCurrentBubble: (message) => {
-      console.log("[messageStore] setCurrentBubble called with:", message);
-      const newState = { currentBubble: message };
-      console.log("[messageStore] New state:", newState);
-      set(newState);
+      set({ currentBubble: message });
     },
 
   clearMessages: () => set({ messages: [], currentBubble: null }),

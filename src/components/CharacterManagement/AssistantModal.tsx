@@ -1,7 +1,8 @@
 /**
  * Assistant Modal Component
  *
- * 助手编辑弹窗组件 - MVP阶段只允许编辑名称和描述
+ * 助手编辑/新增弹窗组件 - MAC精简风格
+ * 符合米白+深炭黑淡雅设计规范
  */
 
 import { useState, useEffect } from 'react';
@@ -13,16 +14,34 @@ interface AssistantModalProps {
   /** 关闭回调 */
   onClose: () => void;
   /** 确认回调 */
-  onConfirm: (data: { name: string; description: string }) => void;
+  onConfirm: (data: { id?: string; name: string; description: string }) => void;
   /** 编辑模式：传入要编辑的助手数据 */
   assistant?: { id: string; name: string; description?: string } | null;
-  /** 是否为编辑模式 (MVP阶段固定为true) */
+  /** 是否为编辑模式 */
   isEdit?: boolean;
 }
 
 /**
- * 助手编辑弹窗主组件
- * MVP阶段：只允许编辑名称和描述，不允许修改ID、应用类型、认证信息
+ * 生成随机ID（16位，去除易混淆字符）
+ */
+function generateRandomId(): string {
+  const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = '';
+  for (let i = 0; i < 16; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+/**
+ * 验证自定义ID格式
+ */
+function validateCustomId(id: string): boolean {
+  return /^[a-zA-Z0-9_-]{3,50}$/.test(id);
+}
+
+/**
+ * 助手编辑/新增弹窗主组件
  */
 export default function AssistantModal({
   isOpen,
@@ -32,40 +51,79 @@ export default function AssistantModal({
   isEdit = true,
 }: AssistantModalProps) {
   const { t } = useTranslation('settings');
+  const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [idError, setIdError] = useState('');
 
-  // 编辑模式：初始化表单数据
+  // 初始化表单数据
   useEffect(() => {
-    if (isEdit && assistant) {
-      setName(assistant.name);
-      setDescription(assistant.description || '');
-    } else {
-      // 新增模式：重置表单
-      setName('');
-      setDescription('');
+    if (isOpen) {
+      if (isEdit && assistant) {
+        setId(assistant.id);
+        setName(assistant.name);
+        setDescription(assistant.description || '');
+      } else {
+        // 新增模式：生成随机ID
+        const newId = generateRandomId();
+        setId(newId);
+        setName('');
+        setDescription('');
+        setIdError('');
+      }
     }
   }, [isOpen, isEdit, assistant]);
+
+  // 验证ID
+  useEffect(() => {
+    if (!isEdit && id) {
+      if (!validateCustomId(id)) {
+        setIdError('ID格式不正确，请使用3-50位字母、数字、下划线或连字符');
+      } else {
+        setIdError('');
+      }
+    }
+  }, [id, isEdit]);
+
+  const handleGenerateRandomId = () => {
+    setId(generateRandomId());
+    setIdError('');
+  };
 
   const handleConfirm = () => {
     if (!name.trim()) {
       alert(t('character.assistantNameRequired'));
       return;
     }
+
+    // 新增模式下验证ID
+    if (!isEdit && idError) {
+      alert(idError);
+      return;
+    }
+
     onConfirm({
+      id: isEdit ? undefined : id.trim(),
       name: name.trim(),
       description: description.trim(),
     });
+
     // 重置表单
-    setName('');
-    setDescription('');
+    if (!isEdit) {
+      setId('');
+      setName('');
+      setDescription('');
+      setIdError('');
+    }
   };
 
   const handleCancel = () => {
     // 重置表单
     if (!isEdit) {
+      setId('');
       setName('');
       setDescription('');
+      setIdError('');
     }
     onClose();
   };
@@ -85,48 +143,113 @@ export default function AssistantModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, name, description]);
+  }, [isOpen, name, description, id, idError, isEdit]);
 
   if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={handleCancel}>
-      <div className="modal-content assistant-modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{t('character.editAssistantTitle')}</h3>
+      <div className="assistant-modal-content" onClick={(e) => e.stopPropagation()}>
+        {/* Header - MAC风格简洁 */}
+        <div className="modal-header-mac">
+          <div className="modal-title">
+            {isEdit ? t('character.editAssistantTitle') : t('character.addAssistantTitle')}
+          </div>
+          <button className="modal-close-btn" onClick={handleCancel}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        <div className="modal-body">
-          <div className="form-group-modern">
-            <label className="form-label-modern">{t('character.assistantName')}</label>
+        {/* Body */}
+        <div className="modal-body-mac">
+          {/* 新增模式：显示ID输入框 */}
+          {!isEdit && (
+            <div className="form-group-mac">
+              <label className="form-label-mac">
+                {t('character.assistantId')}
+                <span className="form-optional">可选</span>
+              </label>
+              <div className="input-with-action">
+                <input
+                  type="text"
+                  value={id}
+                  onChange={(e) => setId(e.target.value)}
+                  placeholder={t('character.assistantIdPlaceholder')}
+                  className="form-input-mac"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="btn-action-mac"
+                  onClick={handleGenerateRandomId}
+                  title="生成随机ID"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                    <path d="M16 8h.01" />
+                    <path d="M8 16h.01" />
+                    <path d="M12 12h.01" />
+                    <path d="M16 16h.01" />
+                    <path d="M8 8h.01" />
+                  </svg>
+                  <span>随机生成</span>
+                </button>
+              </div>
+              {idError && <div className="form-error-mac">{idError}</div>}
+              <div className="form-hint-mac">留空则自动生成16位随机ID，创建后不可修改</div>
+            </div>
+          )}
+
+          {/* 编辑模式：显示只读ID */}
+          {isEdit && (
+            <div className="form-group-mac">
+              <label className="form-label-mac">{t('character.assistantId')}</label>
+              <div className="input-readonly-mac">
+                <span className="readonly-value">{id}</span>
+                <span className="readonly-badge">不可修改</span>
+              </div>
+            </div>
+          )}
+
+          <div className="form-group-mac">
+            <label className="form-label-mac">
+              {t('character.assistantName')}
+              <span className="form-required">*</span>
+            </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('character.assistantNamePlaceholder')}
-              className="form-input-modern"
-              autoFocus
+              className="form-input-mac"
+              autoFocus={isEdit}
             />
           </div>
 
-          <div className="form-group-modern">
-            <label className="form-label-modern">{t('character.description')}</label>
-            <input
-              type="text"
+          <div className="form-group-mac">
+            <label className="form-label-mac">
+              {t('character.description')}
+              <span className="form-optional">可选</span>
+            </label>
+            <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t('character.descriptionPlaceholder')}
-              className="form-input-modern"
+              className="form-textarea-mac"
+              rows={3}
             />
           </div>
         </div>
 
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={handleCancel}>
+        {/* Footer - MAC风格 */}
+        <div className="modal-footer-mac">
+          <button className="btn-mac btn-mac-secondary" onClick={handleCancel}>
             {t('character.cancel')}
           </button>
-          <button className="btn-primary" onClick={handleConfirm}>
-            {t('character.confirm')}
+          <button className="btn-mac btn-mac-primary" onClick={handleConfirm}>
+            {isEdit ? '保存修改' : '创建助手'}
           </button>
         </div>
       </div>

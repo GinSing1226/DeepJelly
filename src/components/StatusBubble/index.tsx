@@ -1,25 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useStatusBubble } from './useStatusBubble';
-export type { StatusData, StatusType } from './useStatusBubble';
+import type { StatusData } from './useStatusBubble';
+export type { StatusData } from './useStatusBubble';
 import './styles.css';
-
-/**
- * Preset status configurations with emoji and text
- *
- * NOTE: 已禁用硬编码映射，改用 emojiResolver 懒加载方案
- * 如果需要验证方案 B 是否生效，请保持此注释状态
- */
-// const PRESET_STATUSES: Record<StatusType, { emoji: string; text: string }> = {
-//   idle: { emoji: '💤', text: '空闲' },
-//   listening: { emoji: '👂', text: '倾听' },
-//   thinking: { emoji: '🤔', text: '思考' },
-//   executing: { emoji: '⚙️', text: '执行' },
-//   speaking: { emoji: '💬', text: '说话' },
-//   network_error: { emoji: '❌', text: '网络异常' },
-// };
-
-// 类型断言，避免编译错误
-const PRESET_STATUSES: Record<StatusType, { emoji: string; text: string }> = {} as any;
 
 /**
  * Props for the StatusBubble component
@@ -27,8 +9,6 @@ const PRESET_STATUSES: Record<StatusType, { emoji: string; text: string }> = {} 
 export interface StatusBubbleProps {
   /** Current status to display, null means no status */
   status: StatusData | null;
-  /** Optional preset status type (overrides emoji/text in status if provided) */
-  statusType?: StatusType;
   /** Optional callback when bubble is clicked */
   onDismiss?: () => void;
 }
@@ -42,30 +22,16 @@ export interface StatusBubbleProps {
  *
  * @param props - Component props
  */
-export function StatusBubble({ status, statusType, onDismiss }: StatusBubbleProps) {
+export function StatusBubble({ status, onDismiss }: StatusBubbleProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isHiding, setIsHiding] = useState(false);
 
   // 生成一个气泡实例ID用于追踪
   const bubbleId = useRef(`BUB_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`).current;
-  const bubbleTag = `[${bubbleId}]`;
 
   // 直接从 props 计算要显示的内容
-  const displayEmoji = ((): string => {
-    if (!status) return '';
-    if (statusType && PRESET_STATUSES[statusType]) {
-      return PRESET_STATUSES[statusType].emoji;
-    }
-    return status.emoji || '';
-  })();
-
-  const displayText = ((): string => {
-    if (!status) return '';
-    if (statusType && PRESET_STATUSES[statusType]) {
-      return PRESET_STATUSES[statusType].text;
-    }
-    return status.text;
-  })();
+  const displayEmoji = status?.emoji || '';
+  const displayText = status?.text || '';
 
   // 计算是否应该显示：有 status 且不在隐藏状态
   const shouldShow = !!status;
@@ -85,8 +51,11 @@ export function StatusBubble({ status, statusType, onDismiss }: StatusBubbleProp
     if (duration && duration > 0) {
       const timer = setTimeout(() => {
         setIsHiding(true);
+        // 触发淡出动画后，通知父组件清除状态
         setTimeout(() => {
-          setIsHiding(false);
+          if (onDismiss) {
+            onDismiss();
+          }
         }, 200); // Match animation duration in CSS
       }, duration);
 
@@ -94,7 +63,7 @@ export function StatusBubble({ status, statusType, onDismiss }: StatusBubbleProp
         clearTimeout(timer);
       };
     }
-  }, [status, statusType, displayEmoji, displayText]);
+  }, [status]);
 
   // Debug: Check if DOM element is created and its position
   useEffect(() => {
@@ -155,7 +124,19 @@ export function StatusBubble({ status, statusType, onDismiss }: StatusBubbleProp
             {displayEmoji}
           </span>
         )}
-        {displayText && <span className="status-bubble-text">{displayText}</span>}
+        {displayText && (
+          <span className="status-bubble-text">
+            {displayText.split('').map((char, index) => (
+              <span
+                key={`${bubbleId}-char-${index}`}
+                className="status-bubble-char"
+                style={{ animationDelay: `${index * 0.08}s` }}
+              >
+                {char === ' ' ? '\u00A0' : char}
+              </span>
+            ))}
+          </span>
+        )}
       </div>
     </div>
   );

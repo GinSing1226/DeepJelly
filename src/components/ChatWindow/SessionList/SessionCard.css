@@ -1,0 +1,204 @@
+/**
+ * SessionCard Styles - Claude Style v3
+ * name: 会话卡片样式
+ * description: 米白+黑色淡雅风格，温暖专业的会话卡片设计
+ */
+
+.session-card {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  gap: 14px;
+  cursor: pointer;
+  margin: 2px 12px;
+  border-radius: 14px;
+  transition: all 0.2s ease;
+  position: relative;
+  user-select: none;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+/* Hover effect */
+.session-card:hover {
+  background: var(--dj-bg-elevated);
+  border-color: var(--dj-border);
+  box-shadow: var(--dj-shadow-sm);
+}
+
+/* Session action buttons (visible on hover) */
+.session-actions {
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transform: translateX(8px);
+  transition: all 0.2s ease;
+  pointer-events: none;
+}
+
+.session-card:hover .session-actions {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.session-action-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: var(--dj-bg-secondary);
+  color: var(--dj-text-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.session-action-button:hover {
+  background: var(--dj-bg-tertiary);
+  color: var(--dj-text-primary);
+}
+
+.session-action-button.delete:hover {
+  background: var(--dj-danger);
+  color: white;
+}
+
+/* Avatar */
+.session-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--dj-bg-tertiary), var(--dj-bg-secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  position: relative;
+  border: 1px solid var(--dj-border);
+}
+
+/* Session info */
+.session-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.session-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dj-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+}
+
+.session-time {
+  font-size: 14px;
+  color: var(--dj-text-tertiary);
+  flex-shrink: 0;
+  margin-left: 8px;
+  font-weight: 400;
+}
+
+.session-preview {
+  font-size: 14px;
+  color: var(--dj-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* Context Menu */
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 160px;
+  background: var(--dj-bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 14px;
+  box-shadow: var(--dj-shadow-lg);
+  border: 1px solid var(--dj-border);
+  padding: 8px;
+  animation: context-menu-pop 0.2s ease;
+  transform-origin: top left;
+}
+
+@keyframes context-menu-pop {
+  0% {
+    transform: scale(0.95) translateY(-4px);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.context-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--dj-text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.context-menu-item:hover:not(:disabled) {
+  background: var(--dj-bg-secondary);
+}
+
+.context-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.context-menu-item.dangerous {
+  color: var(--dj-danger);
+}
+
+.context-menu-item.dangerous:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.context-menu-icon {
+  font-size: 16px;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.context-menu-label {
+  flex: 1;
+}

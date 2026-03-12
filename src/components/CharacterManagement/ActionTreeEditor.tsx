@@ -132,14 +132,14 @@ function ActionTreeNodeComponent({
   t: (key: string) => string;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [_showContextMenu, _setShowContextMenu] = useState(false);
   const hasChildren = node.children && node.children.length > 0;
   const isSelected = selectedKey === node.key;
 
   const handleRightClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (node.type === 'action') {
-      setShowContextMenu(true);
+      _setShowContextMenu(true);
     }
   };
 

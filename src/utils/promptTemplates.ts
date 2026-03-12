@@ -42,7 +42,7 @@ const OPENCLAW_PROMPTS: Record<SupportedLocale, string> = {
   "channels": {
     "deepjelly": {
       "enabled": true,
-      "serverHost": "0.0.0.0",
+      "serverHost": "这是你的局域网ip地址",
       "serverPort": 18790,
       "autoStart": true
     }
@@ -51,7 +51,7 @@ const OPENCLAW_PROMPTS: Record<SupportedLocale, string> = {
 
 注意：局域网部署需要在防火墙中允许 18790 端口入站连接。
 
-4. 重启 OpenClaw 后，告诉我你的 IP 地址和端口（默认 18790）。
+4. 最后，告诉我你的 IP 地址和端口（默认 18790）。并执行一个命令：20s后自动重启gateway。
 
 完成后，我将通过 WebSocket 连接到你的 OpenClaw。`,
 
@@ -85,7 +85,7 @@ LAN deployment (different machines):
   "channels": {
     "deepjelly": {
       "enabled": true,
-      "serverHost": "0.0.0.0",
+      "serverHost": "YOUR_LAN_IP_ADDRESS",
       "serverPort": 18790,
       "autoStart": true
     }
@@ -94,7 +94,7 @@ LAN deployment (different machines):
 
 Note: For LAN deployment, you need to allow port 18790 inbound connections in your firewall.
 
-4. After restarting OpenClaw, tell me your IP address and port (default 18790).
+4. Finally, tell me your IP address and port (default 18790). And execute a command: automatically restart gateway in 20s.
 
 Once completed, I will connect to your OpenClaw via WebSocket.`,
 
@@ -128,7 +128,7 @@ LAN展開（異なるマシン）：
   "channels": {
     "deepjelly": {
       "enabled": true,
-      "serverHost": "0.0.0.0",
+      "serverHost": "あなたのLAN IPアドレス",
       "serverPort": 18790,
       "autoStart": true
     }
@@ -137,7 +137,7 @@ LAN展開（異なるマシン）：
 
 注意：LAN展開の場合、ファイアウォールでポート18790のインバウンド接続を許可する必要があります。
 
-4. OpenClawを再起動した後、IPアドレスとポート（デフォルト18790）を教えてください。
+4. 最後に、IPアドレスとポート（デフォルト18790）を教えてください。そして、次のコマンドを実行してください：20秒後にgatewayを自動的に再起動します。
 
 完了後、WebSocketを介してあなたのOpenClawに接続します。`
 };

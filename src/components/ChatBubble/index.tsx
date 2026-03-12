@@ -2,7 +2,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { useSessionQueueStore } from '@/stores/sessionQueueStore';
+// REMOVED: Old store
+// import { useSessionQueueStore } from '@/stores/sessionQueueStore';
+// NEW: Character-isolated store
+import { sessionQueueStore } from '@/stores/characterStores';
 import { useMessageStore } from '@/stores/messageStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import './styles.css';
@@ -18,12 +21,18 @@ export type ChatType = 'single' | 'group';
 export interface ChatBubbleProps {
   /** Optional callback when bubble is clicked to open dialog */
   onOpenDialog?: () => void;
+  /** Whether to disable click-to-open-dialog behavior (for character windows) */
+  disableClick?: boolean;
   /** Maximum number of messages in queue (default: 10) */
   maxQueueSize?: number;
   /** Display duration for each message in milliseconds (default: 10000) */
   messageDuration?: number;
-  /** Current assistant ID for filtering messages (optional, shows all if not provided) */
+  /** Character ID for filtering messages from the routed store (REQUIRED) */
+  characterId?: string;
+  /** DEPRECATED: Use characterId instead */
   assistantId?: string;
+  /** DEPRECATED: Session keys filtering is now handled by MessageGateway */
+  sessionKeys?: string[];
 }
 
 /**
@@ -34,22 +43,45 @@ export interface ChatBubbleProps {
  */
 export function ChatBubble({
   onOpenDialog,
-  assistantId,
+  disableClick = false,
+  characterId,
+  assistantId, // DEPRECATED: mapped to characterId for backward compatibility
   messageDuration = 10000,
 }: ChatBubbleProps) {
-  // 从 sessionQueueStore 获取会话消息（主要来源）
-  const sessions = useSessionQueueStore((s) => s.sessions);
+  // Use characterId if provided, otherwise fall back to assistantId for backward compatibility
+  const effectiveCharacterId = characterId || assistantId;
+
+  // 从新的 character-isolated sessionQueueStore 订阅指定角色的消息
+  const [sessions, setSessions] = useState(() =>
+    effectiveCharacterId
+      ? sessionQueueStore.getState().getSessions(effectiveCharacterId)
+      : []
+  );
+
+  // Subscribe to store changes
+  useEffect(() => {
+    if (!effectiveCharacterId) {
+      setSessions([]);
+      return;
+    }
+
+    const unsubscribe = sessionQueueStore.subscribe((state) => {
+      setSessions(state.getSessions(effectiveCharacterId));
+    });
+
+    return unsubscribe;
+  }, [effectiveCharacterId]);
 
   // 从 messageStore 获取直接添加的聊天消息（向后兼容）
   const directMessages = useMessageStore((s) => s.messages);
 
-  // 合并消息
+  // 合并消息 - 只使用该角色的消息
   const allMessages = [
-    ...sessions.filter(s => !assistantId || s.receiverId === assistantId),
+    ...sessions,
     ...directMessages.filter(m => {
       if (m.type !== 'chat') return false;
-      if (!assistantId) return true;
-      return m.receiverId === assistantId;
+      if (!effectiveCharacterId) return true;
+      return m.receiverId === effectiveCharacterId;
     }),
   ];
 
@@ -85,7 +117,7 @@ export function ChatBubble({
 
   // 点击气泡打开对应会话（必须在条件返回之前定义，避免 hooks 数量不一致）
   const handleClick = useCallback(async () => {
-    if (!latestMessage) return;
+    if (!latestMessage || disableClick) return;
 
     const hasSessionId = 'sessionId' in latestMessage && typeof latestMessage.sessionId === 'string';
     if (hasSessionId) {
@@ -102,7 +134,7 @@ export function ChatBubble({
         console.error('[ChatBubble] Failed to open dialog:', error);
       }
     }
-  }, [latestMessage, onOpenDialog]);
+  }, [latestMessage, onOpenDialog, disableClick]);
 
   // 如果没有消息或不可见，不渲染（在所有 hooks 之后）
   if (!latestMessage || !visible) {
@@ -111,16 +143,15 @@ export function ChatBubble({
 
   // 在条件返回之后访问 latestMessage 属性（此时保证非空）
   const content = latestMessage.content || '';
-  const sender = latestMessage.sender || 'assistant';
 
   // 获取消息内容（兼容session和messageStore格式）
-  const messageText = typeof content === 'string' ? content : content?.content || '';
+  const messageText = typeof content === 'string' ? content : (content as any)?.content || '';
 
   return (
     <div
       className="chat-bubble chat-single"
       onClick={handleClick}
-      title="点击打开对话框"
+      title={disableClick ? undefined : '点击打开对话框'}
     >
       <div className="chat-bubble-body">
         <div className="chat-bubble-content">
@@ -128,7 +159,7 @@ export function ChatBubble({
             remarkPlugins={[remarkGfm]}
             components={{
               p: ({ children }) => <p className="chat-paragraph">{children}</p>,
-              code: ({ inline, className, children }) => {
+              code: ({ inline, className, children }: { inline?: boolean; className?: string; children?: React.ReactNode }) => {
                 return inline ? (
                   <code className={className}>{children}</code>
                 ) : (

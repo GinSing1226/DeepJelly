@@ -1,7 +1,7 @@
 /**
- * Quit Confirm Window Styles - 浅蓝+白色风格
- *
- * Styles for the independent quit confirm dialog window.
+ * QuitConfirmApp Styles - MAC Style
+ * Meta-Name: 退出确认窗口样式
+ * Meta-Description: 退出确认对话框，MAC 风格
  */
 
 .quit-confirm-window {
@@ -11,15 +11,15 @@
   align-items: center;
   justify-content: center;
   background: transparent;
-  color: #1d1d1f;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  color: var(--dj-text-primary);
+  font-family: var(--dj-font-sans);
 }
 
 /* Hide the outer container visually but keep layout */
 .quit-confirm-window > :first-child {
   width: 100vw;
   height: 100vh;
-  background: #ffffff;
+  background: var(--dj-bg-primary);
   box-shadow: none;
   border: none;
   border-radius: 0;
@@ -32,7 +32,7 @@
   height: 100vh;
   padding: 0;
   max-width: none;
-  background: #ffffff;
+  background: var(--dj-bg-primary);
   border-radius: 0;
   box-shadow: none;
   border: none;
@@ -45,12 +45,14 @@
 .quit-confirm-header {
   display: flex;
   align-items: center;
-  padding: 24px 48px 16px 48px;
-  background: white;
-  color: #1d1d1f;
+  justify-content: center;
+  padding: var(--dj-space-6);
+  background: var(--dj-bg-elevated);
+  color: var(--dj-text-primary);
   cursor: grab;
   user-select: none;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--dj-border);
 }
 
 .quit-confirm-header:active {
@@ -60,54 +62,66 @@
 .quit-confirm-title {
   font-size: 17px;
   font-weight: 600;
-  color: #1d1d1f;
+  color: var(--dj-text-primary);
   pointer-events: none;
 }
 
 .quit-confirm-content p {
   margin: auto;
-  padding: 32px 48px;
-  font-size: 15px;
-  color: #1d1d1f;
-  line-height: 1.5;
+  padding: var(--dj-space-8);
+  font-size: 14px;
+  color: var(--dj-text-secondary);
+  line-height: 1.6;
   text-align: center;
 }
 
+/* Footer - 参考 modal-footer-mac 样式 */
 .quit-confirm-actions {
   display: flex;
-  gap: 12px;
-  justify-content: center;
-  padding: 0 48px 40px 48px;
+  justify-content: flex-end;
+  gap: var(--dj-space-2);
+  padding: var(--dj-space-4) var(--dj-space-6);
   flex-shrink: 0;
+  background: var(--dj-bg-secondary);
+  border-top: 1px solid var(--dj-border);
 }
 
-.quit-confirm-actions button {
-  min-width: 100px;
-  padding: 10px 20px;
-  height: 34px;
+/* ==================== MAC Style Buttons ==================== */
+.btn-mac {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 var(--dj-space-4);
+  font-size: 14px;
+  font-weight: 500;
   border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 400;
+  border-radius: var(--dj-radius-md);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--dj-transition-fast);
 }
 
-.btn-cancel {
-  background: #f5f5f7;
-  color: #1d1d1f;
-  border: 1px solid #d2d2d7;
+.btn-mac:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
-.btn-cancel:hover {
-  background: #e5e5e7;
+.btn-mac-primary {
+  background: var(--dj-text-primary);
+  color: var(--dj-bg-primary);
 }
 
-.btn-confirm {
-  background: #007aff;
-  color: #ffffff;
+.btn-mac-primary:hover:not(:disabled) {
+  background: var(--dj-text-secondary);
 }
 
-.btn-confirm:hover {
-  background: #0051d5;
+.btn-mac-secondary {
+  background: var(--dj-bg-elevated);
+  color: var(--dj-text-primary);
+  border: 1px solid var(--dj-border-strong);
+}
+
+.btn-mac-secondary:hover:not(:disabled) {
+  background: var(--dj-bg-primary);
+  border-color: var(--dj-text-muted);
 }

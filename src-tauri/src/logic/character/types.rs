@@ -194,6 +194,7 @@ pub enum ResourceType {
     Gif,
     Live2D,
     Model3D,
+    Spritesheet,
 }
 
 /// 动画资源配置
@@ -259,7 +260,7 @@ pub struct CharacterConfig {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
-    #[serde(default)]
+    #[serde(default, rename = "assistant_id", alias = "assistantId")]
     pub assistant_id: Option<String>,
     pub appearances: Vec<AppearanceConfig>,
 }
@@ -270,7 +271,7 @@ pub struct AppearanceConfig {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
-    #[serde(alias = "isDefault")]
+    #[serde(default, alias = "isDefault")]
     pub is_default: bool,
     pub actions: HashMap<String, AnimationResource>,
 }

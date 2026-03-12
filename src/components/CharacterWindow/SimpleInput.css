@@ -1,8 +1,7 @@
 /**
- * SimpleInput 组件样式
- *
- * Meta-Name: Simple Input Styles
- * Meta-Description: 简易输入框的样式定义，包含动画、布局和响应式设计
+ * SimpleInput Styles - Claude Style v3
+ * name: 简易输入框样式
+ * description: 桌面宠物底部输入框，米白主题风格
  */
 
 .simple-input {
@@ -12,14 +11,15 @@
   right: 0;
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  padding: 8px 12px;
-  background: rgba(245, 245, 250, 0.95);
-  border-radius: 0 0 12px 12px;
-  backdrop-filter: blur(10px);
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(250, 249, 246, 0.98);
+  border-radius: 0 0 16px 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   z-index: 200;
   pointer-events: auto;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-top: 1px solid var(--dj-border);
 }
 
 /* 输入框 */
@@ -27,55 +27,56 @@
   flex: 1;
   min-height: 24px;
   max-height: 80px;
-  padding: 6px 10px;
-  font-size: 14px;
+  padding: 8px 12px;
+  font-size: 15px;
   line-height: 1.5;
-  color: #1a1a1a;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 6px;
+  color: var(--dj-text-primary);
+  background: var(--dj-bg-elevated);
+  border: 1px solid var(--dj-border-strong);
+  border-radius: 10px;
   resize: none;
   outline: none !important;
   overflow-y: hidden;
   transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+  font-family: var(--dj-font-sans);
 }
 
 .simple-input-field:focus {
-  border-color: rgba(100, 150, 255, 0.6);
-  background-color: #fff;
-  box-shadow: 0 0 0 3px rgba(100, 150, 255, 0.1);
+  border-color: var(--dj-border-strong);
+  background-color: var(--dj-bg-elevated);
+  box-shadow: 0 0 0 3px var(--dj-accent-glow);
   outline: none !important;
 }
 
 .simple-input-field::placeholder {
-  color: rgba(0, 0, 0, 0.4);
+  color: var(--dj-text-muted);
 }
 
 .simple-input-field:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--dj-bg-secondary);
 }
 
-/* 按钮通用样式 */
+/* 按钮通用样式 - 深炭黑主题 */
 .simple-input-send {
   flex-shrink: 0;
-  height: 32px;
-  padding: 0 12px;
-  font-size: 13px;
+  height: 36px;
+  padding: 0 16px;
+  font-size: 14px;
   font-weight: 500;
-  color: #fff;
-  background: #3b82f6;
-  border: 1px solid #2563eb;
-  border-radius: 6px;
+  color: var(--dj-bg-primary);
+  background: var(--dj-text-primary);
+  border: none;
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
   outline: none !important;
 }
 
 .simple-input-send:hover:not(:disabled) {
-  background: #2563eb;
-  border-color: #1d4ed8;
+  background: var(--dj-text-secondary);
+  transform: translateY(-1px);
 }
 
 .simple-input-send:active:not(:disabled) {
@@ -85,6 +86,7 @@
 .simple-input-send:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  background: var(--dj-text-muted);
 }
 
 /* 动画 */
@@ -121,19 +123,19 @@
 /* 响应式调整 */
 @media (max-width: 400px) {
   .simple-input {
-    padding: 6px 8px;
-    gap: 6px;
+    padding: 10px 12px;
+    gap: 8px;
   }
 
   .simple-input-field {
-    font-size: 13px;
-    padding: 5px 8px;
+    font-size: 14px;
+    padding: 6px 10px;
   }
 
   .simple-input-send {
-    height: 28px;
-    padding: 0 10px;
-    font-size: 12px;
+    height: 32px;
+    padding: 0 12px;
+    font-size: 14px;
   }
 }
 
@@ -153,17 +155,17 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(250, 249, 246, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 16px 16px;
 }
 
 .simple-input-overlay-text {
-  color: #1a1a1a;
-  font-size: 13px;
+  color: var(--dj-text-primary);
+  font-size: 14px;
   font-weight: 500;
   text-align: center;
   padding: 0 12px;
@@ -172,8 +174,8 @@
 /* Loading 转圈动画 */
 .simple-input-send.loading {
   padding: 0;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -181,10 +183,10 @@
 
 .loading-spinner {
   display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(26, 26, 26, 0.2);
+  border-top-color: var(--dj-text-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

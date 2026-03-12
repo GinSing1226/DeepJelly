@@ -15,6 +15,9 @@ interface OnboardingState {
   generatedPrompt: string;
   isConnecting: boolean;
   error: string | null;
+  // 应用名称和描述
+  appName: string;
+  appDescription: string;
 
   // Actions
   setStep: (step: OnboardingStep) => void;
@@ -23,6 +26,8 @@ interface OnboardingState {
   setGeneratedPrompt: (prompt: string) => void;
   setConnecting: (connecting: boolean) => void;
   setError: (error: string | null) => void;
+  setAppName: (name: string) => void;
+  setAppDescription: (description: string) => void;
   reset: () => void;
 }
 
@@ -40,7 +45,19 @@ const initialState: OnboardingStateValues = {
   endpoint: '',
   generatedPrompt: '',
   error: null,
+  appName: '',
+  appDescription: '',
 };
+
+interface OnboardingStateValues {
+  currentStep: OnboardingStep;
+  selectedAppType: AIAppType | null;
+  endpoint: string;
+  generatedPrompt: string;
+  error: string | null;
+  appName: string;
+  appDescription: string;
+}
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
   isConnecting: false,
@@ -59,6 +76,10 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   setConnecting: (isConnecting) => set({ isConnecting }),
 
   setError: (error) => set({ error }),
+
+  setAppName: (appName) => set({ appName }),
+
+  setAppDescription: (appDescription) => set({ appDescription }),
 
   reset: () => set({ ...initialState, isConnecting: false }),
 }));

@@ -10,7 +10,7 @@
  * - 这样避免前后端竞争条件，确保穿透模式状态一致性
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 

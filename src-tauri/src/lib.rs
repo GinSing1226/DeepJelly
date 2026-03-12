@@ -12,6 +12,8 @@ rust_i18n::i18n!("i18n");
 mod brain;
 mod commands;
 mod logic;
+mod models;
+mod resource_watcher;
 mod tray;
 mod input_state;
 mod locale;
@@ -19,15 +21,16 @@ mod utils;
 
 use std::sync::{Arc, Mutex};
 use std::fs;
+use std::path::PathBuf;
 use tauri::Manager;
 use log::{info, error};
 use crate::utils::logging::{format_log, format_log_arg1};
 
 // Re-exports for use in other modules
 pub use brain::{AdapterClient, Assistant as BrainAssistant, BrainAdapterConfig, BrainAdapterSettings};
-pub use commands::app_integration::{AppIntegrationManagerState};
+pub use commands::app_integration::{AppIntegrationManagerState, CharacterIntegrationManagerState};
 pub use commands::assistant::{AssistantManagerState, get_all_assistants, get_assistant, create_assistant, update_assistant, delete_assistant, get_characters_dir};
-pub use commands::character::{CharacterManagerState, get_all_characters, get_character, set_current_appearance, get_current_appearance, get_available_animations,
+pub use commands::character::{CharacterManagerState, get_all_characters, get_character, reload_character, set_current_appearance, get_current_appearance, get_available_animations,
     update_character, update_appearance, add_action, update_action, delete_action, update_action_resources, remove_action_resource, add_action_resources};
 pub use logic::{
     AppConfig, BrainConfig, CharacterAppConfig, ConfigManager, GatewayConfig, ReactionConfig,
@@ -47,6 +50,7 @@ pub use logic::{
     data_init::{initialize_user_data, get_user_dir, DEFAULT_DIR, USER_DIR},
 };
 pub use utils::{DeepJellyError, Result, LogCategory};
+pub use models::{DisplaySlot, DisplaySlotsData};
 
 /// Application entry point called by main.rs
 pub fn run() {
@@ -85,8 +89,7 @@ pub fn run() {
                 let data_path = std::path::PathBuf::from("../data");
                 fs::create_dir_all(&data_path)
                     .map_err(|e| format!("Failed to create data directory: {}", e))?;
-                data_path.canonicalize()
-                    .map_err(|e| format!("Failed to resolve data directory: {}", e))?
+                data_path
             } else {
                 // Production mode: use data/ next to executable
                 info!("{}", format_log(LogCategory::Setup, "Production mode: using data/ next to exe"));
@@ -95,8 +98,7 @@ pub fn run() {
                         let data_path = exe_dir.join("data");
                         fs::create_dir_all(&data_path)
                             .map_err(|e| format!("Failed to create data directory: {}", e))?;
-                        data_path.canonicalize()
-                            .map_err(|e| format!("Failed to resolve data directory: {}", e))?
+                        data_path
                     } else {
                         return Err(format!("Failed to determine executable directory").into());
                     }
@@ -143,14 +145,25 @@ pub fn run() {
                 }
                 Err(e) => {
                     error!("{}", format_log_arg1(LogCategory::Setup, "Failed to initialize assistant manager: ", &e.to_string()));
-                    // Try to recover by backing up and recreating
+                    // Check if the file exists to determine the error type
                     let config_path = user_data_dir.join("assistants.json");
                     if config_path.exists() {
+                        // File exists but is corrupted - backup and retry
                         let backup_path = user_data_dir.join("assistants.json.backup");
                         info!("{}", format_log(LogCategory::Setup, "Backing up corrupted assistants.json"));
                         std::fs::rename(&config_path, &backup_path).ok();
+                        // After backing up, try copying from default again
+                        if let Err(copy_err) = logic::data_init::initialize_user_data(&data_dir) {
+                            error!("{}", format_log_arg1(LogCategory::Setup, "Failed to reinitialize user data: ", &copy_err.to_string()));
+                        }
+                    } else {
+                        // File doesn't exist - this shouldn't happen if initialize_user_data was called
+                        error!("{}", format_log(LogCategory::Setup, "assistants.json not found, attempting to reinitialize user data"));
+                        if let Err(copy_err) = logic::data_init::initialize_user_data(&data_dir) {
+                            error!("{}", format_log_arg1(LogCategory::Setup, "Failed to initialize user data: ", &copy_err.to_string()));
+                        }
                     }
-                    // Retry with fresh config
+                    // Retry after recovery
                     logic::character::AssistantManager::new(user_data_dir.clone()).expect("Failed to create assistant manager after recovery")
                 }
             };
@@ -193,16 +206,36 @@ pub fn run() {
             };
             let app_integration_manager_state: AppIntegrationManagerState = Mutex::new(app_integration_manager);
 
+            // ========== Initialize Character Integration Manager ==========
+            info!("{}", format_log(LogCategory::Setup, "Initializing character integration manager..."));
+            let character_integration_manager = match logic::character::CharacterIntegrationManager::new(user_data_dir.clone()) {
+                Ok(m) => {
+                    info!("{}", format_log_arg1(LogCategory::Setup, "Loaded character integrations: ", &m.get_all().len().to_string()));
+                    m
+                }
+                Err(e) => {
+                    error!("{}", format_log_arg1(LogCategory::Setup, "Failed to initialize character integration manager: ", &e.to_string()));
+                    // Try to recover by backing up and recreating
+                    let config_path = user_data_dir.join("character_integrations.json");
+                    if config_path.exists() {
+                        let backup_path = user_data_dir.join("character_integrations.json.backup");
+                        info!("{}", format_log(LogCategory::Setup, "Backing up corrupted character_integrations.json"));
+                        std::fs::rename(&config_path, &backup_path).ok();
+                    }
+                    // Retry with fresh config
+                    logic::character::CharacterIntegrationManager::new(user_data_dir.clone()).expect("Failed to create character integration manager after recovery")
+                }
+            };
+            let character_integration_manager_state: CharacterIntegrationManagerState = Mutex::new(character_integration_manager);
+
             // ========== Initialize Input State ==========
             info!("{}", format_log(LogCategory::Setup, "Initializing input state..."));
             let input_state = Arc::new(Mutex::new(input_state::InputState::new()));
-            let main_window_label = String::from("main");
 
             // Start input listener for global keyboard/mouse events
             input_state::start_input_listener(
                 app.handle().clone(),
                 input_state.clone(),
-                main_window_label.clone(),
             );
 
             // ========== Build System Tray ==========
@@ -213,12 +246,23 @@ pub fn run() {
                 info!("{}", format_log(LogCategory::Setup, "System tray built successfully"));
             }
 
+            // ========== Start Resource Watcher ==========
+            info!("{}", format_log(LogCategory::Setup, "Starting resource watcher..."));
+            let watcher = resource_watcher::ResourceWatcher::new(app.handle().clone(), user_data_dir.clone());
+            if let Err(e) = watcher.start() {
+                error!("{}", format_log_arg1(LogCategory::Setup, "Failed to start resource watcher: ", &e.to_string()));
+            } else {
+                info!("{}", format_log(LogCategory::Setup, "Resource watcher started successfully"));
+            }
+
             // ========== Manage Application State ==========
             app.manage(assistant_manager_state);
             app.manage(character_manager_state);
             app.manage(app_integration_manager_state);
-            app.manage(input_state);
+            app.manage(character_integration_manager_state);
+            app.manage(input_state.clone());
             app.manage(Arc::new(Mutex::new(AppState::default())));
+            app.manage(Mutex::new(user_data_dir.clone())); // DataDirState for display_slot commands
 
             // ========== Handle Window Events ==========
             let main_window = app.get_webview_window("main");
@@ -241,6 +285,62 @@ pub fn run() {
                 error!("{}", format_log(LogCategory::Setup, "Main window not found"));
             }
 
+            // ========== Restore Display Slot Windows ==========
+            info!("{}", format_log(LogCategory::Setup, "Restoring display slot windows..."));
+            let display_slots_path = user_data_dir.join("display_slots.json");
+            let mut has_visible_slots = false;
+            if display_slots_path.exists() {
+                if let Ok(content) = fs::read_to_string(&display_slots_path) {
+                    if let Ok(mut slots_data) = serde_json::from_str::<DisplaySlotsData>(&content) {
+                        let mut restored_count = 0;
+                        let mut needs_save = false;
+                        for (index, slot) in slots_data.slots.iter_mut().enumerate() {
+                            if slot.visible {
+                                match crate::commands::display_slot::create_character_window(&app.handle(), slot, index, &input_state) {
+                                    Ok(window_id) => {
+                                        info!("{}", format_log_arg1(LogCategory::Setup, "Restored window: ", &window_id));
+                                        // Update window_id in slot data
+                                        if slot.window_id.as_ref() != Some(&window_id) {
+                                            slot.window_id = Some(window_id.clone());
+                                            needs_save = true;
+                                        }
+                                        restored_count += 1;
+                                        has_visible_slots = true;
+                                    }
+                                    Err(e) => {
+                                        error!("{}", format_log_arg1(LogCategory::Setup, "Failed to restore window: ", &e));
+                                    }
+                                }
+                            }
+                        }
+                        // Save updated window_ids
+                        if needs_save {
+                            if let Ok(json_content) = serde_json::to_string_pretty(&slots_data) {
+                                let _ = fs::write(&display_slots_path, json_content);
+                                info!("{}", format_log(LogCategory::Setup, "Updated display_slots.json with window_ids"));
+                            }
+                        }
+                        info!("{}", format_log_arg1(LogCategory::Setup, "Restored display slot windows: ", &restored_count.to_string()));
+                    } else {
+                        error!("{}", format_log(LogCategory::Setup, "Failed to parse display_slots.json"));
+                    }
+                } else {
+                    error!("{}", format_log(LogCategory::Setup, "Failed to read display_slots.json"));
+                }
+            } else {
+                info!("{}", format_log(LogCategory::Setup, "No display_slots.json found, skipping window restoration"));
+            }
+
+            // ========== Hide Main Window If Display Slots Exist ==========
+            // The main window is created by Tauri automatically, but we use display slot windows for characters
+            // If there are visible display slots, hide the main window to avoid showing two windows
+            if has_visible_slots {
+                if let Some(main_window) = app.get_webview_window("main") {
+                    info!("{}", format_log(LogCategory::Setup, "Hiding main window (using display slot windows instead)"));
+                    let _ = main_window.hide();
+                }
+            }
+
             info!("{}", format_log(LogCategory::Setup, "Initialization complete"));
             Ok(())
         })
@@ -257,6 +357,11 @@ pub fn run() {
             commands::brain::get_brain_config,
             commands::brain::set_brain_config,
             commands::brain::test_brain_connection,
+            // Message storage commands
+            commands::messages::save_local_message,
+            commands::messages::get_local_messages,
+            commands::messages::save_local_messages_bulk,
+            commands::messages::clear_local_messages,
             // Assistant commands
             commands::assistant::get_all_assistants,
             commands::assistant::get_assistant,
@@ -270,9 +375,39 @@ pub fn run() {
             commands::app_integration::add_app_integration,
             commands::app_integration::update_app_integration,
             commands::app_integration::delete_app_integration,
+            commands::app_integration::test_app_connection,
+            // Character Integration commands
+            commands::app_integration::get_character_integrations,
+            commands::app_integration::add_character_integration,
+            commands::app_integration::update_character_integration,
+            commands::app_integration::delete_character_integration,
+            commands::app_integration::get_character_integrations_by_assistant,
+            commands::app_integration::set_character_integration_enabled,
+            // Data layer commands (new three-layer architecture)
+            commands::data::data_get_all_characters,
+            commands::data::data_get_characters_by_assistant,
+            commands::data::data_add_character,
+            commands::data::data_update_character,
+            commands::data::data_delete_character,
+            commands::data::data_add_appearance,
+            commands::data::data_update_appearance,
+            commands::data::data_delete_appearance,
+            commands::data::data_add_action_resources,
+            commands::data::data_remove_action_resource,
+            commands::data::data_update_action_resources,
+            commands::data::data_update_action,
+            commands::data::data_update_action_with_spritesheet,
+            // Display Slot commands
+            commands::display_slot::get_display_slots,
+            commands::display_slot::add_display_slot,
+            commands::display_slot::update_display_slot,
+            commands::display_slot::delete_display_slot,
+            commands::display_slot::set_slot_visibility,
+            commands::display_slot::update_slot_position,
             // Character commands
             commands::character::get_all_characters,
             commands::character::get_character,
+            commands::character::reload_character,
             commands::character::set_current_appearance,
             commands::character::get_current_appearance,
             commands::character::get_available_animations,
@@ -283,6 +418,8 @@ pub fn run() {
             commands::character::get_character_resource_paths,
             commands::character::load_character_resource,
             commands::character::load_character_resources,
+            commands::character::load_character_resource_thumbnail,
+            commands::character::get_resource_info,
             commands::character::add_character_resources,
             commands::character::is_character_user_defined,
             commands::character::update_character,
@@ -297,6 +434,8 @@ pub fn run() {
             commands::input::ctrl_state_changed,
             commands::input::drag_started,
             commands::input::drag_ended,
+            commands::input::register_passthrough_window,
+            commands::input::unregister_passthrough_window,
             // Event commands
             commands::event::emit_event,
             // Locale commands

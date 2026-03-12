@@ -68,24 +68,15 @@ export function SimpleInput({
       // Enter 发送，Shift+Enter 换行
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        console.log('[SimpleInput] Enter key pressed');
 
         const trimmedValue = value.trim();
         if (trimmedValue && !isWaitingForResponse && !disabled) {
-          console.log('[SimpleInput] 📤 Sending via keyboard:', trimmedValue);
           try {
             await onSend(trimmedValue);
             setValue('');
-            console.log('[SimpleInput] ✅ Send completed');
           } catch (error) {
-            console.error('[SimpleInput] ❌ Send failed:', error);
+            console.error('[SimpleInput] Send failed:', error);
           }
-        } else {
-          console.log('[SimpleInput] ⚠️ Cannot send:', {
-            hasValue: !!trimmedValue,
-            isWaitingForResponse,
-            disabled
-          });
         }
       }
     },
@@ -94,23 +85,14 @@ export function SimpleInput({
 
   // 处理发送按钮点击
   const handleSendClick = useCallback(async () => {
-    console.log('[SimpleInput] Send button clicked');
     const trimmedValue = value.trim();
     if (trimmedValue && !isWaitingForResponse && !disabled) {
-      console.log('[SimpleInput] 📤 Sending via button:', trimmedValue);
       try {
         await onSend(trimmedValue);
         setValue('');
-        console.log('[SimpleInput] ✅ Send completed');
       } catch (error) {
-        console.error('[SimpleInput] ❌ Send failed:', error);
+        console.error('[SimpleInput] Send failed:', error);
       }
-    } else {
-      console.log('[SimpleInput] ⚠️ Cannot send:', {
-        hasValue: !!trimmedValue,
-        isWaitingForResponse,
-        disabled
-      });
     }
   }, [value, isWaitingForResponse, disabled, onSend]);
 

@@ -1,10 +1,16 @@
+/**
+ * Bubble Styles - Claude Style v3
+ * name: 基础气泡样式
+ * description: 通用气泡组件，米白主题风格
+ */
+
 .bubble {
   position: relative;
   max-width: 280px;
   padding: 0;
   margin: 0;
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--dj-shadow-md);
   font-size: 14px;
   line-height: 1;
   word-wrap: break-word;
@@ -22,32 +28,36 @@
   transition: opacity 0.3s ease-out, transform 0.3s ease-out;
 }
 
-/* 聊天气泡样式 */
+/* Chat bubble style */
 .bubble-chat {
-  background: #f5f5f5;
-  color: #000000;
+  background: var(--dj-bg-elevated);
+  color: var(--dj-text-primary);
+  border: 1px solid var(--dj-border);
 }
 
 .bubble-chat.bubble-user {
-  background: #f5f5f5;
-  color: #000000;
+  background: var(--dj-text-primary);
+  color: var(--dj-bg-primary);
+  border-color: var(--dj-text-primary);
 }
 
 .bubble-chat.bubble-assistant {
-  background: #f5f5f5;
-  color: #000000;
+  background: var(--dj-bg-elevated);
+  color: var(--dj-text-primary);
+  border: 1px solid var(--dj-border);
 }
 
 .bubble-chat.bubble-system {
-  background: #f0f0f0;
-  color: #333;
+  background: var(--dj-bg-secondary);
+  color: var(--dj-text-secondary);
+  border: 1px solid var(--dj-border);
 }
 
-/* 状态气泡样式 */
+/* Status bubble style */
 .bubble-status {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #e0e0e0;
-  color: #333;
+  background: var(--dj-bg-elevated);
+  border: 1px solid var(--dj-border);
+  color: var(--dj-text-primary);
   text-align: center;
 }
 
@@ -57,19 +67,19 @@
   justify-content: center;
 }
 
-/* Emoji气泡样式 */
+/* Emoji bubble style */
 .bubble-emoji {
   font-size: 32px;
   text-align: center;
   padding: 8px;
 }
 
-/* 气泡内容 */
+/* Bubble content */
 .bubble-content {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 0;
+  padding: 12px 16px;
   margin: 0;
 }
 
@@ -80,29 +90,32 @@
   color: inherit;
   padding: 0;
   margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .bubble-meta {
   display: flex;
   justify-content: flex-end;
-  font-size: 11px;
-  opacity: 0.8;
+  font-size: 14px;
+  opacity: 0.7;
+  margin-top: 4px;
 }
 
 .bubble-time {
   color: inherit;
 }
 
-/* 关闭按钮 */
+/* Close button */
 .bubble-close {
   position: absolute;
   top: -8px;
   right: -8px;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: none;
-  background: #ff5252;
+  background: var(--dj-danger);
   color: white;
   font-size: 14px;
   cursor: pointer;
@@ -110,7 +123,7 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.15s;
 }
 
 .bubble:hover .bubble-close {
@@ -118,10 +131,10 @@
 }
 
 .bubble-close:hover {
-  background: #ff1744;
+  transform: scale(1.1);
 }
 
-/* 浮动容器 */
+/* Floating container */
 .floating-bubble-container {
   position: fixed;
   top: 50px;

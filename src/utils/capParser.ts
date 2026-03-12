@@ -15,10 +15,7 @@ import type {
   CAPMessageType,
   CAPParticipantType,
   CAPSourceApp,
-  BehaviorMentalPayload,
-  SessionPayload,
-  NotificationPayload,
-  EventPayload,
+  StatusPayload,
   TypedCAPMessage,
 } from '@/types/cap';
 
@@ -35,17 +32,13 @@ const VALID_MESSAGE_TYPES: CAPMessageType[] = [
 const VALID_PARTICIPANT_TYPES: CAPParticipantType[] = [
   'user',
   'assistant',
-  'system',
+  'visitor',
 ];
 
 const VALID_SOURCE_APPS: CAPSourceApp[] = [
   'openclaw',
   'deepjelly',
 ];
-
-const VALID_BEHAVIOR_DOMAINS = ['internal', 'social'];
-const VALID_BEHAVIOR_CATEGORIES = ['base', 'work', 'result', 'emotion', 'physics'];
-const VALID_CHAT_TYPES = ['private', 'group'];
 
 // ============ 基础验证函数 ============
 
@@ -198,8 +191,8 @@ export class CAPParser {
    * @param envelope 信封对象
    * @returns 行为/心理负载
    */
-  parseBehaviorMental(envelope: CAPEnvelope): BehaviorMentalPayload {
-    const payload = envelope.payload as BehaviorMentalPayload;
+  parseBehaviorMental(envelope: CAPEnvelope): any {
+    const payload = envelope.payload as any;
 
     // 验证 behavior 字段
     if (payload.behavior) {
@@ -220,8 +213,8 @@ export class CAPParser {
    * @param envelope 信封对象
    * @returns 会话负载
    */
-  parseSession(envelope: CAPEnvelope): SessionPayload {
-    const payload = envelope.payload as SessionPayload;
+  parseSession(envelope: CAPEnvelope): any {
+    const payload = envelope.payload as any;
 
     if (!payload.session_id) {
       throw new Error('缺少session_id');
@@ -240,12 +233,12 @@ export class CAPParser {
    * @param envelope 信封对象
    * @returns 通知负载
    */
-  parseNotification(envelope: CAPEnvelope): NotificationPayload {
-    const payload = envelope.payload as NotificationPayload;
+  parseNotification(envelope: CAPEnvelope): any {
+    const payload = envelope.payload as any;
 
-    const validNotificationTypes = ['new_message', 'assistant_join', 'system', 'error'];
-    if (!validNotificationTypes.includes(payload.notification_type as string)) {
-      throw new Error(`无效的notification_type: ${payload.notification_type}`);
+    const validNotificationTypes = ['info', 'success', 'warning', 'error'];
+    if (!validNotificationTypes.includes(payload.type as string)) {
+      throw new Error(`无效的notification type: ${payload.type}`);
     }
 
     return payload;

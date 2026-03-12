@@ -12,12 +12,17 @@ import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import AnimationPreviewModal from './AnimationPreviewModal';
+import DeleteConfirmDialog from './DeleteConfirmDialog';
+import ActionEditModal from './ActionEditModal';
+import type { SpriteSheetConfig } from '@/types/character';
 
 interface ResourceGridProps {
   /** 资源列表 */
   resources: string[];
   /** 资源路径前缀 */
   pathPrefix: string;
+  /** 助手ID */
+  assistantId: string;
   /** 角色ID */
   characterId: string;
   /** 形象ID */
@@ -30,6 +35,7 @@ interface ResourceGridProps {
     fps?: number;
     loop?: boolean;
     resources: string[];
+    spritesheet?: SpriteSheetConfig;
   };
   /** 完整动作键（用于预览） */
   actionKeyFull?: string;
@@ -38,21 +44,19 @@ interface ResourceGridProps {
 }
 
 /**
- * Parse pathPrefix to get assistant_id, character_id, action_key
- * pathPrefix format: characters/{assistant_id}/{character_id}/{action_key}
+ * Parse pathPrefix to get assistant_id and character_id
+ * pathPrefix format: characters/{assistant_id}/{character_id}
+ * Note: This is kept for backward compatibility, but characterId is also available as a prop
  */
-function parsePathPrefix(pathPrefix: string): { assistantId: string; characterId: string; actionKey: string } {
+function parsePathPrefix(pathPrefix: string): { assistantId: string; characterId: string } {
   const parts = pathPrefix.split('/');
-  console.log('[parsePathPrefix] Input pathPrefix:', pathPrefix);
-  console.log('[parsePathPrefix] Split parts:', parts);
 
+  // 新结构：characters/{assistantId}/{characterId}
   const result = {
-    assistantId: parts[1],
-    characterId: parts[2],
-    actionKey: parts[3],
+    assistantId: parts[1] || '',
+    characterId: parts[2] || '',
   };
 
-  console.log('[parsePathPrefix] Parsed result:', result);
   return result;
 }
 
@@ -62,6 +66,8 @@ function parsePathPrefix(pathPrefix: string): { assistantId: string; characterId
 function ResourceCard({
   resource,
   pathPrefix,
+  assistantId,
+  characterId,
   isSelected,
   isPreview,
   isDeleting,
@@ -69,9 +75,13 @@ function ResourceCard({
   onDelete,
   onPreview,
   t,
+  appearanceId,
+  actionKey,
 }: {
   resource: string;
   pathPrefix: string;
+  assistantId: string;
+  characterId: string;
   isSelected: boolean;
   isPreview?: boolean;
   isDeleting: boolean;
@@ -79,9 +89,9 @@ function ResourceCard({
   onDelete: () => void;
   onPreview: () => void;
   t: (key: string) => string;
+  appearanceId: string;
+  actionKey: string;
 }) {
-  console.log('[ResourceCard] Component rendered for resource:', resource);
-
   const [imageSrc, setImageSrc] = useState<string>('');
   const [imgError, setImgError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -93,44 +103,38 @@ function ResourceCard({
 
   const isImage = /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(resource);
 
-  console.log('[ResourceCard] isImage:', isImage, 'resource:', resource);
-
   // 加载图片
   const loadImage = useCallback(async () => {
     if (!isImage || hasLoaded) return;
 
-    console.log('[ResourceCard] Starting load:', resource);
     setIsLoading(true);
-    const { assistantId, characterId, actionKey } = parsePathPrefix(pathPrefix);
-    const resourceName = `${actionKey}/${resource}`;
+    const parsedPath = parsePathPrefix(pathPrefix);
+    // 新的目录结构: characters/{assistant_id}/{character_id}/{appearance_id}/{action_key}/{resource}
+    const resourceName = `${appearanceId}/${actionKey}/${resource}`;
 
-    console.log('[ResourceCard] Parsed path:', { assistantId, characterId, actionKey, resourceName });
+    // 优先使用 props 传入的值，如果为空则使用解析值
+    const finalAssistantId = assistantId || parsedPath.assistantId;
+    const finalCharacterId = characterId || parsedPath.characterId;
 
     try {
-      console.log('[ResourceCard] Invoking load_character_resources (batch, single item)...');
-      console.log('[ResourceCard] Request params:', { assistantId, characterId, resourceNames: [resourceName] });
       const resourceMap = await invoke<Record<string, string>>('load_character_resources', {
-        assistantId,
-        characterId,
+        assistantId: finalAssistantId,
+        characterId: finalCharacterId,
         resourceNames: [resourceName],
       });
-      console.log('[ResourceCard] Response map keys:', Object.keys(resourceMap));
-      console.log('[ResourceCard] Response map:', resourceMap);
       const dataUrl = resourceMap[resourceName];
-      console.log('[ResourceCard] Looking for key:', resourceName, 'Found:', !!dataUrl);
       if (!dataUrl) {
-        throw new Error(`Resource ${resourceName} not found in response. Available keys: ${Object.keys(resourceMap).join(', ')}`);
+        throw new Error(`Resource ${resourceName} not found. Available: ${Object.keys(resourceMap).join(', ')}`);
       }
-      console.log('[ResourceCard] Load success, data URL length:', dataUrl.length, 'prefix:', dataUrl.substring(0, 50));
       setImageSrc(dataUrl);
       setHasLoaded(true);
     } catch (err) {
-      console.error('[ResourceCard] Failed to load resource:', resourceName, err);
+      console.error('[ResourceCard] Failed to load resource:', err);
       setImgError(true);
     } finally {
       setIsLoading(false);
     }
-  }, [resource, pathPrefix, isImage, hasLoaded]);
+  }, [resource, pathPrefix, assistantId, characterId, appearanceId, actionKey, isImage, hasLoaded]);
 
   // Intersection Observer 懒加载 - 观察卡片容器（始终可见）
   useEffect(() => {
@@ -138,17 +142,13 @@ function ResourceCard({
 
     const element = cardRef.current;
     if (!element) {
-      console.log('[ResourceCard] cardRef is null, skipping observer setup');
       return;
     }
-
-    console.log('[ResourceCard] Setting up IntersectionObserver for:', resource);
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            console.log('[ResourceCard] Card is visible, loading:', resource);
             loadImage();
             if (observerRef.current) {
               observerRef.current.disconnect();
@@ -207,12 +207,11 @@ function ResourceCard({
             <img
               src={imageSrc}
               alt={resource}
-              onError={(e) => {
+              onError={() => {
                 console.error('[ResourceCard] Image onError fired for:', resource, 'src length:', imageSrc.length);
                 setImgError(true);
               }}
               onLoad={() => {
-                console.log('[ResourceCard] Image onLoad fired for:', resource);
                 setHasLoaded(true);
               }}
               style={{ display: 'block' }}
@@ -240,10 +239,7 @@ function ResourceCard({
           onClick={(e) => {
             e.stopPropagation();
             if (!isDeleting) {
-              console.log('[ResourceCard] Delete button clicked for:', resource);
               onDelete();
-            } else {
-              console.log('[ResourceCard] Delete already in progress, ignoring click');
             }
           }}
           title={t('character.deleteResource')}
@@ -265,6 +261,7 @@ function ResourceCard({
 export default function ResourceGrid({
   resources,
   pathPrefix,
+  assistantId,
   characterId,
   appearanceId,
   actionKey,
@@ -272,37 +269,29 @@ export default function ResourceGrid({
   actionKeyFull,
   onUpdate,
 }: ResourceGridProps) {
-  console.log('[ResourceGrid] ===== COMPONENT RENDER =====');
-  console.log('[ResourceGrid] props:', {
-    resourcesCount: resources.length,
-    resources,
-    pathPrefix,
-    characterId,
-    appearanceId,
-    actionKey,
-    actionKeyFull,
-  });
-
   const { t } = useTranslation('settings');
   const [uploading, setUploading] = useState(false);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showActionEditModal, setShowActionEditModal] = useState(false);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
+
+  // 删除确认弹窗状态
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    itemName: string;
+    itemType: 'assistant' | 'character' | 'appearance';
+    isBatch: boolean;
+    index?: number;
+  }>({
+    isOpen: false,
+    itemName: '',
+    itemType: 'appearance',
+    isBatch: false,
+  });
 
   const isAllSelected = selectedIndices.size === resources.length && resources.length > 0;
   const isDeleting = deletingIndex !== null;
-
-  // 组件挂载时的日志
-  useEffect(() => {
-    console.log('[ResourceGrid] Component mounted with props:', {
-      resourcesCount: resources.length,
-      resources,
-      pathPrefix,
-      characterId,
-      appearanceId,
-      actionKey,
-    });
-  }, [resources.length, pathPrefix, characterId, appearanceId, actionKey]);
 
   // 重置选中状态当资源变化时
   useEffect(() => {
@@ -337,58 +326,50 @@ export default function ResourceGrid({
     setSelectedIndices(newSet);
   };
 
-  const handleBatchDelete = async () => {
+  // 打开批量删除确认弹窗
+  const handleBatchDeleteConfirm = () => {
     if (selectedIndices.size === 0) return;
-
-    // Prevent batch deletion if a single deletion is in progress
     if (isDeleting) {
-      console.log('[ResourceGrid] Single deletion in progress, batch delete blocked');
       alert('有删除操作正在进行中，请稍后再试');
       return;
     }
 
-    const count = selectedIndices.size;
-    console.log('[ResourceGrid] Batch delete requested for', count, 'resources');
+    setDeleteConfirm({
+      isOpen: true,
+      itemName: `${selectedIndices.size} 个资源`,
+      itemType: 'appearance',
+      isBatch: true,
+    });
+  };
 
-    const confirmed = confirm(`确定要删除选中的 ${count} 个资源吗？`);
-    console.log('[ResourceGrid] Batch delete confirmed:', confirmed);
+  // 执行批量删除
+  const handleBatchDelete = async () => {
+    if (selectedIndices.size === 0) return;
 
-    if (!confirmed) {
-      console.log('[ResourceGrid] Batch delete cancelled by user');
-      return;
-    }
-
-    // Set batch deletion state
-    setDeletingIndex(-1); // Use -1 to indicate batch deletion
-    console.log('[ResourceGrid] Starting batch deletion');
-
+    setDeletingIndex(-1);
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      // 从后往前删除，避免索引变化
       const indices = Array.from(selectedIndices).sort((a, b) => b - a);
 
       for (const index of indices) {
         const resourceToDelete = resources[index];
-        console.log('[ResourceGrid] Deleting resource:', resourceToDelete);
-        await invoke('remove_action_resource', {
+        await invoke('data_remove_action_resource', {
           characterId,
           appearanceId,
           actionKey,
           resourceName: resourceToDelete,
         });
       }
-
-      console.log('[ResourceGrid] Batch deletion successful');
-      const newResources = resources.filter((_, i) => !selectedIndices.has(i));
-      onUpdate(newResources);
+      // remove_action_resource 已经保存了 config.json
+      // 只需要触发数据刷新即可
+      onUpdate(null as unknown as string[]);
       setSelectedIndices(new Set());
     } catch (error) {
       console.error('[ResourceGrid] Failed to batch delete resources:', error);
       alert('批量删除失败');
     } finally {
-      // Always clear deleting state
-      console.log('[ResourceGrid] Clearing batch deletion state');
       setDeletingIndex(null);
+      setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
     }
   };
 
@@ -413,66 +394,74 @@ export default function ResourceGrid({
 
       if (selected && selected.length > 0) {
         const { invoke } = await import('@tauri-apps/api/core');
-        const newResources = await invoke<string[]>('add_action_resources', {
+
+        // data_add_action_resources 会：
+        // 1. 复制文件到目标目录
+        // 2. 保存更新后的 config.json
+        // 3. 返回新添加的资源文件名
+        await invoke<string[]>('data_add_action_resources', {
           characterId,
+          appearanceId,
           actionKey,
           filePaths: selected,
         });
 
-        const updatedResources = [...resources, ...newResources];
-        onUpdate(updatedResources);
+        // 通知父组件刷新数据（传递特殊标记表示需要从后端重新加载）
+        // 使用 null 作为特殊标记，表示"从后端刷新"而不是"设置这些资源"
+        await onUpdate(null as unknown as string[]);
       }
     } catch (error) {
-      console.error('Failed to select files:', error);
+      console.error('[ResourceGrid] Failed to select files:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      alert(`添加资源失败: ${errorMsg}`);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDeleteResource = async (index: number) => {
-    // Prevent deletion if another deletion is in progress
+  // 打开单个删除确认弹窗
+  const handleDeleteResource = (index: number) => {
     if (isDeleting) {
-      console.log('[ResourceGrid] Deletion already in progress, ignoring request');
       return;
     }
 
     const resourceToDelete = resources[index];
 
-    console.log('[ResourceGrid] Delete requested for:', resourceToDelete);
+    setDeleteConfirm({
+      isOpen: true,
+      itemName: resourceToDelete,
+      itemType: 'appearance',
+      isBatch: false,
+      index,
+    });
+  };
 
-    // 使用更可靠的确认方式
-    const confirmed = confirm(`确定要删除资源 "${resourceToDelete}" 吗？`);
-    console.log('[ResourceGrid] User confirmed:', confirmed);
+  // 执行单个删除
+  const handleConfirmDelete = async () => {
+    if (deleteConfirm.index === undefined) return;
 
-    if (!confirmed) {
-      console.log('[ResourceGrid] Delete cancelled by user');
-      return;
-    }
+    const index = deleteConfirm.index;
+    const resourceToDelete = resources[index];
 
-    // Set deleting state before starting async operation
     setDeletingIndex(index);
-    console.log('[ResourceGrid] Set deleting state for index:', index);
 
     try {
-      console.log('[ResourceGrid] Proceeding with deletion...');
       const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('remove_action_resource', {
+      await invoke('data_remove_action_resource', {
         characterId,
         appearanceId,
         actionKey,
         resourceName: resourceToDelete,
       });
-
-      console.log('[ResourceGrid] Backend deletion successful');
-      const newResources = resources.filter((_, i) => i !== index);
-      onUpdate(newResources);
+      // data_remove_action_resource 已经保存了 config.json
+      // 只需要触发数据刷新即可
+      onUpdate(null as unknown as string[]);
     } catch (error) {
       console.error('[ResourceGrid] Failed to delete resource:', error);
       alert('删除失败');
     } finally {
-      // Always clear deleting state, even on error
-      console.log('[ResourceGrid] Clearing deleting state');
       setDeletingIndex(null);
+      setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
     }
   };
 
@@ -492,7 +481,7 @@ export default function ResourceGrid({
           <div className="rg-actions">
             {selectedIndices.size > 0 && (
               <>
-                <button className="btn-danger" onClick={handleBatchDelete}>
+                <button className="btn-danger" onClick={handleBatchDeleteConfirm}>
                   批量删除 ({selectedIndices.size})
                 </button>
                 <button className="btn-text" onClick={handleSelectAll}>
@@ -503,6 +492,9 @@ export default function ResourceGrid({
                 </button>
               </>
             )}
+            <button className="btn-text" onClick={() => setShowActionEditModal(true)}>
+              ⚙ {t('character.editAction') || '编辑参数'}
+            </button>
             <button className="btn-add" onClick={handleSelectFiles} disabled={uploading || isDeleting}>
               {uploading ? '添加中...' : isDeleting ? '删除中...' : '+ 添加资源'}
             </button>
@@ -531,6 +523,8 @@ export default function ResourceGrid({
                 key="__preview__"
                 resource=""
                 pathPrefix={pathPrefix}
+                assistantId={assistantId}
+                characterId={characterId}
                 isSelected={false}
                 isPreview={true}
                 isDeleting={false}
@@ -538,6 +532,8 @@ export default function ResourceGrid({
                 onDelete={() => {}}
                 onPreview={() => setShowPreviewModal(true)}
                 t={t}
+                appearanceId={appearanceId}
+                actionKey={actionKeyFull}
               />
             )}
 
@@ -547,12 +543,16 @@ export default function ResourceGrid({
                 key={index}
                 resource={resource}
                 pathPrefix={pathPrefix}
+                assistantId={assistantId}
+                characterId={characterId}
                 isSelected={selectedIndices.has(index)}
                 isDeleting={deletingIndex === index || deletingIndex === -1}
                 onSelect={() => handleToggleSelect(index)}
                 onDelete={() => handleDeleteResource(index)}
                 onPreview={() => {}}
                 t={t}
+                appearanceId={appearanceId}
+                actionKey={actionKey}
               />
             ))}
           </div>
@@ -565,7 +565,34 @@ export default function ResourceGrid({
           action={action}
           actionKey={actionKeyFull || ''}
           pathPrefix={pathPrefix}
+          assistantId={assistantId}
+          appearanceId={appearanceId}
           onClose={() => setShowPreviewModal(false)}
+        />
+      )}
+
+      {/* 删除确认弹窗 */}
+      <DeleteConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={deleteConfirm.isBatch ? handleBatchDelete : handleConfirmDelete}
+        itemName={deleteConfirm.itemName}
+        itemType="appearance"
+      />
+
+      {/* 动作编辑弹窗 */}
+      {showActionEditModal && action && (
+        <ActionEditModal
+          isOpen={showActionEditModal}
+          onClose={() => setShowActionEditModal(false)}
+          onConfirm={() => {
+            setShowActionEditModal(false);
+          }}
+          assistantId={assistantId}
+          characterId={characterId}
+          appearanceId={appearanceId}
+          action={action}
+          actionKey={actionKey}
         />
       )}
     </>

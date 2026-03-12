@@ -18,14 +18,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getSessionKey } from '@/utils/assistantHelper';
 import './DialogPanel/styles.css';
+// Import enhanced styles for better UI (optional - remove to use default styles)
+import './DialogPanel/enhanced.css';
 
 type ViewMode = 'list' | 'chat';
 
 export function DialogApp() {
-  // 组件挂载日志
-  console.log('[DialogApp] =======================================');
-  console.log('[DialogApp] 📱 DialogApp Component MOUNTED');
-
   const { t } = useTranslation(['dialog', 'common', 'error']);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,7 +51,7 @@ export function DialogApp() {
   // 计算 currentAssistant
   const currentAssistant = selectedAssistantId
     ? assistants.find(a => a.id === selectedAssistantId) || null
-    : (assistants.length > 0 ? (console.log('[DialogApp] 🔍 Auto-selecting first assistant:', assistants[0]), assistants[0]) : (console.log('[DialogApp] ⚠️ No assistants available'), null));
+    : (assistants.length > 0 ? assistants[0] : null);
   const sessions = useSessionStore((s) => s.sessions);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const messagesBySession = useSessionStore((s) => s.messagesBySession);
@@ -78,25 +76,7 @@ export function DialogApp() {
 
   // Debug logging for state
   useEffect(() => {
-    const extractedSessionKey = getSessionKey(currentAssistant?.integrations ?? []);
-    console.log('[DialogApp] =======================================');
-    console.log('[DialogApp] 📊 State Update:');
-    console.log('[DialogApp]   isLoadingAssistants:', isLoadingAssistants);
-    console.log('[DialogApp]   selectedAssistantId:', selectedAssistantId);
-    console.log('[DialogApp]   assistants.length:', assistants.length);
-    console.log('[DialogApp]   boundApp:', boundApp);
-    console.log('[DialogApp]   boundApp.sessionKey:', boundApp?.sessionKey);
-    console.log('[DialogApp]   currentAssistant:', currentAssistant);
-    console.log('[DialogApp]   currentAssistant.sessionKey (top-level):', currentAssistant?.sessionKey);
-    console.log('[DialogApp]   extracted sessionKey from integrations:', extractedSessionKey);
-    console.log('[DialogApp]   connected:', connected);
-    console.log('[DialogApp]   sessions:', sessions.length);
-    console.log('[DialogApp]   currentSessionId:', currentSessionId);
-    console.log('[DialogApp]   inputValue:', inputValue);
-    console.log('[DialogApp]   inputValue.trim():', inputValue.trim());
-    console.log('[DialogApp]   isSending:', isSending);
-    const buttonDisabled = !connected || isSending || !inputValue.trim();
-    console.log('[DialogApp]   buttonDisabled:', buttonDisabled, '(connected=' + connected + ', isSending=' + isSending + ', hasInput=' + !!inputValue.trim() + ')');
+    // State update tracking - can be re-enabled for debugging
   }, [boundApp, currentAssistant, connected, sessions, currentSessionId, inputValue, isSending, selectedAssistantId, assistants.length, isLoadingAssistants]);
 
   // 主动查询连接状态（对话框窗口需要同步主窗口的连接状态）
@@ -104,15 +84,12 @@ export function DialogApp() {
     const checkConnection = async () => {
       try {
         const isConnected = await invoke<boolean>('is_brain_connected');
-        console.log('[DialogApp] 🔍 Backend connection status:', isConnected);
-
         // 如果后端已连接，更新本地 store 状态
         if (isConnected && !connected) {
-          console.log('[DialogApp] 🔄 Updating local store: connected = true');
           useBrainStore.setState({ connected: true });
         }
       } catch (error) {
-        console.error('[DialogApp] ❌ Failed to check connection:', error);
+        console.error('[DialogApp] Failed to check connection:', error);
       }
     };
 
@@ -123,110 +100,139 @@ export function DialogApp() {
   useEffect(() => {
     const loadAssistantsData = async () => {
       try {
-        console.log('[DialogApp] 📜 Loading assistants data...');
         await useCharacterManagementStore.getState().loadAssistants();
-        console.log('[DialogApp] ✅ Assistants data loaded');
       } catch (error) {
-        console.error('[DialogApp] ❌ Failed to load assistants:', error);
+        console.error('[DialogApp] Failed to load assistants:', error);
       }
     };
 
     loadAssistantsData();
   }, []); // 只在组件挂载时执行一次
 
-  // Load session history when dialog opens or when connection is established
+  // 监听资源热更新事件
   useEffect(() => {
-    const loadHistory = async () => {
+    const unlistenPromise = (async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+      return await listen('resource-changed', (_event: any) => {
+        // 重新加载角色数据
+        useCharacterManagementStore.getState().loadAllCharacters();
+      });
+    })();
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten()).catch(console.error);
+    };
+  }, []);
+
+  // Load ALL session history when dialog opens or when connection is established (multi-character support)
+  useEffect(() => {
+    const loadAllSessionsHistory = async () => {
       // 如果 assistants 还在加载中，等待
       if (isLoadingAssistants) {
-        console.log('[DialogApp] ⏳ Assistants still loading, waiting...');
-        return;
-      }
-
-      // 优先使用 currentAssistant（从 integrations 提取），如果没有则回退到 boundApp.sessionKey
-      const sessionKey = getSessionKey(currentAssistant?.integrations ?? []) || boundApp?.sessionKey;
-      const assistantName = currentAssistant?.name || boundApp?.assistantName || 'Assistant';
-
-      if (!sessionKey) {
-        console.log('[DialogApp] ⚠️ No sessionKey found (checked currentAssistant and boundApp), skipping history load');
         return;
       }
 
       if (!connected) {
-        console.log('[DialogApp] ⚠️ Not connected, will retry when connected');
-        return;
-      }
-
-      // Check if session already exists
-      const existingSession = sessions.find(s => s.assistantId === sessionKey);
-      if (existingSession) {
-        console.log('[DialogApp] ℹ️ Session already exists, skipping load');
         return;
       }
 
       try {
-        console.log('[DialogApp] 📜 Loading session history for:', sessionKey);
         setLoading(true);
+        setIsInitialLoading(true);
 
-        // Reset pagination state
-        setLoadedCount(0);
-        setHasMore(true);
+        // Get all sessions from brain backend
+        const getAllSessions = useBrainStore.getState().getAllSessions;
+        const allSessionInfos = await getAllSessions(100);
 
-        // Get history from brain store (load 50 initially)
-        const getSessionHistory = useBrainStore.getState().getSessionHistory;
-        const historyMessages = await getSessionHistory(sessionKey, 50, 0);
-
-        console.log('[DialogApp] ✅ Loaded', historyMessages.length, 'messages from history (requested up to 50)');
-
-        // If we got fewer messages than requested, there might be more on the server
-        // or this is all the messages. Set hasMore based on whether we got a full batch.
-        const gotFullBatch = historyMessages.length === 50;
-        console.log('[DialogApp] 📊 Full batch received:', gotFullBatch, '-> hasMore =', gotFullBatch);
-
-        // Create session with loaded messages
-        const newSessionId = addSession({
-          title: assistantName,
-          assistantId: sessionKey,
-          isGroup: false,
-          assistantName: assistantName,
-        });
-
-        // Add all history messages to the session WITH timestamps
-        for (const msg of historyMessages) {
-          addMessage(newSessionId, {
-            content: msg.content || '',
-            sender: msg.role === 'user' ? 'user' : 'assistant',
-            timestamp: msg.timestamp, // ✅ Pass timestamp from API
-            isStreaming: false,
-          });
+        // Collect all valid sessionKeys from assistants
+        const assistantSessionKeys = new Map<string, { assistantId: string; assistantName: string }>();
+        for (const assistant of assistants) {
+          const sessionKey = getSessionKey(assistant.integrations ?? []);
+          if (sessionKey) {
+            assistantSessionKeys.set(sessionKey, {
+              assistantId: assistant.id,
+              assistantName: assistant.name,
+            });
+          }
         }
 
-        // Update pagination state
-        setLoadedCount(historyMessages.length);
-        setHasMore(gotFullBatch); // If loaded a full batch, there might be more
+        // Process each session from brain
+        let loadedCount = 0;
+        for (const sessionInfo of allSessionInfos) {
+          const sessionKey = sessionInfo.sessionKey || sessionInfo.key;
+          if (!sessionKey) {
+            continue;
+          }
 
-        console.log('[DialogApp] ✅ Session created with history:', newSessionId);
-        console.log('[DialogApp] 📊 Pagination: loadedCount=', historyMessages.length, 'hasMore=', gotFullBatch);
+          // Find matching assistant
+          const assistantInfo = assistantSessionKeys.get(sessionKey);
+          const assistantName = assistantInfo?.assistantName || sessionInfo.displayName || sessionInfo.label || 'Unknown';
+
+          // Check if session already exists (by assistantId which stores sessionKey)
+          const existingSession = sessions.find(s => s.assistantId === sessionKey);
+          if (existingSession) {
+            // Load messages for existing session
+            const getSessionHistory = useBrainStore.getState().getSessionHistory;
+            try {
+              const historyMessages = await getSessionHistory(sessionKey, 50, 0);
+              for (const msg of historyMessages) {
+                addMessage(existingSession.id, {
+                  content: msg.content || '',
+                  sender: msg.role === 'user' ? 'user' : 'assistant',
+                  timestamp: msg.timestamp || Date.now(),
+                  isStreaming: false,
+                });
+              }
+              loadedCount += historyMessages.length;
+            } catch (error) {
+              console.error('[DialogApp] Failed to load messages for session', sessionKey, error);
+            }
+            continue;
+          }
+
+          // Create new session
+          const newSessionId = addSession({
+            title: assistantName,
+            assistantId: sessionKey, // Store sessionKey as assistantId
+            isGroup: sessionInfo.kind === 'group' || false,
+            assistantName: assistantName,
+            lastMessage: sessionInfo.messages?.[0]?.content,
+            lastMessageTime: sessionInfo.updatedAt || sessionInfo.createdAt,
+          });
+
+          // Load history messages
+          const getSessionHistory = useBrainStore.getState().getSessionHistory;
+          try {
+            const historyMessages = await getSessionHistory(sessionKey, 50, 0);
+            // Add all history messages to the session
+            for (const msg of historyMessages) {
+              addMessage(newSessionId, {
+                content: msg.content || '',
+                sender: msg.role === 'user' ? 'user' : 'assistant',
+                timestamp: msg.timestamp || Date.now(),
+                isStreaming: false,
+              });
+            }
+            loadedCount += historyMessages.length;
+          } catch (error) {
+            console.error('[DialogApp] Failed to load history for', sessionKey, error);
+          }
+        }
       } catch (error) {
-        console.error('[DialogApp] ❌ Failed to load session history:', error);
+        console.error('[DialogApp] Failed to load all sessions:', error);
       } finally {
         setLoading(false);
         setIsInitialLoading(false);
       }
     };
 
-    loadHistory();
-  }, [currentAssistant?.id, boundApp?.sessionKey, connected, assistants.length, selectedAssistantId, isLoadingAssistants]); // Re-run when connected changes to true or when assistants are loaded
+    loadAllSessionsHistory();
+  }, [connected, assistants.length, isLoadingAssistants]); // Re-run when connected changes to true or when assistants are loaded
 
   // Listen for CAP messages from backend (Rust emits 'cap:message')
   // Note: Only register once, use ref to get latest currentSessionId
   useEffect(() => {
-    console.log('[DialogApp] =======================================');
-    console.log('[DialogApp] 🎧 Registering cap:message listener...');
     const unlistenPromise = listen<any>('cap:message', (event) => {
-      console.log('[DialogApp] =======================================');
-      console.log('[DialogApp] 📨 Received cap:message event!');
-      console.log('[DialogApp]   event.payload:', JSON.stringify(event.payload, null, 2));
       const capMessage = event.payload;
 
       // Parse CAP message - extract session message content
@@ -237,37 +243,26 @@ export function DialogApp() {
 
         // Get the current session ID from store (not from closure)
         const sessionId = useSessionStore.getState().currentSessionId;
-        console.log('[DialogApp] ✅ Parsed CAP message:', { content, sender, sessionId });
 
         // Add message to current session
         if (sessionId && content) {
-          console.log('[DialogApp] 📝 Adding message to session:', sessionId);
           addMessage(sessionId, {
             content,
             sender,
+            timestamp: Date.now(),
             isStreaming: false,
           });
-          console.log('[DialogApp] ✅ Message added');
-        } else {
-          console.log('[DialogApp] ⚠️ Cannot add message:', { hasSessionId: !!sessionId, hasContent: !!content });
         }
-      } else {
-        console.log('[DialogApp] ⚠️ CAP message is not session type or missing message:', {
-          type: capMessage.type,
-          hasPayload: !!capMessage.payload,
-          hasMessage: !!capMessage.payload?.message
-        });
       }
     });
 
     unlistenPromise.then(() => {
-      console.log('[DialogApp] ✅ cap:message listener registered successfully');
+      // Listener registered
     }).catch((e) => {
-      console.error('[DialogApp] ❌ Failed to register cap:message listener:', e);
+      console.error('[DialogApp] Failed to register cap:message listener:', e);
     });
 
     return () => {
-      console.log('[DialogApp] 🛑 Unregistering cap:message listener...');
       unlistenPromise.then((fn) => fn());
     };
   }, []); // Empty dependency array - only register once
@@ -276,26 +271,17 @@ export function DialogApp() {
   useEffect(() => {
     const unlistenPromise = (async () => {
       const { listen } = await import('@tauri-apps/api/event');
-      return await listen('onboarding:complete', async (event) => {
-        console.log('[DialogApp] 🎉 Onboarding completed event received:', event);
+      return await listen('onboarding:complete', async (_event) => {
         // 重新加载助手列表
         const { loadAssistants, selectAssistant } = useCharacterManagementStore.getState();
-
-        console.log('[DialogApp] Reloading assistants...');
         await loadAssistants();
 
         // 等待 store 更新
         setTimeout(() => {
           const updatedAssistants = useCharacterManagementStore.getState().assistants;
-          console.log('[DialogApp] Assistants after reload:', updatedAssistants.length);
-
           if (updatedAssistants.length > 0) {
             const firstAssistant = updatedAssistants[0];
-            console.log('[DialogApp] Auto-selecting assistant:', firstAssistant.id, firstAssistant.name);
-            console.log('[DialogApp] Assistant integrations:', firstAssistant.integrations);
             selectAssistant(firstAssistant.id);
-          } else {
-            console.warn('[DialogApp] No assistants found after onboarding!');
           }
         }, 100);
       });
@@ -335,29 +321,22 @@ export function DialogApp() {
 
   // Handle refresh sessions - intelligent incremental refresh
   const handleRefreshSessions = useCallback(async () => {
-    console.log('[DialogApp] =======================================');
-    console.log('[DialogApp] 🔄 Refresh button clicked (incremental mode)');
-
     // 优先使用 currentAssistant（从 integrations 提取），如果没有则回退到 boundApp.sessionKey
     const sessionKey = getSessionKey(currentAssistant?.integrations ?? []) || boundApp?.sessionKey;
     if (!sessionKey) {
-      console.log('[DialogApp] ⚠️ No sessionKey, skipping refresh');
       return;
     }
 
     if (!connected) {
-      console.log('[DialogApp] ⚠️ Not connected, cannot refresh');
       return;
     }
 
     try {
-      console.log('[DialogApp] 📜 Refreshing session history for:', sessionKey);
       setLoading(true);
 
       // Find existing session
       const existingSession = sessions.find(s => s.assistantId === sessionKey);
       if (!existingSession) {
-        console.log('[DialogApp] ℹ️ No session exists yet, will create new one');
         setLoading(false);
         return;
       }
@@ -366,33 +345,23 @@ export function DialogApp() {
       const localMessages = messagesBySession[existingSession.id] || [];
       const localLatestMsg = localMessages.length > 0 ? localMessages[localMessages.length - 1] : null;
 
-      console.log('[DialogApp] 📊 Local messages:', localMessages.length, 'latest timestamp:', localLatestMsg?.timestamp || 'none');
-
       // Step 1: Get remote latest message to compare
       const remoteLatestBatch = await getSessionHistory(sessionKey, 1, 0);
       const remoteLatestMsg = remoteLatestBatch.length > 0 ? remoteLatestBatch[0] : null;
 
       if (!remoteLatestMsg) {
-        console.log('[DialogApp] ℹ️ No remote messages found');
         setLoading(false);
         return;
       }
-
-      console.log('[DialogApp] 📊 Remote latest timestamp:', remoteLatestMsg.timestamp);
 
       // Step 2: Compare and decide sync strategy
       const localLatestTime = localLatestMsg?.timestamp || 0;
       const remoteLatestTime = remoteLatestMsg.timestamp || 0;
       const timeDiff = remoteLatestTime - localLatestTime;
 
-      console.log('[DialogApp] ⏱️ Time difference:', timeDiff, 'ms (', Math.round(timeDiff / 1000), 's)');
-      console.log('[DialogApp] 📊 Local message count:', localMessages.length);
-
       // Strategy 1: Full refresh if local is empty, too old (> 1 hour diff), or suspiciously small (< 10 messages)
       // This handles the case where initial load didn't get all messages
       if (!localLatestMsg || timeDiff > 3600000 || localMessages.length < 10) {
-        console.log('[DialogApp] 🔄 Full refresh needed (local empty or too old)');
-
         // Reset pagination state
         setLoadedCount(0);
         setHasMore(true);
@@ -402,57 +371,40 @@ export function DialogApp() {
         clearMessages(existingSession.id);
 
         const historyMessages = await getSessionHistory(sessionKey, 50, 0);
-        console.log('[DialogApp] ✅ Loaded', historyMessages.length, 'messages from history');
-
         for (const msg of historyMessages) {
           addMessage(existingSession.id, {
             content: msg.content || '',
             sender: msg.role === 'user' ? 'user' : 'assistant',
-            timestamp: msg.timestamp,
+            timestamp: msg.timestamp || Date.now(),
             isStreaming: false,
           });
         }
 
         setLoadedCount(historyMessages.length);
         setHasMore(historyMessages.length === 50);
-
-        console.log('[DialogApp] ✅ Full refresh complete');
       } else if (remoteLatestTime > localLatestTime) {
         // Strategy 2: Incremental sync - only fetch new messages
-        console.log('[DialogApp] ➕ Incremental sync - fetching new messages only');
-
         // Estimate how many new messages to fetch
         // Fetch slightly more to be safe (max 20 at a time for refresh)
         const fetchLimit = Math.min(20, Math.max(5, Math.ceil(timeDiff / 60000))); // 1 msg per minute estimate
-
-        console.log('[DialogApp] 📜 Fetching up to', fetchLimit, 'messages to check for new ones');
 
         const newMessagesBatch = await getSessionHistory(sessionKey, fetchLimit, 0);
 
         // Filter messages that are newer than local latest
         const trulyNewMessages = newMessagesBatch.filter(msg => (msg.timestamp || 0) > localLatestTime);
 
-        console.log('[DialogApp] ✅ Found', trulyNewMessages.length, 'new messages to add');
-
         // Add new messages (they will be sorted by timestamp automatically)
         for (const msg of trulyNewMessages) {
           addMessage(existingSession.id, {
             content: msg.content || '',
             sender: msg.role === 'user' ? 'user' : 'assistant',
-            timestamp: msg.timestamp,
+            timestamp: msg.timestamp || Date.now(),
             isStreaming: false,
           });
         }
-
-        console.log('[DialogApp] ✅ Incremental sync complete');
-      } else {
-        console.log('[DialogApp] ✅ Already up to date, no refresh needed');
       }
-
-      console.log('[DialogApp] ✅ Session refresh complete');
-      console.log('[DialogApp] 📊 Final message count:', messagesBySession[existingSession.id]?.length || 0);
     } catch (error) {
-      console.error('[DialogApp] ❌ Failed to refresh session history:', error);
+      console.error('[DialogApp] Failed to refresh session history:', error);
     } finally {
       setLoading(false);
     }
@@ -489,40 +441,27 @@ export function DialogApp() {
 
   // Handle send message
   const handleSendMessage = useCallback(async () => {
-    console.log('[DialogApp.tsx] =======================================');
-    console.log('[DialogApp.tsx] 📤 handleSendMessage called');
-    console.log('[DialogApp.tsx]   inputValue:', inputValue);
-    console.log('[DialogApp.tsx]   inputValue.trim():', inputValue.trim());
-    console.log('[DialogApp.tsx]   currentSessionId:', currentSessionId);
-    console.log('[DialogApp.tsx]   connected:', connected);
-    console.log('[DialogApp.tsx]   isSending:', isSending);
-
     if (!inputValue.trim() || !currentSessionId || isSending) {
-      console.log('[DialogApp.tsx] ⚠️ Early return:', {
-        hasInput: !!inputValue.trim(),
-        hasSessionId: !!currentSessionId,
-        isSending
-      });
       return;
     }
 
     const content = inputValue.trim();
-    console.log('[DialogApp.tsx] ✅ Passed validation, proceeding to send');
     setInputValue('');
 
     // Add user message immediately
     addMessage(currentSessionId, {
       content,
       sender: 'user',
+      timestamp: Date.now(),
     });
 
     if (!connected) {
-      console.log('[DialogApp.tsx] ⚠️ Not connected, showing offline message');
       // Show offline message
       setTimeout(() => {
         addMessage(currentSessionId, {
           content: t('dialog:disconnected'),
           sender: 'system',
+          timestamp: Date.now(),
         });
       }, 500);
       return;
@@ -530,13 +469,13 @@ export function DialogApp() {
 
     try {
       setSending(true);
-      console.log('[DialogApp.tsx] 📡 Calling invoke send_message...');
 
       // Add streaming placeholder for assistant response
       const assistantMsgId = addMessage(currentSessionId, {
         content: '',
         sender: 'assistant',
         isStreaming: true,
+        timestamp: Date.now(),
       });
 
       // Send message to backend
@@ -545,13 +484,9 @@ export function DialogApp() {
       if (!sessionKeyToSend) {
         throw new Error('No session key available');
       }
-      console.log('[DialogApp.tsx] 📤 Sending message to session:', sessionKeyToSend);
-      console.log('[DialogApp.tsx]   content:', content);
       // Tauri v2 uses camelCase for command parameters
       const params = { sessionId: sessionKeyToSend, content };
-      console.log('[DialogApp.tsx]   params:', JSON.stringify(params));
       await invoke('send_message', params);
-      console.log('[DialogApp.tsx] ✅ Message sent successfully');
 
       // Update message to complete (in real implementation, this would be updated by streaming events)
       setTimeout(() => {
@@ -565,6 +500,7 @@ export function DialogApp() {
       addMessage(currentSessionId, {
         content: t('sendMessageFailed', { error: String(error) }),
         sender: 'system',
+        timestamp: Date.now(),
       });
     } finally {
       setSending(false);
@@ -573,9 +509,7 @@ export function DialogApp() {
 
   // Handle keyboard events
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    console.log('[DialogApp.tsx] KeyDown event:', e.key);
     if (e.key === 'Enter' && !e.shiftKey) {
-      console.log('[DialogApp.tsx] Enter detected, calling handleSendMessage');
       e.preventDefault();
       handleSendMessage();
     }
@@ -583,13 +517,11 @@ export function DialogApp() {
 
   // Handle input change
   const handleInputChange = (value: string) => {
-    console.log('[DialogApp.tsx] Input changed:', value);
     setInputValue(value);
   };
 
   // Handle send button click
   const handleSendButtonClick = () => {
-    console.log('[DialogApp.tsx] Send button clicked!');
     handleSendMessage();
   };
 
@@ -598,25 +530,21 @@ export function DialogApp() {
     // 优先使用 currentAssistant（从 integrations 提取），如果没有则回退到 boundApp.sessionKey
     const sessionKey = getSessionKey(currentAssistant?.integrations ?? []) || boundApp?.sessionKey;
     if (!sessionKey || !currentSessionId || isLoadingMore || !hasMore) {
-      console.log('[DialogApp] ⚠️ Cannot load more:', { hasSessionKey: !!sessionKey, hasCurrentSessionId: !!currentSessionId, isLoadingMore, hasMore });
       return;
     }
 
-    console.log('[DialogApp] 📜 Loading more messages, offset:', loadedCount);
     setIsLoadingMore(true);
 
     try {
       const getSessionHistory = useBrainStore.getState().getSessionHistory;
       const historyMessages = await getSessionHistory(sessionKey, 50, loadedCount);
 
-      console.log('[DialogApp] ✅ Loaded', historyMessages.length, 'more messages');
-
       // Add messages WITH timestamps
       for (const msg of historyMessages) {
         addMessage(currentSessionId, {
           content: msg.content || '',
           sender: msg.role === 'user' ? 'user' : 'assistant',
-          timestamp: msg.timestamp, // ✅ Pass timestamp from API
+          timestamp: msg.timestamp || Date.now(), // ✅ Pass timestamp from API
           isStreaming: false,
         });
       }
@@ -624,10 +552,8 @@ export function DialogApp() {
       // Update pagination state
       setLoadedCount(prev => prev + historyMessages.length);
       setHasMore(historyMessages.length === 50);
-
-      console.log('[DialogApp] 📊 Updated pagination: loadedCount=', loadedCount + historyMessages.length, 'hasMore=', historyMessages.length === 50);
     } catch (error) {
-      console.error('[DialogApp] ❌ Failed to load more messages:', error);
+      console.error('[DialogApp] Failed to load more messages:', error);
     } finally {
       setIsLoadingMore(false);
     }
@@ -635,28 +561,17 @@ export function DialogApp() {
 
   // Handle window close
   const handleClose = useCallback(async () => {
-    console.log('[DialogApp] handleClose called');
-    const start = Date.now();
-
     // 标记对话框为用户主动关闭
     useSettingsStore.getState().setDialogExplicitlyClosed(true);
 
     try {
-      console.log('[DialogApp] Calling close_dialog_window command...');
-      const invokeStart = Date.now();
       await invoke('close_dialog_window');
-      console.log(`[DialogApp] close_dialog_window took ${Date.now() - invokeStart}ms`);
     } catch (error) {
       console.error('[DialogApp] Failed to close dialog window via command:', error);
       // Fallback: close window via Tauri API
-      console.log('[DialogApp] Trying fallback: getCurrentWindow().close()');
-      const fallbackStart = Date.now();
       const window = getCurrentWindow();
       await window.close();
-      console.log(`[DialogApp] Fallback close took ${Date.now() - fallbackStart}ms`);
     }
-
-    console.log(`[DialogApp] handleClose total: ${Date.now() - start}ms`);
   }, []);
 
   // Handle window minimize
@@ -753,7 +668,7 @@ function SessionListView({
   searchQuery,
   onSearchChange,
   onSelectSession,
-  onCreateSession,
+  onCreateSession: _onCreateSession,
   onRefreshSessions,
   isLoading,
   isInitialLoading,
@@ -936,7 +851,7 @@ function ChatView({
   onLoadMore,
   hasMore,
   isLoadingMore,
-  loadedCount,
+  loadedCount: _loadedCount,
   isFirstChatEntry,
   onScrollComplete,
   t,
@@ -954,7 +869,6 @@ function ChatView({
 
     // First time entering chat: jump to bottom instantly (no animation)
     if (isFirstChatEntry && messageCount > 0) {
-      console.log('[ChatView] 🚀 First chat entry, jumping to bottom');
       container.scrollTop = container.scrollHeight;
       onScrollComplete(); // Mark first entry as complete
       previousMessageCount.current = messageCount;
@@ -963,7 +877,6 @@ function ChatView({
 
     // New message arrived: smooth scroll to bottom
     if (messageCount > previousMessageCount.current) {
-      console.log('[ChatView] 📜 New message arrived, smooth scrolling');
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       previousMessageCount.current = messageCount;
     }
@@ -977,7 +890,6 @@ function ChatView({
     const handleScroll = () => {
       // When scrolled near top (within 100px), load more messages
       if (container.scrollTop < 100 && hasMore && !isLoadingMore) {
-        console.log('[ChatView] 📜 Scrolled to top, loading more...');
         // Save current scroll height to restore position after loading
         lastScrollHeight.current = container.scrollHeight;
         onLoadMore();
@@ -1055,7 +967,6 @@ function ChatView({
           ref={inputRef}
           value={inputValue}
           onChange={(e) => {
-            console.log('[DialogApp.tsx] Textarea onChange, value:', e.target.value);
             onInputChange(e.target.value);
           }}
           onKeyDown={onKeyDown}
@@ -1067,7 +978,6 @@ function ChatView({
         <button
           className="send-button"
           onClick={() => {
-            console.log('[DialogApp.tsx] Send button onClick fired!');
             onSendMessage();
           }}
           disabled={!connected || isSending || !inputValue.trim()}
@@ -1114,7 +1024,7 @@ function MessageItem({ message }: MessageItemProps) {
             remarkPlugins={[remarkGfm]}
             components={{
               p: ({ children }) => <p style={{ margin: '0.25em 0' }}>{children}</p>,
-              code: ({ inline, children }) => inline
+              code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) => inline
                 ? <code style={{
                     background: 'rgba(0,0,0,0.05)',
                     padding: '2px 4px',

@@ -74,7 +74,9 @@ describe('CharacterWindow 类型定义', () => {
     it('createDefaultAnimationCommand 应该返回正确的默认命令', () => {
       const command = createDefaultAnimationCommand();
       expect(command).toEqual({
-        animationId: 'base.idle',
+        domain: 'internal',
+        category: 'base',
+        actionId: 'idle',
         urgency: 'normal',
         intensity: 0.5,
         duration: null,
@@ -114,7 +116,9 @@ describe('CharacterWindow 类型定义', () => {
       it('应该正确识别有效的动画命令', () => {
         expect(
           isAnimationCommand({
-            animationId: 'base.idle',
+            domain: 'internal',
+            category: 'base',
+            actionId: 'idle',
             urgency: 'normal',
             intensity: 0.5,
           })
@@ -125,7 +129,7 @@ describe('CharacterWindow 类型定义', () => {
         expect(isAnimationCommand(null)).toBe(false);
         expect(isAnimationCommand(undefined)).toBe(false);
         expect(isAnimationCommand({})).toBe(false);
-        expect(isAnimationCommand({ animationId: 123 })).toBe(false);
+        expect(isAnimationCommand({ domain: 'internal' })).toBe(false);
       });
     });
 

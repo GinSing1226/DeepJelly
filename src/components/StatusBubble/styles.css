@@ -1,45 +1,36 @@
 /**
- * StatusBubble Styles
- * CSS styles for the StatusBubble component with rounded rectangle design and fade animations.
- */
-
-/**
- * StatusBubble Component Styles
- * Displays character status above the character's head
+ * StatusBubble Styles - Claude Style v4
+ * name: 状态气泡样式
+ * description: 角色头顶状态气泡，emoji+文案展示，米白渐变+柔和阴影，弹性动画
  */
 
 .status-bubble {
   position: absolute;
-  /* 定位在聊天气泡下方 */
-  /* ChatBubble 在 top: -70px，高度约 60-200px，状态气泡在其下方 */
   top: 130px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 150; /* 高于聊天气泡，确保可点击 */
-  pointer-events: auto; /* 允许点击事件 */
+  z-index: 150;
+  pointer-events: auto;
   animation: statusBubbleFadeIn 0.2s ease-out;
   margin: 0;
   padding: 0;
   line-height: 1;
 }
 
-/**
- * Fade in animation for status bubble
- */
 @keyframes statusBubbleFadeIn {
-  from {
+  0% {
     opacity: 0;
-    transform: translateX(-50%) translateY(-5px);
+    transform: translateX(-50%) translateY(-8px) scale(0.92);
   }
-  to {
+  60% {
+    transform: translateX(-50%) translateY(2px) scale(1.02);
+  }
+  100% {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(-50%) translateY(0) scale(1);
   }
 }
 
-/**
- * Fade out animation for status bubble
- */
 .status-bubble.fade-out {
   animation: statusBubbleFadeOut 0.2s ease-out forwards;
 }
@@ -55,34 +46,41 @@
   }
 }
 
-/**
- * Status bubble content container
- * 矩形设计，文字四周边距4px
- */
+/* Status bubble content - warm cream theme v2 */
 .status-bubble-content {
   display: flex;
   align-items: center;
-  gap: 0;
-  padding: 4px;
+  gap: 8px;
+  padding: 8px 16px;
   margin: 0;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(4px);
+  /* 米白色渐变背景 */
+  background: linear-gradient(135deg, #FAF9F6 0%, #F5F3EE 100%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  /* 柔和多层阴影 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06),
+              0 4px 16px rgba(0, 0, 0, 0.04),
+              0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   min-width: auto;
   min-height: auto;
   justify-content: center;
   line-height: 1;
+  transition: all 0.25s ease;
 }
 
+/* 悬停时轻微上浮 */
+.status-bubble:hover .status-bubble-content {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08),
+              0 8px 24px rgba(0, 0, 0, 0.05),
+              0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+}
 
-
-/**
- * Emoji display in status bubble
- */
+/* Emoji display */
 .status-bubble-emoji {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -94,48 +92,71 @@
 }
 
 .status-bubble-emoji img {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   display: inline-block;
   vertical-align: middle;
   margin: 0;
   padding: 0;
 }
 
-/**
- * Text display in status bubble
- */
+/* Text display - piano bounce animation */
 .status-bubble-text {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
-  color: #000000;
+  color: var(--dj-text-primary);
   white-space: nowrap;
-  line-height: 1;
+  line-height: 1.2;
   margin: 0;
   padding: 0;
-  letter-spacing: 0;
+  letter-spacing: 0.01em;
+  display: inline-flex;
 }
 
-/* 移除状态渐变色样式，统一使用简洁的透明底 */
+/* Individual character - piano key bounce (loop, 2s total) */
+.status-bubble-char {
+  display: inline-block;
+  animation: pianoBounce 2s ease-in-out infinite;
+  opacity: 1;
+}
 
-/**
- * Ensure status bubble doesn't interfere with thought bubble
- * When thought bubble is visible, status bubble should be positioned below
- */
+@keyframes pianoBounce {
+  0%, 20% {
+    /* 0-0.4s: idle state */
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    /* jump up */
+    transform: translateY(-6px) scale(1.05);
+  }
+  30% {
+    /* land bounce */
+    transform: translateY(1px) scale(0.95);
+  }
+  35% {
+    /* settle */
+    transform: translateY(0) scale(1);
+  }
+  40%, 100% {
+    /* 0.8s-2s: wait for next cycle */
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* When thought bubble is visible, adjust position */
 .thought-bubble ~ .status-bubble {
-  top: -30px; /* Adjust position when thought bubble is visible */
+  top: -30px;
 }
 
-/**
- * Responsive adjustments for smaller character sizes
- */
+/* Responsive adjustments */
 @media (max-width: 400px) {
   .status-bubble {
     top: 70px;
   }
 
   .status-bubble-content {
-    padding: 6px 12px;
+    padding: 5px 10px;
+    border-radius: 10px;
   }
 
   .status-bubble-emoji {
@@ -143,18 +164,16 @@
   }
 
   .status-bubble-emoji img {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
   }
 
   .status-bubble-text {
-    font-size: 12px;
+    font-size: 14px;
   }
 }
 
-/**
- * Loading animation for thinking state
- */
+/* Loading animation for thinking state */
 .status-bubble.status-thinking .status-bubble-emoji::after {
   content: '';
   position: absolute;
@@ -162,12 +181,37 @@
   height: 100%;
   border-radius: 50%;
   border: 2px solid transparent;
-  border-top-color: rgba(255, 255, 255, 0.5);
+  border-top-color: rgba(26, 26, 26, 0.3);
   animation: statusBubbleSpin 1s linear infinite;
 }
 
 @keyframes statusBubbleSpin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .status-bubble-content {
+    background: linear-gradient(135deg, #2D2A24 0%, #25221E 100%);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2),
+                0 4px 16px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  }
+
+  .status-bubble:hover .status-bubble-content {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25),
+                0 8px 24px rgba(0, 0, 0, 0.2),
+                0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  }
+
+  .status-bubble-text {
+    color: #F5F3EE;
+  }
+
+  .status-bubble-char {
+    color: #F5F3EE;
   }
 }

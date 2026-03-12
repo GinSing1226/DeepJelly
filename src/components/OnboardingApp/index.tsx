@@ -27,7 +27,7 @@ function getUrlParam(name: string): string | null {
 
 export function OnboardingApp() {
   const { setBoundApp } = useSettingsStore();
-  const { loadIntegrations, getIntegration, setPendingEditIntegrationId } = useAppIntegrationStore();
+  const { loadIntegrations, getIntegration } = useAppIntegrationStore();
   const { setStep } = useOnboardingStore();
   const { initializeLocale } = useLocaleStore();
   const [isLocaleReady, setIsLocaleReady] = useState(false);
@@ -139,7 +139,6 @@ export function OnboardingApp() {
   };
 
   const handleSkip = () => {
-    console.log('[OnboardingApp] Onboarding skipped');
     // Close the onboarding window
     invoke('close_onboarding_window').catch(console.error);
   };

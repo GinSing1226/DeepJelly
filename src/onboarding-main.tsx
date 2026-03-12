@@ -5,7 +5,6 @@
  * Meta-Description: Initializes i18n and renders the onboarding app
  */
 
-import React from "react";
 import ReactDOM from "react-dom/client";
 import { initI18n } from "./i18n/init";
 import { OnboardingApp } from "./components/OnboardingApp";

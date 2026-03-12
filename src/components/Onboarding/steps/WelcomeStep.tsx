@@ -34,26 +34,28 @@ export function WelcomeStep({ onSkip }: WelcomeStepProps) {
 
   return (
     <div className="welcome-step">
-      <h1>{t('title')}</h1>
-      <p>{t('subtitle')}</p>
+      <div className="step-content-wrapper">
+        <h1>{t('title')}</h1>
+        <p>{t('subtitle')}</p>
 
-      {/* Language Selection */}
-      <div className="language-selector">
-        <label>{t('selectLanguage')}</label>
-        <div className="language-buttons">
-          {SUPPORTED_LOCALES.map((locale) => (
-            <button
-              key={locale}
-              className={`btn-language ${locale === useLocaleStore.getState().locale ? 'active' : ''}`}
-              onClick={() => handleLanguageChange(locale)}
-            >
-              {LOCALE_NAMES[locale]}
-            </button>
-          ))}
+        {/* Language Selection */}
+        <div className="language-selector">
+          <label>{t('selectLanguage')}</label>
+          <div className="language-buttons">
+            {SUPPORTED_LOCALES.map((locale) => (
+              <button
+                key={locale}
+                className={`btn-language ${locale === useLocaleStore.getState().locale ? 'active' : ''}`}
+                onClick={() => handleLanguageChange(locale)}
+              >
+                {LOCALE_NAMES[locale]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="welcome-actions">
+      <div className="welcome-actions step-actions">
         <button className="btn-primary" onClick={handleStart}>
           {t('startButton')}
         </button>

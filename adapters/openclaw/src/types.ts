@@ -21,6 +21,16 @@ export interface DeepJellyConfig {
   appearanceId?: string;
   animationMappings?: AnimationMappings;
   /**
+   * DeepJelly application ID
+   * 用于标识发送方应用
+   */
+  applicationId?: string;
+  /**
+   * Account mappings for session routing
+   * Maps session keys to assistant and character IDs
+   */
+  accounts?: Record<string, AccountMapping>;
+  /**
    * Gateway authentication token
    * 客户端连接时需要携带此 token 进行认证
    * 从 OpenClaw 的 gateway.token 配置中读取
@@ -37,6 +47,16 @@ export interface DeepJellyConfig {
    * If not specified, will try to find 'openclaw' in PATH
    */
   openclawPath?: string;
+}
+
+/**
+ * Account mapping for a session key
+ */
+export interface AccountMapping {
+  /** Assistant ID in DeepJelly */
+  assistantId: string;
+  /** Character ID for message routing */
+  characterId: string;
 }
 
 export interface AnimationMappings {

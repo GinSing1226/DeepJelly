@@ -57,8 +57,7 @@ export interface UseAnimationQueueOptions {
  *   const spriteManager = useRef<SpriteManager | null>(null);
  *   const { playAnimation } = useAnimationQueue({
  *     spriteManager: spriteManager.current,
- *     onAnimationChange: (id) => console.log('Playing:', id),
- *   });
+ *     onAnimationChange: (id) => 
  *
  *   // Play high priority animation
  *   playAnimation({

@@ -288,8 +288,10 @@ mod tests {
             application_id: String::new(),
             provider: "openclaw".to_string(),
             name: "Test".to_string(),
+            description: None,
             endpoint: "ws://127.0.0.1:18790".to_string(),
             auth_token: None,
+            assistant_ids: vec![],
             enabled: None,
             created_at: None,
         };

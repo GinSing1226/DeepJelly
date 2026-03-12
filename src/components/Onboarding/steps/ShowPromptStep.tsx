@@ -54,17 +54,20 @@ export function ShowPromptStep({ onSkip }: ShowPromptStepProps) {
 
   return (
     <div className="show-prompt-step">
-      <h2>{t('integrationPromptTitle')}</h2>
-      <p>{t('integrationPromptDesc')}</p>
+      <div className="step-content-wrapper">
+        <h2>{t('integrationPromptTitle')}</h2>
+        <p>{t('integrationPromptDesc')}</p>
 
-      <div className="prompt-box">
-        <pre>{prompt}</pre>
-      </div>
+        {/* 复制按钮紧跟在描述文字后面 */}
+        <div className="prompt-actions">
+          <button className="btn-primary" onClick={handleCopy}>
+            {copied ? t('copied') : t('copyPrompt')}
+          </button>
+        </div>
 
-      <div className="prompt-actions">
-        <button className="btn-primary" onClick={handleCopy}>
-          {copied ? t('copied') : t('copyPrompt')}
-        </button>
+        <div className="prompt-box">
+          <pre>{prompt}</pre>
+        </div>
       </div>
 
       <div className="step-actions">

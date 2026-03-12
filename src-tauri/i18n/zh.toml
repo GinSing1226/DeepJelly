@@ -4,6 +4,7 @@
 # ============ 托盘菜单 ============
 tray_open_dialog = "打开对话框"
 tray_settings = "设置"
+tray_display_management = "展示管理"
 tray_debug_panel = "调试面板"
 tray_switch_character = "切换角色/形象"
 tray_enter_dnd = "进入勿扰模式"

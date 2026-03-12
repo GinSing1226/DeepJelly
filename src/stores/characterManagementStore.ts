@@ -19,6 +19,7 @@ import type {
   CharacterCard,
   ResourceType,
 } from '@/types/character';
+import { DEFAULT_ACTIONS } from '@/types/character';
 
 // ============ Store 状态接口 ============
 
@@ -56,7 +57,7 @@ interface CharacterManagementState {
   loadAssistants: () => Promise<void>;
   /** 添加助手 */
   addAssistant: (
-    assistant: Omit<Assistant, 'id'>
+    assistant: Omit<Assistant, 'id'> & { id?: string }
   ) => Promise<Assistant>;
   /** 更新助手 */
   updateAssistant: (
@@ -139,19 +140,62 @@ const DEFAULT_STATE = {
 
 /**
  * 构建助手树
+ *
+ * 按应用类型分组助手，未绑定应用的助手归类到"未绑定"节点
  */
 function buildAssistantTree(
   apps: AIApp[],
   assistants: Assistant[]
 ): AssistantTreeNode[] {
-  return apps.map((app) => ({
-    type: 'app' as const,
-    id: app.id,
-    name: app.name,
-    description: app.description,
-    children: assistants
-      .filter((a) => a.appType === app.id)
-      .map((assistant) => ({
+  // 按应用类型分组助手
+  const grouped = new Map<string, Assistant[]>();
+  const unbound: Assistant[] = [];
+
+  assistants.forEach(assistant => {
+    const appType = assistant.appType;
+    if (appType && apps.some(app => app.id === appType)) {
+      // 有绑定应用
+      if (!grouped.has(appType)) {
+        grouped.set(appType, []);
+      }
+      grouped.get(appType)!.push(assistant);
+    } else {
+      // 未绑定应用
+      unbound.push(assistant);
+    }
+  });
+
+  const tree: AssistantTreeNode[] = [];
+
+  // 应用类型节点（放前面）
+  apps.forEach(app => {
+    const appAssistants = grouped.get(app.id);
+    if (appAssistants && appAssistants.length > 0) {
+      tree.push({
+        type: 'app' as const,
+        id: app.id,
+        name: app.name,
+        description: app.description,
+        children: appAssistants.map(assistant => ({
+          type: 'assistant' as const,
+          id: assistant.id,
+          name: assistant.name,
+          description: assistant.description,
+          appType: assistant.appType,
+          agentLabel: assistant.agentLabel,
+        })),
+      });
+    }
+  });
+
+  // 未绑定节点（固定排最后）
+  if (unbound.length > 0) {
+    tree.push({
+      type: 'app' as const,
+      id: 'unbound',
+      name: '未绑定',
+      description: '未绑定应用的助手',
+      children: unbound.map(assistant => ({
         type: 'assistant' as const,
         id: assistant.id,
         name: assistant.name,
@@ -159,7 +203,9 @@ function buildAssistantTree(
         appType: assistant.appType,
         agentLabel: assistant.agentLabel,
       })),
-  }));
+    });
+  }
+  return tree;
 }
 
 /**
@@ -204,14 +250,17 @@ function generateId(prefix: string): string {
 /**
  * 后端角色配置类型（从 Rust 返回的原始数据）
  *
- * 注意：Rust 端使用了 #[serde(rename = "id")]，所以 JSON 字段名是 id 而不是 character_id
- * 注意：Rust 端使用了 #[serde(alias = "isDefault")]，所以 JSON 字段名是 isDefault 而不是 is_default
+ * 字段名与 Rust serde rename 配置保持一致：
+ * - assistantId (Rust: assistant_id with rename="assistantId")
+ * - defaultAppearanceId (Rust: default_appearance_id with rename="defaultAppearanceId")
+ * - isDefault (Rust: is_default with rename="isDefault")
  */
 interface BackendCharacterConfig {
   id: string;
   name: string;
   description?: string;
-  assistant_id?: string;
+  assistantId: string;
+  defaultAppearanceId?: string;
   appearances: BackendAppearanceConfig[];
 }
 
@@ -226,13 +275,26 @@ interface BackendAppearanceConfig {
     fps?: number;
     loop?: boolean;
     description?: string;
+    spritesheet?: {
+      format: string;
+      url: string;
+      frameNames?: string[];
+      grid?: {
+        frame_width: number;
+        frame_height: number;
+        spacing?: number;
+        margin?: number;
+        rows: number;
+        cols: number;
+      };
+    };
   }>;
 }
 
 /**
  * 将后端角色配置转换为前端角色类型
  */
-function convertBackendCharacter(backend: BackendCharacterConfig, assistantId: string): Character {
+function convertBackendCharacter(backend: BackendCharacterConfig, _assistantId: string): Character {
   const appearances: Appearance[] = backend.appearances.map((appr) => ({
     id: appr.id,
     name: appr.name,
@@ -248,20 +310,28 @@ function convertBackendCharacter(backend: BackendCharacterConfig, assistantId: s
           fps: value.fps,
           loop: value.loop ?? true,
           description: value.description,
+          spritesheet: value.spritesheet ? {
+            format: value.spritesheet.format as any,
+            url: value.spritesheet.url,
+            frameNames: value.spritesheet.frameNames,
+            grid: value.spritesheet.grid,
+          } : undefined,
         }
       ])
     ),
   }));
 
-  // 找到默认形象
-  const defaultAppearance = appearances.find(a => a.isDefault);
-  const defaultAppearanceId = defaultAppearance?.id || appearances[0]?.id || '';
+  // 使用后端返回的 defaultAppearanceId，或自动选择第一个/默认形象
+  const defaultAppearanceId = backend.defaultAppearanceId ||
+    appearances.find(a => a.isDefault)?.id ||
+    appearances[0]?.id ||
+    '';
 
   return {
     id: backend.id,
     name: backend.name,
     description: backend.description,
-    assistantId: backend.assistant_id || assistantId,
+    assistantId: backend.assistantId,
     appearances,
     defaultAppearanceId,
   };
@@ -307,31 +377,10 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
     // ============ 助手 Actions ============
 
     loadAssistants: async () => {
-      console.log('[CharacterManagement] ========== loadAssistants START ==========');
       set({ isLoading: true, error: null });
       try {
-        console.log('[CharacterManagement] Invoking get_all_assistants command...');
         const assistants = await invoke<Assistant[]>('get_all_assistants');
-        console.log('[CharacterManagement] Raw assistants response:', {
-          type: typeof assistants,
-          isArray: Array.isArray(assistants),
-          length: assistants?.length,
-        });
-        // 打印第一个 assistant 的详细信息
-        if (assistants && assistants.length > 0) {
-          const first = assistants[0];
-          console.log('[CharacterManagement] First assistant details:', {
-            id: first.id,
-            name: first.name,
-            appType: first.appType,
-            agentLabel: first.agentLabel,
-            integrations: first.integrations,
-            integrationsLength: first.integrations?.length,
-            integrationsFirstItem: first.integrations?.[0],
-          });
-        }
         set({ assistants, isLoading: false });
-        console.log('[CharacterManagement] ========== loadAssistants COMPLETE ==========');
       } catch (error) {
         console.error('[CharacterManagement] ERROR in loadAssistants:', error);
         console.error('[CharacterManagement] Error details:', {
@@ -344,12 +393,16 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
 
     addAssistant: async (assistantData) => {
       try {
-        // 调用后端创建助手
+        // 调用后端创建助手，传递完整字段包括 integrations
         const newAssistant = await invoke<Assistant>('create_assistant', {
+          id: assistantData.id || null,
           name: assistantData.name,
           description: assistantData.description || null,
-          appType: assistantData.appType,
+          appType: assistantData.appType || null,
           agentLabel: assistantData.agentLabel || null,
+          boundAgentId: assistantData.boundAgentId || null,
+          sessionKey: assistantData.sessionKey || null,
+          integrations: assistantData.integrations || null,
         });
 
         set((state) => ({
@@ -364,13 +417,11 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
     },
 
     updateAssistant: async (assistantId, updates) => {
-      console.log('[CharacterManagement] updateAssistant START:', { assistantId, updates });
       try {
         await invoke('update_assistant', {
           id: assistantId,
           updates,
         });
-        console.log('[CharacterManagement] updateAssistant backend call SUCCESS');
       } catch (error) {
         console.error('[CharacterManagement] updateAssistant FAILED:', error);
         throw error;
@@ -380,14 +431,9 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
         const newAssistants = state.assistants.map((a) =>
           a.id === assistantId ? { ...a, ...updates } : a
         );
-        console.log('[CharacterManagement] updateAssistant updating local state:', {
-          old: state.assistants.find(a => a.id === assistantId),
-          updates,
-          new: newAssistants.find(a => a.id === assistantId)
-        });
+        
         return { assistants: newAssistants };
       });
-      console.log('[CharacterManagement] updateAssistant COMPLETE');
     },
 
     deleteAssistant: async (assistantId) => {
@@ -412,46 +458,28 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
     // ============ 角色 Actions ============
 
     loadAllCharacters: async () => {
-      console.log('[CharacterManagement] ========== loadAllCharacters START ==========');
       set({ isLoading: true, error: null });
 
       try {
-        // 获取后端返回的原始角色配置
-        console.log('[CharacterManagement] Invoking get_all_characters command...');
-        const backendCharacters = await invoke<BackendCharacterConfig[]>('get_all_characters');
-        console.log('[CharacterManagement] Raw backend response:', {
-          type: typeof backendCharacters,
-          isArray: Array.isArray(backendCharacters),
-          length: backendCharacters?.length,
-          data: backendCharacters
-        });
+        // 获取后端返回的原始角色配置 (NEW DATA MODEL)
+        const backendCharacters = await invoke<BackendCharacterConfig[]>('data_get_all_characters');
+
 
         // 转换并按助手ID分组角色
         const grouped: Record<string, Character[]> = {};
 
         for (const backend of backendCharacters) {
-          console.log('[CharacterManagement] Processing backend character:', JSON.stringify(backend, null, 2));
-
-          // 使用 assistant_id 或默认助手 ID
-          const assistantId = backend.assistant_id || 'unknown';
-          console.log('[CharacterManagement] - Extracted assistantId:', assistantId, 'Type:', typeof backend.assistant_id);
-
+          // 使用 assistantId 字段
+          const assistantId = backend.assistantId || 'unknown';
           // 转换后端数据为前端类型
           const character = convertBackendCharacter(backend, assistantId);
-          console.log('[CharacterManagement] - Converted character:', character);
-
           if (!grouped[assistantId]) {
             grouped[assistantId] = [];
           }
           grouped[assistantId].push(character);
         }
-
-        console.log('[CharacterManagement] Final grouped characters:', grouped);
-        console.log('[CharacterManagement] Character counts by assistant:',
-          Object.fromEntries(Object.entries(grouped).map(([k, v]) => [k, v.length]))
-        );
+        
         set({ characters: grouped, isLoading: false });
-        console.log('[CharacterManagement] ========== loadAllCharacters COMPLETE ==========');
       } catch (error) {
         console.error('[CharacterManagement] ERROR in loadAllCharacters:', error);
         console.error('[CharacterManagement] Error details:', {
@@ -463,39 +491,22 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
     },
 
     loadCharacters: async (assistantId) => {
-      console.log(`[CharacterManagement] ========== loadCharacters START for assistant: ${assistantId} ==========`);
       set({ isLoading: true, error: null });
 
       try {
-        // 获取后端返回的原始角色配置
-        console.log(`[CharacterManagement] Invoking get_all_characters command for assistant: ${assistantId}...`);
-        const backendCharacters = await invoke<BackendCharacterConfig[]>('get_all_characters');
-        console.log('[CharacterManagement] Raw backend response:', {
-          type: typeof backendCharacters,
-          isArray: Array.isArray(backendCharacters),
-          length: backendCharacters?.length,
-          data: backendCharacters
+        // 使用新命令：按助手ID获取角色 (NEW DATA MODEL)
+        const backendCharacters = await invoke<BackendCharacterConfig[]>('data_get_characters_by_assistant', { assistantId });
+
+
+        // 转换角色（后端已按 assistantId 过滤，直接转换即可）
+        const filtered: Character[] = backendCharacters.map((backend) => {
+          const converted = convertBackendCharacter(backend, assistantId);
+          return converted;
         });
-
-        // 过滤并转换角色
-        const filtered: Character[] = [];
-        for (const backend of backendCharacters) {
-          const charAssistantId = backend.assistant_id || 'unknown';
-          console.log(`[CharacterManagement] Checking character - target: ${assistantId}, actual: ${charAssistantId}`);
-          if (charAssistantId === assistantId) {
-            console.log('[CharacterManagement] - Match found, converting:', backend);
-            const converted = convertBackendCharacter(backend, assistantId);
-            console.log('[CharacterManagement] - Converted result:', converted);
-            filtered.push(converted);
-          }
-        }
-
-        console.log(`[CharacterManagement] Final filtered characters for ${assistantId}:`, filtered);
         set((state) => ({
           characters: { ...state.characters, [assistantId]: filtered },
           isLoading: false,
         }));
-        console.log(`[CharacterManagement] ========== loadCharacters COMPLETE for assistant: ${assistantId} ==========`);
       } catch (error) {
         console.error('[CharacterManagement] ERROR in loadCharacters:', error);
         console.error('[CharacterManagement] Error details:', {
@@ -511,71 +522,119 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
     },
 
     addCharacter: async (assistantId, characterData) => {
+      // 生成16位随机ID (与后端一致)
+      const generateDjId = (): string => {
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < 16; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+      };
+
+      const newId = generateDjId();
+
+      // 乐观更新：先创建本地角色对象
       const newCharacter: Character = {
-        id: generateId('char'),
-        assistantId,
-        appearances: [],
-        defaultAppearanceId: characterData.defaultAppearanceId || '',
+        id: newId,
         name: characterData.name,
         description: characterData.description,
+        assistantId,
+        appearances: characterData.defaultAppearanceId ? [{
+          id: characterData.defaultAppearanceId,
+          name: '默认形象',
+          isDefault: true,
+          actions: {},
+        }] : [],
+        defaultAppearanceId: characterData.defaultAppearanceId,
       };
 
       try {
-        await invoke('add_character', { config: newCharacter });
+        // 调用后端命令 (NEW DATA MODEL)
+        const backendCharacter = await invoke<BackendCharacterConfig>('data_add_character', {
+          assistantId,
+          dto: {
+            id: newId,
+            name: characterData.name,
+            description: characterData.description || null,
+          },
+        });
+
+        // 使用后端返回的数据更新
+        const converted = convertBackendCharacter(backendCharacter, assistantId);
+        set((state) => ({
+          characters: {
+            ...state.characters,
+            [assistantId]: [
+              ...(state.characters[assistantId] || []),
+              converted,
+            ],
+          },
+        }));
+
+        return converted;
       } catch (error) {
+        // 后端失败时仍然更新本地状态（乐观更新）
         const errorMsg = error instanceof Error ? error.message : String(error);
         set({ error: errorMsg });
         console.warn('Backend save failed:', error);
+
+        // 乐观更新：即使后端失败也添加到本地状态
+        set((state) => ({
+          characters: {
+            ...state.characters,
+            [assistantId]: [
+              ...(state.characters[assistantId] || []),
+              newCharacter,
+            ],
+          },
+        }));
+
+        return newCharacter;
       }
-
-      set((state) => ({
-        characters: {
-          ...state.characters,
-          [assistantId]: [
-            ...(state.characters[assistantId] || []),
-            newCharacter,
-          ],
-        },
-      }));
-
-      return newCharacter;
     },
 
     updateCharacter: async (characterId, updates) => {
       const { characters } = get();
-      const updatedCharacters: Record<string, Character[]> = {};
-
-      for (const [assistantId, chars] of Object.entries(characters)) {
-        const found = chars.find((c) => c.id === characterId);
-        if (found) {
-          updatedCharacters[assistantId] = chars.map((c) =>
-            c.id === characterId ? { ...c, ...updates } : c
-          );
-          break;
-        }
-      }
-
-      set((state) => ({
-        characters: { ...state.characters, ...updatedCharacters },
-      }));
 
       try {
-        await invoke('update_character', {
+        // 调用新命令 (NEW DATA MODEL)
+        await invoke('data_update_character', {
           characterId,
-          name: updates.name,
-          description: updates.description,
+          dto: {
+            name: updates.name || null,
+            description: updates.description || null,
+          },
         });
+
+        // 更新前端状态
+        const updatedCharacters: Record<string, Character[]> = {};
+        for (const [assistantId, chars] of Object.entries(characters)) {
+          const found = chars.find((c) => c.id === characterId);
+          if (found) {
+            updatedCharacters[assistantId] = chars.map((c) =>
+              c.id === characterId ? { ...c, ...updates } : c
+            );
+            break;
+          }
+        }
+
+        set((state) => ({
+          characters: { ...state.characters, ...updatedCharacters },
+        }));
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         set({ error: errorMsg });
         console.warn('Backend update failed:', error);
+        throw error;
       }
     },
 
     deleteCharacter: async (characterId) => {
       const { characters } = get();
-      const updatedCharacters: Record<string, Character[]> = {};
 
+      // 乐观更新：先计算要删除的角色
+      const updatedCharacters: Record<string, Character[]> = {};
       for (const [assistantId, chars] of Object.entries(characters)) {
         if (chars.find((c) => c.id === characterId)) {
           updatedCharacters[assistantId] = chars.filter(
@@ -585,72 +644,99 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
         }
       }
 
-      set((state) => ({
-        characters: { ...state.characters, ...updatedCharacters },
-      }));
-
       try {
-        await invoke('remove_character', { characterId });
+        // 调用新命令 (NEW DATA MODEL)
+        await invoke('data_delete_character', { characterId });
+
+        // 成功时更新前端状态
+        set((state) => ({
+          characters: { ...state.characters, ...updatedCharacters },
+        }));
       } catch (error) {
+        // 后端失败时仍然更新本地状态（乐观更新）
         const errorMsg = error instanceof Error ? error.message : String(error);
         set({ error: errorMsg });
         console.warn('Backend delete failed:', error);
+
+        // 乐观更新：即使后端失败也更新本地状态
+        set((state) => ({
+          characters: { ...state.characters, ...updatedCharacters },
+        }));
       }
     },
 
     // ============ 形象 Actions ============
 
     addAppearance: async (characterId, appearanceData) => {
-      const newAppearance: Appearance = {
-        id: generateId('appr'),
-        characterId,
-        ...appearanceData,
-      };
-
       const { characters } = get();
-      const updatedCharacters: Record<string, Character[]> = {};
+      let targetCharacter: Character | null = null;
+      let targetAssistantId: string | null = null;
 
+      // 找到目标角色
       for (const [assistantId, chars] of Object.entries(characters)) {
         const character = chars.find((c) => c.id === characterId);
         if (character) {
-          updatedCharacters[assistantId] = chars.map((c) =>
-            c.id === characterId
-              ? {
-                  ...c,
-                  appearances: [...c.appearances, newAppearance],
-                }
-              : c
-          );
+          targetCharacter = character;
+          targetAssistantId = assistantId;
           break;
         }
       }
 
-      set((state) => ({
-        characters: { ...state.characters, ...updatedCharacters },
-      }));
+      if (!targetCharacter) {
+        throw new Error(`角色 ${characterId} 不存在`);
+      }
 
-      return newAppearance;
+      // 调用后端命令
+      try {
+        const newAppearance = await invoke<Appearance>('data_add_appearance', {
+          characterId,
+          dto: {
+            id: generateId('appr'),
+            name: appearanceData.name,
+            description: appearanceData.description || null,
+            is_default: appearanceData.isDefault ?? false,
+            actions: JSON.parse(JSON.stringify(DEFAULT_ACTIONS)), // 使用预定义的默认动作列表
+          },
+        });
+
+        // 更新前端状态
+        set((state) => ({
+          characters: {
+            ...state.characters,
+            [targetAssistantId!]: state.characters[targetAssistantId!].map((c) =>
+              c.id === characterId
+                ? { ...c, appearances: [...c.appearances, newAppearance] }
+                : c
+            ),
+          },
+        }));
+
+        return newAppearance;
+      } catch (error) {
+        console.error('[CharacterManagement] Failed to add appearance:', error);
+        throw error;
+      }
     },
 
     updateAppearance: async (appearanceId, updates) => {
       const { characters } = get();
-      let characterId: string | null = null;
 
       // 找到包含该形象的角色
-      for (const [assistantId, chars] of Object.entries(characters)) {
+      for (const [, chars] of Object.entries(characters)) {
         const found = chars.find((c) =>
           c.appearances.find((a) => a.id === appearanceId)
         );
         if (found) {
-          characterId = found.id;
-
-          // 调用后端保存
+          // 调用新命令 (NEW DATA MODEL)
           try {
-            await invoke('update_appearance', {
+            await invoke('data_update_appearance', {
               characterId: found.id,
               appearanceId,
-              name: updates.name,
-              description: updates.description,
+              dto: {
+                name: updates.name || null,
+                description: updates.description || null,
+                is_default: updates.isDefault ?? null,
+              },
             });
           } catch (error) {
             console.error('[CharacterManagement] Failed to update appearance:', error);
@@ -684,8 +770,29 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
 
     deleteAppearance: async (appearanceId) => {
       const { characters } = get();
-      const updatedCharacters: Record<string, Character[]> = {};
 
+      // 找到包含该形象的角色
+      for (const [, chars] of Object.entries(characters)) {
+        const found = chars.find((c) =>
+          c.appearances.find((a) => a.id === appearanceId)
+        );
+        if (found) {
+          // 调用后端命令
+          try {
+            await invoke('data_delete_appearance', {
+              characterId: found.id,
+              appearanceId,
+            });
+          } catch (error) {
+            console.error('[CharacterManagement] Failed to delete appearance:', error);
+            throw error;
+          }
+          break;
+        }
+      }
+
+      // 更新前端状态
+      const updatedCharacters: Record<string, Character[]> = {};
       for (const [assistantId, chars] of Object.entries(characters)) {
         const found = chars.find((c) =>
           c.appearances.find((a) => a.id === appearanceId)
@@ -738,17 +845,12 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
     // ============ UI状态 Actions ============
 
     selectAssistant: (assistantId) => {
-      console.log(`[CharacterManagement] ========== selectAssistant called with: ${assistantId} ==========`);
-      console.log('[CharacterManagement] Current selectedAssistantId:', get().selectedAssistantId);
       set({ selectedAssistantId: assistantId });
       // 如果有选中的助手，加载其角色列表
       if (assistantId) {
-        console.log(`[CharacterManagement] Triggering loadCharacters for: ${assistantId}`);
         get().loadCharacters(assistantId);
       } else {
-        console.log('[CharacterManagement] No assistant selected, skipping loadCharacters');
       }
-      console.log(`[CharacterManagement] ========== selectAssistant complete ==========`);
     },
 
     setSearchQuery: (query) => {

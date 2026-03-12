@@ -343,9 +343,24 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
             // Server is running in this process (Gateway context)
 
             // Get routing information from context
-            const applicationId = cfg?.channels?.deepjelly?.applicationId || "openclaw";
-            const characterId = cfg?.channels?.deepjelly?.accounts?.[accountId || "default"]?.characterId || "character";
             const sessionKey = to || "unknown";
+            const applicationId = cfg?.channels?.deepjelly?.applicationId || "openclaw";
+
+            // Get characterId from config using sessionKey
+            // Try exact match with session key first, then agent ID, then default
+            const accounts = cfg?.channels?.deepjelly?.accounts || {};
+            let characterId = accounts[sessionKey]?.characterId;
+            if (!characterId) {
+              // Try matching with agent ID (for session keys like "agent:xxx:...")
+              const agentMatch = sessionKey.match(/^agent:([^:]+)(?::|$)/);
+              if (agentMatch) {
+                characterId = accounts[agentMatch[1]]?.characterId;
+              }
+            }
+            // Fall back to default characterId from config
+            if (!characterId) {
+              characterId = cfg?.channels?.deepjelly?.characterId || "character";
+            }
 
             const message = Converter.createSessionMessage(
 
@@ -765,11 +780,23 @@ export default function register(api: PluginAPI, options?: RegisterOptions) {
    */
   function getCharacterId(agentId?: string): string {
     const accounts = api.config?.channels?.deepjelly?.accounts;
-    if (accounts && agentId && accounts[agentId]?.characterId) {
+    if (!accounts || !agentId) {
+      return api.config?.channels?.deepjelly?.characterId || "character";
+    }
+
+    // Try exact match with session key (agentId is actually sessionKey)
+    if (accounts[agentId]?.characterId) {
       return accounts[agentId].characterId;
     }
-    // Fallback: use agentId as characterId
-    return agentId || "character";
+
+    // Try matching with agent ID (for session keys like "agent:xxx:...")
+    const agentMatch = agentId.match(/^agent:([^:]+)(?::|$)/);
+    if (agentMatch && accounts[agentMatch[1]]?.characterId) {
+      return accounts[agentMatch[1]].characterId;
+    }
+
+    // Fallback: use default characterId from config
+    return api.config?.channels?.deepjelly?.characterId || "character";
   }
 
   /**
@@ -1364,6 +1391,10 @@ function getConfig(globalConfig: any): DeepJellyConfig {
     appearanceId: deepjellyConfig.appearanceId,
 
     animationMappings: deepjellyConfig.animationMappings,
+
+    applicationId: deepjellyConfig.applicationId,
+
+    accounts: deepjellyConfig.accounts,
 
     gatewayToken: gatewayToken,
 

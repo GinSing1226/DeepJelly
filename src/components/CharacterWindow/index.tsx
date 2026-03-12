@@ -4,6 +4,7 @@ import * as PIXI from 'pixi.js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { emit } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { SUPPORTED_LOCALES, LOCALE_NAMES } from '@/i18n/config';
 import { useCharacterStore } from '@/stores/characterStore';
 import { useCharacterManagementStore } from '@/stores/characterManagementStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -119,13 +120,15 @@ export function CharacterWindow({
   const [isInputVisible, setIsInputVisible] = useState(false);
   const [inputHasContent, setInputHasContent] = useState(false);
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
+  // Track the sessionKey we're waiting for response from
+  const [waitingSessionKey, setWaitingSessionKey] = useState<string | null>(null);
 
   // Window identity for parameter matching
   // 存储当前窗口的 assistantId 和 characterId，用于匹配 character:load 事件
-  const [windowIdentity, setWindowIdentity] = useState<{
-    assistantId: string | null;
-    characterId: string | null;
-  }>({ assistantId: null, characterId: null });
+  // const [windowIdentity] = useState<{
+  //   assistantId: string | null;
+  //   characterId: string | null;
+  // }>({ assistantId: null, characterId: null });
 
   // Status bubble management
   const { status, setCustomStatus, clearStatus: clearLocalStatus } = useStatusBubble();
@@ -145,14 +148,9 @@ export function CharacterWindow({
   // These are used to filter CAP messages - only respond if sender.routing.sessionKey matches
   const currentSessionKeys = selectedAssistant?.integrations
     ?.flatMap(i => {
-      console.log('[CharacterWindow] Processing integration:', {
-        provider: i.provider,
-        paramsKeys: Object.keys(i.params || {}),
-        params: i.params,
-      });
+      
       const params = i.params as { sessionKeys?: string[] } | undefined;
       const sessionKeys = params?.sessionKeys || [];
-      console.log('[CharacterWindow] Extracted sessionKeys:', sessionKeys);
       return sessionKeys;
     })
     .filter(key => key) || [];
@@ -167,13 +165,63 @@ export function CharacterWindow({
 
   // Check if user has integrated character data (from platform binding)
   // CAP messages should only be processed when hasIntegratedCharacter is true
-  const hasIntegratedCharacter = firstCharacter !== undefined;
+  // const _hasIntegratedCharacter = firstCharacter !== undefined;
+
+  // ========== Display Slot Window Detection ==========
+  // Check if this is a display slot window (char-window-*)
+  // Display slot windows should proactively load their character configuration
+  const [isDisplaySlotWindow, setIsDisplaySlotWindow] = useState<boolean | null>(null);
+  const [slotConfig, setSlotConfig] = useState<{
+    assistantId: string;
+    characterId: string;
+    appearanceId: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const checkWindow = async () => {
+      const windowLabel = getCurrentWindow().label;
+      const isSlot = windowLabel.startsWith('char-window-');
+      setIsDisplaySlotWindow(isSlot);
+
+      // If this is a display slot window, fetch its configuration and load the character
+      if (isSlot) {
+        const slotId = windowLabel.replace('char-window-', '');
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const slots = await invoke<Array<{
+            id: string;
+            assistantId: string;
+            characterId: string;
+            appearanceId: string;
+          }>>('get_display_slots');
+
+          const slot = slots.find(s => s.id === slotId);
+          if (slot) {
+            setSlotConfig({
+              assistantId: slot.assistantId,
+              characterId: slot.characterId,
+              appearanceId: slot.appearanceId,
+            });
+          } else {
+            console.warn('[CharacterWindow] Slot not found:', slotId);
+          }
+        } catch (error) {
+          console.error('[CharacterWindow] Failed to fetch slot config:', error);
+        }
+      }
+    };
+    checkWindow();
+  }, []);
 
   // ========== Character Resource Loading ==========
-  // Always load a character (local default or integrated)
-  // This ensures the character window is always visible
-  const defaultCharacterId = firstCharacter?.id || 'default';
-  const defaultAppearanceId = firstCharacter?.defaultAppearanceId || 'default';
+  // For display slot windows: wait for character:load event (no default)
+  // For main window: load default character
+  const defaultCharacterId = isDisplaySlotWindow === false
+    ? (firstCharacter?.id || 'default')
+    : undefined;  // undefined for display slots - wait for event
+  const defaultAppearanceId = isDisplaySlotWindow === false
+    ? (firstCharacter?.defaultAppearanceId || 'default')
+    : undefined;
 
   const {
     config,
@@ -186,19 +234,19 @@ export function CharacterWindow({
     preloadAnimations: false,
   });
 
+  // ========== Display Slot Window: Proactive Character Load ==========
+  // When slotConfig is fetched, load the character immediately
+  // This replaces the unreliable Rust event-based loading
+  useEffect(() => {
+    if (slotConfig && isDisplaySlotWindow === true && !loadState.isLoaded && !loadState.isLoading) {
+      loadCharacter(slotConfig.characterId, slotConfig.appearanceId, slotConfig.assistantId);
+    }
+  }, [slotConfig, isDisplaySlotWindow, loadState.isLoaded, loadState.isLoading, loadCharacter]);
+
   // Get current character ID for message filtering
   // CAP protocol uses receiver.id = characterId
   const currentCharacterId = config?.id; // config.id should be characterId according to CAP protocol
-  const currentAssistantId = config?.assistant_id; // This is for resource path
-
-  // Debug logging for CAP filtering (after all variables are defined)
-  console.log('[CharacterWindow] CAP Filter state:', {
-    selectedAssistantId,
-    selectedAssistantName: selectedAssistant?.name,
-    currentSessionKeys,
-    currentCharacterId,
-    hasIntegratedCharacter,
-  });
+  // const currentAssistantId = config?.assistant_id; // This is for resource path
 
   // ========== NEW: Subscribe to routed stores ==========
   // MessageGateway 已将消息路由到按 characterId 隔离的 stores
@@ -210,7 +258,6 @@ export function CharacterWindow({
   // Penetration mode hook
   const {
     isPenetrationMode,
-    setPenetrationMode,
     handleMouseEnter: handlePenetrationMouseEnter,
     handleMouseLeave: handlePenetrationMouseLeave,
   } = usePenetrationMode();
@@ -253,24 +300,13 @@ export function CharacterWindow({
   // 全局监听 character:load 事件，通过参数匹配决定是否处理
   useEffect(() => {
     const windowLabel = getCurrentWindow().label;
-    console.log('[CharacterWindow] ========== character:load listener SETUP ==========');
-    console.log('[CharacterWindow] Window label:', windowLabel);
-    console.log('[CharacterWindow] Current config:', config ? { id: config.id, assistant_id: config.assistant_id, name: config.name } : 'null');
-
     // Only display slot windows should listen for character:load events
     // Main window should not respond to this event
     if (!windowLabel.startsWith('char-window-')) {
-      console.log('[CharacterWindow] Skipping character:load listener - not a display slot window');
       return;
     }
-
-    console.log('[CharacterWindow] Setting up character:load listener...');
-
     const unlistenPromise = (async () => {
       const { listen } = await import('@tauri-apps/api/event');
-
-      console.log('[CharacterWindow] Registering character:load listener for window:', windowLabel);
-
       // 全局监听 character:load 事件，通过参数匹配决定是否处理
       return await listen('character:load', async (event) => {
         const payload = event.payload as {
@@ -278,61 +314,39 @@ export function CharacterWindow({
           assistantId?: string;
           characterId?: string;
           appearanceId?: string;
+          isRefresh?: boolean;
         } | undefined;
-
-        console.log('[CharacterWindow] ========== RECEIVED character:load ==========');
-        console.log('[CharacterWindow] My window:', windowLabel);
-        console.log('[CharacterWindow] My identity:', windowIdentity);
-        console.log('[CharacterWindow] Event payload:', payload);
-
         // 参数匹配：只有当 payload 中的 assistantId 和 characterId 与当前窗口匹配时才处理
-        if (!payload?.assistantId || !payload?.characterId) {
-          console.warn('[CharacterWindow] Ignoring event - missing assistantId or characterId in payload');
+        if (!payload?.assistantId || !payload?.characterId || !payload?.slotId) {
+          console.warn('[CharacterWindow] Ignoring event - missing required fields in payload');
           return;
         }
 
-        // 如果 windowIdentity 还未设置（assistantId 为 null），说明这是初始化事件
-        // 直接接受事件并更新 windowIdentity
-        const isInitialLoad = !windowIdentity.assistantId;
-        if (isInitialLoad) {
-          console.log('[CharacterWindow] Initial load - setting window identity from event:', {
-            assistantId: payload.assistantId,
-            characterId: payload.characterId
-          });
-          setWindowIdentity({
-            assistantId: payload.assistantId,
-            characterId: payload.characterId
-          });
-        } else {
-          // 检查是否匹配当前窗口
-          const isMatch = payload.assistantId === windowIdentity.assistantId &&
-                          payload.characterId === windowIdentity.characterId;
+        // 从 window label 中提取 slotId 进行匹配
+        // window label 格式: char-window-{slotId}
+        const mySlotId = windowLabel.replace('char-window-', '');
 
-          if (!isMatch) {
-            console.log('[CharacterWindow] Ignoring event - payload does not match window identity', {
-              payload: { assistantId: payload.assistantId, characterId: payload.characterId },
-              windowIdentity
-            });
-            return;
-          }
-
-          console.log('[CharacterWindow] Event matches window identity - processing character load');
+        // 只处理发给本窗口的事件
+        if (payload.slotId !== mySlotId) {
+          return;
         }
-
         if (payload?.appearanceId) {
-          console.log('[CharacterWindow] Loading character from event:', {
-            characterId: payload.characterId,
-            appearanceId: payload.appearanceId,
-            assistantId: payload.assistantId,
-          });
+          // If this is a refresh operation, reload character config from file first
+          if (payload.isRefresh === true) {
+            try {
+              const { invoke } = await import('@tauri-apps/api/core');
+              await invoke('reload_character', { characterId: payload.characterId });
+            } catch (error) {
+              console.warn('[CharacterWindow] Failed to reload character config, using cached version:', error);
+              // Continue with cached version if reload fails
+            }
+          }
 
           // Clear cached resources for this character to ensure fresh load
           const { globalCharacterLoader } = await import('./utils/characterLoader');
-          console.log('[CharacterWindow] Clearing cache for characterId:', payload.characterId);
           globalCharacterLoader.clearCharacterCache(payload.characterId);
 
-          // Load the correct character for this display slot
-          console.log('[CharacterWindow] Calling loadCharacter with assistantId:', payload.assistantId);
+          // Load the character
           loadCharacter(payload.characterId, payload.appearanceId, payload.assistantId);
         } else {
           console.error('[CharacterWindow] Invalid character:load payload:', payload);
@@ -341,28 +355,22 @@ export function CharacterWindow({
     })();
 
     return () => {
-      console.log('[CharacterWindow] ========== Cleaning up character:load listener ==========');
-      console.log('[CharacterWindow] Window:', windowLabel);
       unlistenPromise.then(unlisten => unlisten()).catch(console.error);
     };
-  }, [loadCharacter, windowIdentity]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadCharacter]);
 
   // Track and save window position for display slot windows
   // This ensures windows are restored to their last position on app restart
   useEffect(() => {
     const windowLabel = getCurrentWindow().label;
-    console.log('[CharacterWindow] Window position tracking setup:', windowLabel);
-
     // Only display slot windows should track position
     if (!windowLabel.startsWith('char-window-')) {
-      console.log('[CharacterWindow] Skipping position tracking - not a display slot window');
       return;
     }
 
     // Extract slot ID from window label (format: char-window-slot_XXXXX)
     const slotId = windowLabel.replace('char-window-', '');
-    console.log('[CharacterWindow] Tracking position for slot:', slotId);
-
     let saveTimeout: NodeJS.Timeout | null = null;
 
     const unlistenPromise = (async () => {
@@ -382,8 +390,6 @@ export function CharacterWindow({
             const position = await window.outerPosition();
             const x = position.x;
             const y = position.y;
-            console.log('[CharacterWindow] Saving window position:', { slotId, x, y });
-
             await invoke('update_slot_position', {
               slotId,
               x,
@@ -407,28 +413,23 @@ export function CharacterWindow({
   // Handle window visibility based on isHidden state
   // Note: Window visibility is controlled by Rust backend (hide_all_windows / show_main_window)
   // This component only needs to track isHidden for UI rendering (App.tsx return null check)
-  const isHidden = useSettingsStore((s) => s.isHidden);
+  // const _isHidden = useSettingsStore((s) => s.isHidden);
 
   const {
-    position,
     scale,
-    setPosition,
     setAnimation,
-    setScaleToPreset,
-    sessionId,
   } = useCharacterStore();
 
   // 使用 brainStore 的连接状态（与 DialogApp 保持一致）
   const isConnected = useBrainStore((s) => s.connected);
 
   const addMessage = useMessageStore((s) => s.addMessage);
-  const removeMessages = useMessageStore((s) => s.removeMessages);
-  const { sendMessage } = useBrainStore();
+  // const { sendMessage } = useBrainStore();
 
   // Animation queue integration
   const [spriteManagerReady, setSpriteManagerReady] = useState(false);
 
-  const { playBehaviorAnimation, playAnimation, pauseQueue, resumeQueue, isQueuePaused } = useBehaviorAnimation({
+  const { playAnimation, pauseQueue, resumeQueue, isQueuePaused } = useBehaviorAnimation({
     spriteManager: spriteManagerReady ? spriteManagerRef.current : null,
     enabled: spriteManagerReady,
     onAnimationChange: (animationId) => {
@@ -438,30 +439,11 @@ export function CharacterWindow({
 
   // ========== Subscribe to character-isolated stores ==========
   // These useEffect hooks depend on spriteManagerReady, so they must be defined after it
-
-  console.log('[CharacterWindow] Store subscription setup:', {
-    characterIdForRouting,
-    spriteManagerReady,
-    currentCharacterId,
-    configId: config?.id,
-    configName: config?.name,
-    loadState,
-    firstCharacterId: firstCharacter?.id,
-  });
-
   // Listen to animation queue for this character
   // Bridge between animationQueueStore (from MessageGateway) and useBehaviorAnimation hook
   // Use polling instead of subscription to avoid re-entrancy issues
   useEffect(() => {
-    console.log('[CharacterWindow] Animation queue polling useEffect:', {
-      characterIdForRouting,
-      spriteManagerReady,
-    });
-
     if (!characterIdForRouting || !spriteManagerReady) return;
-
-    console.log('[CharacterWindow] Starting animation queue polling for:', characterIdForRouting);
-
     // Poll the queue every 100ms
     const pollInterval = setInterval(() => {
       const queue = animationQueueStore.getState().getQueue(characterIdForRouting);
@@ -469,16 +451,13 @@ export function CharacterWindow({
 
       // Debug: log polling state
       if (queue.length > 0) {
-        console.log('[CharacterWindow] Polling: queue has items, isQueuePaused:', isQueuePaused, 'queueLength:', queue.length);
       }
 
       if (queue.length > 0 && !isQueuePaused()) {
         const nextAnim = animationQueueStore.getState().dequeue(characterIdForRouting);
         if (nextAnim) {
-          console.log('[CharacterWindow] Playing animation from queue:', nextAnim);
           try {
             playAnimation(nextAnim);
-            console.log('[CharacterWindow] playAnimation call succeeded');
           } catch (err) {
             console.error('[CharacterWindow] playAnimation error:', err);
           }
@@ -487,7 +466,6 @@ export function CharacterWindow({
 
       // Check for current animation (set directly, not from queue)
       if (currentAnim && queue.length === 0) {
-        console.log('[CharacterWindow] Playing current animation:', currentAnim);
         playAnimation(currentAnim);
         // Clear it after playing to avoid re-playing
         animationQueueStore.getState().setCurrent(characterIdForRouting, null);
@@ -496,28 +474,14 @@ export function CharacterWindow({
 
     return () => {
       clearInterval(pollInterval);
-      console.log('[CharacterWindow] Stopped animation queue polling for:', characterIdForRouting);
     };
   }, [characterIdForRouting, spriteManagerReady, isQueuePaused, playAnimation]);
 
   // Listen to status bubble for this character
   useEffect(() => {
-    console.log('[CharacterWindow] Status bubble useEffect:', {
-      characterIdForRouting,
-    });
-
     if (!characterIdForRouting) return;
-
-    console.log('[CharacterWindow] Subscribing to status bubble for:', characterIdForRouting);
-
     const unsubscribe = statusBubbleStore.subscribe((state) => {
       const status = state.getStatus(characterIdForRouting);
-
-      console.log('[CharacterWindow] Status bubble update:', {
-        characterId: characterIdForRouting,
-        status,
-      });
-
       if (status) {
         const emoji = mapEmojiName(status.emoji);
         setCustomStatus(emoji, status.text, status.duration);
@@ -531,27 +495,10 @@ export function CharacterWindow({
 
   // Listen to session queue for this character
   useEffect(() => {
-    console.log('[CharacterWindow] Session queue useEffect:', {
-      characterIdForRouting,
-    });
-
     if (!characterIdForRouting) return;
-
-    console.log('[CharacterWindow] Subscribing to session queue for:', characterIdForRouting);
-
-    const unsubscribe = sessionQueueStore.subscribe((state) => {
-      const sessions = state.getSessions(characterIdForRouting);
-      const latestSession = sessions[sessions.length - 1];
-
-      console.log('[CharacterWindow] Session queue update:', {
-        characterId: characterIdForRouting,
-        sessionCount: sessions.length,
-        latestSession: latestSession ? {
-          id: latestSession.id,
-          sender: latestSession.sender,
-          content: latestSession.content?.substring(0, 50),
-        } : null,
-      });
+    const unsubscribe = sessionQueueStore.subscribe((_state) => {
+      // const sessions = _state.getSessions(characterIdForRouting);
+      // const _latestSession = _sessions[_sessions.length - 1];
 
       // Note: Speak animation is triggered by MessageGateway when session messages arrive
       // No need to manually enqueue here
@@ -559,16 +506,6 @@ export function CharacterWindow({
 
     return unsubscribe;
   }, [characterIdForRouting]);
-
-  console.log('[CharacterWindow] IDs:', {
-    hasIntegratedCharacter,
-    currentCharacterId,
-    currentAssistantId,
-    configId: config?.id,
-    configAssistantId: config?.assistant_id,
-    firstCharacterId: firstCharacter?.id,
-  });
-
   // Debug: Log store states
   useEffect(() => {
     const logInterval = setInterval(() => {
@@ -576,18 +513,12 @@ export function CharacterWindow({
       const statusState = statusBubbleStore.getState();
       const sessionState = sessionQueueStore.getState();
 
-      const myQueue = animState.getQueue(characterIdForRouting);
-      const myStatus = statusState.getStatus(characterIdForRouting);
-      const mySessions = sessionState.getSessions(characterIdForRouting);
+      const _myQueue = animState.getQueue(characterIdForRouting);
+      const _myStatus = statusState.getStatus(characterIdForRouting);
+      const _mySessions = sessionState.getSessions(characterIdForRouting);
 
-      console.log('[CharacterWindow] Store states:', {
-        characterId: characterIdForRouting,
-        animationQueueSize: myQueue.length,
-        currentAnimation: animState.getCurrent(characterIdForRouting),
-        status: myStatus,
-        sessionCount: mySessions.length,
-        spriteManagerReady,
-      });
+      // Debug logging here if needed
+      console.log('[CharacterWindow] Debug state:', { _myQueue, _myStatus, _mySessions });
     }, 5000); // Log every 5 seconds
 
     return () => clearInterval(logInterval);
@@ -596,20 +527,7 @@ export function CharacterWindow({
   // 监听 assistants 变化，确保数据已加载
   // 注意：App.tsx 中已有自动选择第一个助手的逻辑，这里不需要重复
   useEffect(() => {
-    console.log('[CharacterWindow] 📊 State update:', {
-      assistantsCount: assistants.length,
-      selectedAssistantId,
-      selectedAssistant: selectedAssistant ? {
-        id: selectedAssistant.id,
-        name: selectedAssistant.name,
-        hasIntegrations: !!selectedAssistant.integrations,
-        integrationsLength: selectedAssistant.integrations?.length,
-        integrations: selectedAssistant.integrations,
-        firstIntegration: selectedAssistant.integrations?.[0],
-        sessionKeyFromHelper: getSessionKey(selectedAssistant.integrations ?? []),
-      } : null,
-      isConnected,
-    });
+    
   }, [assistants, selectedAssistantId, selectedAssistant, isConnected]);
 
   // Sync connection status with backend (same as DialogApp)
@@ -618,9 +536,9 @@ export function CharacterWindow({
     const checkConnection = async () => {
       try {
         const backendConnected = await invoke<boolean>('is_brain_connected');
-        // console.log('[CharacterWindow] 🔍 Backend connection status:', backendConnected);
+        // 
         if (backendConnected && !isConnected) {
-          // console.log('[CharacterWindow] 🔄 Updating local store: connected = true');
+          // 
           useBrainStore.setState({ connected: true });
         }
       } catch (error) {
@@ -635,7 +553,7 @@ export function CharacterWindow({
     const unlistenPromise = (async () => {
       const { listen } = await import('@tauri-apps/api/event');
       return await listen('onboarding:complete', () => {
-        // console.log('[CharacterWindow] 🎉 Onboarding complete, rechecking connection...');
+        // 
         checkConnection();
       });
     })();
@@ -649,10 +567,8 @@ export function CharacterWindow({
   useEffect(() => {
     const unlistenPromise = (async () => {
       const { listen } = await import('@tauri-apps/api/event');
-      return await listen('resource-changed', (event: any) => {
-        const payload = event.payload as { file: string; path: string };
-        console.log('[CharacterWindow] 🔄 Resource changed:', payload);
-
+      return await listen('resource-changed', (_event: any) => {
+        // const payload = _event.payload as { file: string; path: string };
         // 重新加载角色数据 - 使用当前选中的助手ID
         const state = useCharacterManagementStore.getState();
         const currentAssistantId = state.selectedAssistantId;
@@ -674,38 +590,40 @@ export function CharacterWindow({
   // Animation queue is populated by MessageGateway and consumed by the new subscription above
 
   // Listen to new sessionQueueStore for waiting state management
+  // Only clear waiting state when the assistant response comes from the same sessionKey
   useEffect(() => {
     if (!characterIdForRouting) return;
 
     const unsubscribe = sessionQueueStore.subscribe((state) => {
       const sessions = state.getSessions(characterIdForRouting);
 
-      if (!isWaitingForResponse) {
+      if (!isWaitingForResponse || !waitingSessionKey) {
         return;
       }
 
-      // Check if there's an assistant response for this character
+      // Check if there's an assistant response for the SPECIFIC sessionKey we're waiting for
       const hasAssistantResponse = sessions.some(s =>
-        s.sender === 'assistant'
+        s.sender === 'assistant' && s.sessionId === waitingSessionKey
       );
 
       if (hasAssistantResponse) {
         setIsWaitingForResponse(false);
+        setWaitingSessionKey(null);
       }
     });
     return unsubscribe;
-  }, [characterIdForRouting, isWaitingForResponse, setIsWaitingForResponse]);
+  }, [characterIdForRouting, isWaitingForResponse, waitingSessionKey]);
 
   // Calculate actual size (with scale applied)
   const actualWidth = width * scale;
   const actualHeight = height * scale;
 
   // Direct animation play helper (bypasses queue for testing)
-  const playAnimationDirect = useCallback((animationId: string) => {
-    if (spriteManagerRef.current) {
-      spriteManagerRef.current.play(animationId);
-    }
-  }, []);
+  // const _playAnimationDirect = useCallback((animationId: string) => {
+  //   if (spriteManagerRef.current) {
+  //     spriteManagerRef.current.play(animationId);
+  //   }
+  // }, []);
 
   // Track if PIXI was initialized to prevent multiple initializations
   const pixiInitializedRef = useRef(false);
@@ -782,15 +700,6 @@ export function CharacterWindow({
         const assistantId = config.assistant_id || config.id;
         const characterId = config.id;
         const appearanceId = appearance.id;
-
-        console.log('[CharacterWindow] Loading character resources:', {
-          assistantId,
-          characterId,
-          appearanceId,
-          configAssistantId: config.assistant_id,
-          configId: config.id
-        });
-
         // Helper: Load resources based on action type
         const loadActionResources = async (actionKey: string, action: any): Promise<any | null> => {
           const actionType = action.type || 'frames'; // Default to frames for backward compatibility
@@ -801,7 +710,6 @@ export function CharacterWindow({
               // If no spritesheet config but has resources array, treat as frames type
               if (!action.spritesheet) {
                 if (action.resources && Array.isArray(action.resources)) {
-                  console.log(`[CharacterWindow] Spritesheet action ${actionKey} missing spritesheet config, treating as frames`);
                   // Fall through to frames handling below
                 } else {
                   console.warn(`[CharacterWindow] Spritesheet action ${actionKey} missing spritesheet config and no resources`);
@@ -912,7 +820,7 @@ export function CharacterWindow({
   const dragStartPosRef = useRef({ x: 0, y: 0 });
   const isDraggingRef = useRef(false);
 
-  const handleMouseDown = useCallback(async (e: React.MouseEvent) => {
+  const handleMouseDown = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     if (isPenetrationMode) return;
     if (e.button !== 0) return;
 
@@ -945,11 +853,16 @@ export function CharacterWindow({
     e.preventDefault();
   }, [isPenetrationMode, pauseQueue]);
 
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+  const handleMouseUp = useCallback((_e: React.MouseEvent<HTMLDivElement>) => {
     if (isPenetrationMode) return;
 
     // 只恢复队列，让队列自动处理后续动画
     // 不再直接播放 idle，避免覆盖队列中恢复的动画
+    resumeQueue();
+  }, [isPenetrationMode, resumeQueue]);
+
+  const handleTouchEnd = useCallback((_e: React.TouchEvent<HTMLDivElement>) => {
+    if (isPenetrationMode) return;
     resumeQueue();
   }, [isPenetrationMode, resumeQueue]);
 
@@ -1086,28 +999,28 @@ export function CharacterWindow({
   }, [isPenetrationMode]);
 
   // Get available characters for switching
-  const charactersObj = useCharacterManagementStore((s) => s.characters);
+  // const charactersObj = useCharacterManagementStore((s) => s.characters);
   // REMOVED: switchCharacter method doesn't exist in CharacterManagementStore
   // TODO: Re-implement character switching functionality
   // const switchCharacter = useCharacterManagementStore((s) => s.switchCharacter);
   const currentLocale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
-  const [isCharacterHidden, setIsCharacterHidden] = useState(false);
+  // const [_isCharacterHidden, _setIsCharacterHidden] = useState(false);
 
   // Flatten characters object to array
-  const characters = Object.values(charactersObj).flat();
+  // const _characters = Object.values(charactersObj).flat();
 
   // Build character switch submenu
   // TEMPORARILY DISABLED: switchCharacter method doesn't exist
-  const characterSubmenu: ContextMenuItem[] = [{
-    id: 'no-characters',
-    label: '角色切换功能暂不可用',
-    onClick: () => {},
-    disabled: true,
-  }];
+  // const _characterSubmenu: ContextMenuItem[] = [{
+  //   id: 'no-characters',
+  //   label: '角色切换功能暂不可用',
+  //   onClick: () => {},
+  //   disabled: true,
+  // }];
 
   /*
-  for (const character of characters) {
+  for (const character of _characters) {
     if (character.appearances && character.appearances.length > 0) {
       for (const appearance of character.appearances) {
         characterSubmenu.push({
@@ -1176,26 +1089,12 @@ export function CharacterWindow({
       id: 'language',
       label: t('tray:language'),
       onClick: () => {}, // Parent menu item with submenu doesn't need action
-      submenu: [
-        {
-          id: 'lang-zh',
-          label: t('common:localeNameZh'),
-          checked: currentLocale === 'zh',
-          onClick: () => setLocale('zh'),
-        },
-        {
-          id: 'lang-en',
-          label: t('common:localeNameEn'),
-          checked: currentLocale === 'en',
-          onClick: () => setLocale('en'),
-        },
-        {
-          id: 'lang-ja',
-          label: t('common:localeNameJa'),
-          checked: currentLocale === 'ja',
-          onClick: () => setLocale('ja'),
-        },
-      ],
+      submenu: SUPPORTED_LOCALES.map((locale): ContextMenuItem => ({
+        id: `lang-${locale}`,
+        label: LOCALE_NAMES[locale],
+        checked: currentLocale === locale,
+        onClick: () => setLocale(locale),
+      })),
     },
   ];
 
@@ -1232,7 +1131,7 @@ export function CharacterWindow({
     }
   }, [bubbleText]);
 
-  const handleTouchStart = useCallback(async (e: React.TouchEvent) => {
+  const handleTouchStart = useCallback(async (e: React.TouchEvent<HTMLDivElement>) => {
     if (isPenetrationMode) return;
 
     const target = e.target as HTMLElement;
@@ -1284,21 +1183,12 @@ export function CharacterWindow({
 
       if (windowAssistant) {
         sessionKeyToSend = getSessionKey(windowAssistant.integrations ?? []);
-        console.log('[CharacterWindow] Using config assistant for sessionKey:', {
-          windowAssistantId,
-          windowAssistantName: windowAssistant.name,
-          sessionKeyToSend,
-        });
       }
     }
 
     // 如果角色视窗配置中没有找到，回退到全局选中的助手
     if (!sessionKeyToSend && selectedAssistant) {
       sessionKeyToSend = getSessionKey(selectedAssistant.integrations ?? []);
-      console.log('[CharacterWindow] Fallback to selectedAssistant for sessionKey:', {
-        selectedAssistantId: selectedAssistant.id,
-        sessionKeyToSend,
-      });
     }
 
     if (!sessionKeyToSend) {
@@ -1321,9 +1211,9 @@ export function CharacterWindow({
       return;
     }
 
-    // 设置等待状态
+    // 设置等待状态和保存 sessionKey
     setIsWaitingForResponse(true);
-
+    setWaitingSessionKey(sessionKeyToSend);
     try {
       const params = { sessionId: sessionKeyToSend, content: trimmed };
       await invoke('send_message', params);
@@ -1335,10 +1225,11 @@ export function CharacterWindow({
         sender: 'system',
         duration: 3000,
       });
-      // 发送失败时清除等待状态
+      // 发送失败时清除等待状态和 sessionKey
       setIsWaitingForResponse(false);
+      setWaitingSessionKey(null);
     }
-  }, [config, assistants, selectedAssistant, isConnected, addMessage, setIsWaitingForResponse]);
+  }, [config, assistants, selectedAssistant, isConnected, addMessage]);
 
   const handleOpenDialog = useCallback(() => {
     onOpenDialog?.();
@@ -1346,6 +1237,11 @@ export function CharacterWindow({
 
   const cursorStyle = hoveredZone ? 'pointer' : 'grab';
 
+  // Show loading animation for display slot windows that haven't loaded yet
+  // For main window, always show character (it has default)
+  // null = still detecting, true = display slot window, false = main window
+  // Only main window (false) should NOT show loading
+  const showLoading = isDisplaySlotWindow !== false && !loadState.isLoaded;
   return (
     <div
       className={`character-window ${isPenetrationMode ? 'penetration-mode' : ''} ${hoveredZone ? 'zone-hovered' : ''}`}
@@ -1353,14 +1249,23 @@ export function CharacterWindow({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onTouchStart={handleTouchStart}
-      onTouchEnd={handleMouseUp}
+      onTouchEnd={handleTouchEnd}
       onMouseEnter={handleWindowMouseEnter}
       onMouseLeave={handleWindowMouseLeave}
       onMouseMove={handleMouseMove}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
     >
+      {/* Canvas container - always in DOM for PIXI initialization */}
       <div ref={containerRef} className="character-canvas" />
+
+      {/* Loading animation overlay for display slot windows */}
+      {showLoading && (
+        <div className="character-loading">
+          <div className="loading-spinner"></div>
+          <div className="loading-text">Loading...</div>
+        </div>
+      )}
 
       {bubbleText && (
         <div className="thought-bubble">

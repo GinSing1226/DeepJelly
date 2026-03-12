@@ -11,8 +11,6 @@ export type { UseGlobalHotkeysOptions, UseGlobalHotkeysReturn } from './useGloba
 export { useTrayEventHandler } from './useTrayEventHandler';
 export type { TrayEventPayload, UseTrayEventHandlerOptions } from './useTrayEventHandler';
 
-export { useTauriEvent } from './useTauriEvent';
-
 export { useCAPMessage } from './useCAPMessage';
 export type { CAPMessageHandlers, UseCAPMessageOptions } from './useCAPMessage';
 

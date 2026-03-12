@@ -14,7 +14,7 @@ import type {
 } from '../types';
 import {
   loadCharacterConfig,
-  getAnimationById,
+  getAnimationByIdCompat,
   resolveAnimationPath,
   globalCharacterLoader,
 } from '../utils/characterLoader';
@@ -28,7 +28,7 @@ export interface UseCharacterResourceResult {
   /** 加载状态 */
   loadState: ResourceLoadState;
   /** 加载角色 */
-  loadCharacter: (characterId: string, appearanceId: string) => Promise<void>;
+  loadCharacter: (characterId: string, appearanceId: string, assistantId?: string) => Promise<void>;
   /** 切换外观 */
   switchAppearance: (appearanceId: string) => Promise<void>;
   /** 获取动画 */
@@ -70,11 +70,7 @@ export function useCharacterResource(
 
   // Debug logging when state changes
   useEffect(() => {
-    console.log('[useCharacterResource] State changed:', {
-      config: config ? { id: config.id, assistant_id: config.assistant_id, name: config.name } : null,
-      appearance: appearance ? { id: appearance.id, name: appearance.name } : null,
-      loadState,
-    });
+    // State change tracking
   }, [config, appearance, loadState]);
 
   // 使用 ref 追踪当前加载请求，避免竞态条件
@@ -84,7 +80,8 @@ export function useCharacterResource(
    * 加载角色
    */
   const loadCharacter = useCallback(
-    async (characterId: string, appearanceId: string) => {
+    async (characterId: string, appearanceId: string, assistantId?: string) => {
+
       // 生成唯一加载ID
       const loadId = ++loadIdRef.current;
 
@@ -95,8 +92,8 @@ export function useCharacterResource(
       }));
 
       try {
-        // 加载配置
-        const loadedConfig = await loadCharacterConfig(characterId, appearanceId);
+        // 加载配置，传递 assistantId（如果提供）
+        const loadedConfig = await loadCharacterConfig(characterId, appearanceId, assistantId);
 
         // 检查是否是最新的加载请求
         if (loadId !== loadIdRef.current) {
@@ -221,7 +218,7 @@ export function useCharacterResource(
       if (!appearance) {
         return undefined;
       }
-      return getAnimationById(appearance, animationId);
+      return getAnimationByIdCompat(appearance, animationId);
     },
     [appearance]
   );

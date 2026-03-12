@@ -1,4 +1,3 @@
-import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '/src/components/DebugPanel/styles.css';
 

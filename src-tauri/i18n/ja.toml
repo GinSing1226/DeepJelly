@@ -4,6 +4,7 @@
 # ============ トレイメニュー ============
 tray_open_dialog = "ダイアログを開く"
 tray_settings = "設定"
+tray_display_management = "表示管理"
 tray_debug_panel = "デバッグパネル"
 tray_switch_character = "キャラクター/外見を切り替え"
 tray_enter_dnd = "邪魔しないでモードに入る"

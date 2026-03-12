@@ -203,9 +203,9 @@ export const AnimationPresets = {
     receiver?: ParticipantOptions
   ): CAPMessage =>
     createBehaviorMentalMessage({
-      animation_id: "think",
+      animation_id: "execute",
       category: "work",
-      urgency: 5,  // Same as other non-speak animations
+      urgency: 5,
       intensity: 0.8,
       show_bubble: true,
       emotion_icon: "bulb",
@@ -219,9 +219,9 @@ export const AnimationPresets = {
     receiver?: ParticipantOptions
   ): CAPMessage =>
     createBehaviorMentalMessage({
-      animation_id: "typing",
+      animation_id: "execute",
       category: "work",
-      urgency: 5,  // Same as other non-speak animations
+      urgency: 5,
       intensity: 1.0,
       ...animationOptions,
     }, sender, receiver),
@@ -232,9 +232,9 @@ export const AnimationPresets = {
     receiver?: ParticipantOptions
   ): CAPMessage =>
     createBehaviorMentalMessage({
-      animation_id: "cheer",
-      category: "result",
-      urgency: 5,  // Same as other non-speak animations
+      animation_id: "execute",
+      category: "work",
+      urgency: 5,
       intensity: 1.0,
       show_bubble: true,
       emotion_icon: "sparkles",
@@ -248,9 +248,9 @@ export const AnimationPresets = {
     receiver?: ParticipantOptions
   ): CAPMessage =>
     createBehaviorMentalMessage({
-      animation_id: "sad",
-      category: "emotion",
-      urgency: 5,  // Same as other non-speak animations
+      animation_id: "execute",
+      category: "work",
+      urgency: 5,
       intensity: 0.8,
       show_bubble: true,
       emotion_icon: "sweat_drop",
@@ -264,9 +264,9 @@ export const AnimationPresets = {
     receiver?: ParticipantOptions
   ): CAPMessage =>
     createBehaviorMentalMessage({
-      animation_id: "wave",
-      category: "emotion",
-      urgency: 5,  // Same as other non-speak animations
+      animation_id: "execute",
+      category: "work",
+      urgency: 5,
       intensity: 1.0,
       show_bubble: true,
       emotion_icon: "heart_eyes",
@@ -280,9 +280,9 @@ export const AnimationPresets = {
     receiver?: ParticipantOptions
   ): CAPMessage =>
     createBehaviorMentalMessage({
-      animation_id: "wonder",
-      category: "emotion",
-      urgency: 5,  // Same as other non-speak animations
+      animation_id: "execute",
+      category: "work",
+      urgency: 5,
       intensity: 0.7,
       show_bubble: true,
       emotion_icon: "question_mark",
@@ -385,8 +385,8 @@ export function createToolCompleteMessage(
 
   return createBehaviorMentalMessage({
     animation_id: "execute",
-    category: "result",
-    urgency: 5,  // Same as other non-speak animations
+    category: "work",
+    urgency: 5,
     intensity: 0.6,
     show_bubble: true,
     emotion_icon: "check",
@@ -415,8 +415,8 @@ export function createToolErrorMessage(
 
   return createBehaviorMentalMessage({
     animation_id: "execute",
-    category: "emotion",
-    urgency: 5,  // Same as other non-speak animations
+    category: "work",
+    urgency: 5,
     intensity: 0.8,
     show_bubble: true,
     emotion_icon: "x",
@@ -479,7 +479,7 @@ export function createSessionEndMessage(
 
   return createBehaviorMentalMessage({
     animation_id: "speak",
-    category: "result",
+    category: "work",
     urgency: 9,  // High priority - only speak should have high priority
     intensity: 0.5,
     show_bubble: false,

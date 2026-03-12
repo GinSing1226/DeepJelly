@@ -14,14 +14,15 @@ export type TranslationResources = {
   [K in SupportedLocale]: {
     common: Record<string, string>;
     tray: Record<string, string>;
-    settings: Record<string, string>;
+    settings: Record<string, unknown>;
     debug: Record<string, string>;
     confirm: Record<string, string>;
     status: Record<string, string>;
     error: Record<string, string>;
     about: Record<string, string>;
     dialog: Record<string, string>;
-    onboarding: Record<string, string>;
+    onboarding: Record<string, unknown>;
+    help: Record<string, unknown>;
   };
 };
 
@@ -44,6 +45,7 @@ export const resources: TranslationResources = {
       save: '保存',
       confirm: '确认',
       delete: '删除',
+      edit: '编辑',
       close: '关闭',
       settings: '设置',
       quit: '退出',
@@ -67,6 +69,9 @@ export const resources: TranslationResources = {
       localeNameEn: 'English',
       localeNameJa: '日本語',
       waitingForResponse: '已发送，请等待AI回复',
+      back: '返回',
+      clear: '清空',
+      update: '更新',
     },
 
     tray: {
@@ -93,6 +98,7 @@ export const resources: TranslationResources = {
         appIntegration: '应用集成',
         characterIntegration: '角色集成',
         display: '展示管理',
+        help: '帮助',
         system: '系统设置',
       },
       character: {
@@ -142,10 +148,13 @@ export const resources: TranslationResources = {
         cancel: '取消',
         noDescription: '暂无描述',
         appearanceList: '形象列表',
+        noAppearances: '暂无形象',
+        addFirstAppearance: '添加第一个形象',
         addAppearance: '新增形象',
         default: '默认',
         actions: '动作',
         appearances: '形象',
+        appearance: '形象',
         newAppearance: '新形象',
         setDefault: '设为默认',
         addAppearanceError: '新增形象失败: {{error}}',
@@ -239,9 +248,6 @@ export const resources: TranslationResources = {
         characterIdHint: '角色ID一旦创建不可修改',
         deleteCharacterHasAppearances: '该角色下还有 {{count}} 个形象，请先删除所有形象',
         deleteCharacterConfirm: '确定要删除角色 "{{name}}" 吗？',
-        // 通用字段
-        name: '名称',
-        delete: '删除',
       },
       integration: {
         title: '应用集成',
@@ -305,6 +311,7 @@ export const resources: TranslationResources = {
         selectApplication: '选择应用',
         applicationReadOnlyHint: '编辑模式下不可修改',
         autoBind: '自动集成',
+        reBind: '重新绑定',
         switchToManual: '切换到手动',
         switchToAuto: '切换到自动',
         waitingBindReply: '等待回复...',
@@ -422,7 +429,7 @@ export const resources: TranslationResources = {
       selectAppDesc: '请选择您要集成的AI应用',
       openclawName: 'OpenClaw',
       openclawDesc: '开源AI助手平台',
-      backButton: '返回',
+      backButton: '上一步',
       // Input Endpoint Step
       connectTitle: '连接 OpenClaw',
       connectDesc: '请输入 OpenClaw 的 IP 地址、端口和认证 Token',
@@ -473,7 +480,7 @@ export const resources: TranslationResources = {
       completeButton: '完成',
       copyConfig: '复制配置',
       confirmButton: '确定',
-      returnButton: '返回',
+      returnButton: '上一步',
       clickToComplete: '点击【确定】完成集成',
       bindingSuccess: '绑定成功！',
       assistantId: '助手ID：',
@@ -542,6 +549,172 @@ export const resources: TranslationResources = {
       selectApplication: '选择应用',
       applicationReadOnlyHint: '通过集成引导流程自动设置，不可修改',
     },
+
+    help: {
+      title: '使用说明',
+      initialization: {
+        title: '初始化',
+        installPlugin: {
+          title: '安装 OpenClaw 插件',
+          description: '将 `adapters/openclaw/README.md` 的内容发送给你的 OpenClaw，让它帮你完成插件安装。',
+          auto: {
+            title: '自动安装（推荐）',
+            command: `# 从 GitHub 下载插件文件到指定文件夹，然后重命名
+wget https://github.com/GinSing1226/DeepJelly/releases/latest/download/deepjelly-openclaw-plugin.zip
+unzip deepjelly-openclaw-plugin.zip -d ~/.openclaw/extensions/
+mv ~/.openclaw/extensions/deepjelly-openclaw-plugin ~/.openclaw/extensions/deepjelly`,
+          },
+          manual: {
+            title: '手动安装',
+            command: `# 复制插件文件到 OpenClaw 扩展目录
+cd adapters/openclaw
+mkdir -p ~/.openclaw/extensions/deepjelly
+cp -r src dist openclaw.plugin.json README.md ~/.openclaw/extensions/deepjelly/
+
+# 启动 OpenClaw Gateway（插件依赖 OpenClaw 主依赖的 ws，无需单独安装）
+openclaw gateway restart`,
+          },
+          note: '**重要说明**：\n- **不要复制 `node_modules` 文件夹** - 插件使用 OpenClaw 主依赖的 `ws`\n- **插件已内置所需依赖** - `package.json` 中已声明 `ws` 依赖',
+        },
+        integrationGuide: {
+          title: '集成引导流程',
+          step1: '**启动 DeepJelly**：首次启动会自动进入引导页',
+          step2: '**选择语言**：支持中文/English/日本語',
+          step3: '**选择应用类型**：目前支持 OpenClaw',
+          step4: '**复制提示词**：点击"复制提示词"按钮，发送给 OpenClaw',
+          step5: '**填写连接信息**：\n   - IP 地址：OpenClaw 的 IP（本地填 `127.0.0.1`，局域网填实际 IP）\n   - 端口：默认 `18790`\n   - 认证 Token：从 OpenClaw 设置页面获取（可选）\n   - 应用名称：自定义名称，如"我的 OpenClaw"\n   - 应用描述：可选',
+          step6: '**点击连接**：等待连接成功',
+          step7: '**选择绑定**（级联选择顺序）：① Agent → ② Session Key → ③ 助手 → ④ 角色',
+          step8: '**选择集成方式**：\n   - **自动集成**：系统自动将配置信息发给 SessionKey\n   - **手动集成**：按照下方配置编辑 `openclaw.json`',
+          step9: '**完成集成**',
+        },
+        verifyIntegration: {
+          title: '验证集成',
+          description: '在飞书、Telegram 等已与 OpenClaw 集成的渠道发送消息，DeepJelly 中的角色会自动响应。',
+        },
+      },
+      mainWorkflow: {
+        title: '主流程',
+        addAssistant: {
+          title: '新增助手',
+          description: '填写助手 ID（可选，不填则自动随机生成）、助手名称（必填）、助手描述（可选），点击保存。',
+          path: '**入口**：设置 → 角色管理 → 助手列表 → 点击"+"按钮',
+          note: '**数据存储位置**：所有用户数据都在项目根目录的 `data/user` 下',
+        },
+        addCharacter: {
+          title: '新增角色',
+          description: '选择所属助手，填写角色名称，点击保存。',
+          path: '**入口**：设置 → 角色管理 → 选择助手 → 角色列表 → 点击"+"按钮',
+        },
+        addAppearance: {
+          title: '新增形象',
+          description: '填写形象名称，上传动画帧图片（支持单帧图 PNG、精灵图 PNG、GIF）。',
+          path: '**入口**：设置 → 角色管理 → 选择助手 → 选择角色 → 形象列表 → 点击"+"按钮',
+          note: '**说明**：idle 动作固定为默认动作',
+        },
+        addAction: {
+          title: '新增动作资源',
+          description: '先进入形象详情页，选择动作类型，上传动画资源（支持单帧图 PNG、精灵图 PNG、GIF）。',
+          path: '**入口**：设置 → 角色管理 → 选择助手 → 选择角色 → 选择形象 → 动作列表',
+          note: '**说明**：先进入形象详情页，再为不同动作上传资源',
+        },
+        appIntegration: {
+          title: '应用集成',
+          description: '填写应用类型、名称、描述、WebSocket 地址、认证 Token，点击保存。',
+          path: '**入口**：设置 → 应用集成',
+          warning: '**重要说明**：\n- ⚠️ **一个 OpenClaw 只需要集成 1 次**\n- 不要重复集成同一个 OpenClaw，否则配置文件容易乱\n- 已经集成完成后，可以直接去集成角色',
+        },
+        characterIntegration: {
+          title: '角色集成',
+          description: '级联选择 Agent → Session Key → 助手 → 角色，点击保存。',
+          path: '**入口**：设置 → 角色集成 → 点击"+ 新增绑定"',
+          steps: '① 选择 Agent → ② 选择 Session Key → ③ 选择助手 → ④ 选择角色',
+          limit: '**限制**：\n- ⚠️ **同一个助手，如果已经绑定某个应用，那它的所有角色都只能绑定这个应用**\n- ⚠️ **一个 Session Key 只能绑定一个角色**',
+        },
+        displayManagement: {
+          title: '展示管理',
+          description: '点击"添加槽位"，级联选择助手 → 角色 → 形象。',
+          path: '**入口**：设置 → 展示管理',
+          note: '**功能**：\n- 添加展示槽位：级联选择助手 → 角色 → 形象\n- 资源刷新：点击"刷新"按钮或重启应用',
+          limit: '**限制**：⚠️ **同一个助手只能在一个槽位中展示**',
+        },
+        sendMessage: {
+          title: '发送消息',
+          way1: '**方式一**：角色窗口底部的输入框',
+          way2: '**方式二**：右键角色/托盘图标 → 打开对话框',
+          way3: '**方式三**：在飞书、Telegram 等消息渠道发送消息',
+        },
+        sessionManagement: {
+          title: '会话管理',
+          description: '查看历史会话、切换会话、搜索消息、在会话详情里发送消息。',
+          path: '**入口**：右键角色/托盘图标 → 打开对话框',
+        },
+      },
+      basicOperations: {
+        title: '基本操作',
+        drag: {
+          title: '拖拽角色',
+          description: '在实体模式下，按住鼠标左键拖拽角色',
+        },
+        penetration: {
+          title: '穿透模式与实体模式',
+          table: {
+            mode: '模式',
+            trigger: '触发条件',
+            effect: '效果',
+            solid: '实体模式',
+            solidTrigger: '默认状态',
+            solidEffect: '鼠标直接操作角色',
+            penetrate: '穿透模式',
+            penetrateTrigger: '按住 `Ctrl` 键',
+            penetrateEffect: '鼠标穿透角色',
+          },
+        },
+        display: {
+          title: '展示角色',
+          step1: '1. 打开**设置 → 展示管理**',
+          step2: '2. 点击"添加槽位"',
+          step3: '3. 选择助手、角色、形象',
+        },
+        contextMenu: {
+          title: '右键菜单',
+          entry: '**入口**：在角色上点击鼠标右键',
+          features: '**功能**：设置、语言切换、展示管理、打开对话框、退出应用',
+        },
+      },
+      faq: {
+        title: '常见问题',
+        q1: {
+          question: '连接失败怎么办？',
+          answer: '检查 OpenClaw 是否已启动、IP 地址和端口是否正确、防火墙设置',
+        },
+        q2: {
+          question: '角色不显示动画？',
+          answer: '检查形象是否配置了动作资源、路径是否正确、是否点击"刷新"',
+        },
+        q3: {
+          question: '如何添加多个角色？',
+          answer: '在角色管理中创建，在展示管理中添加槽位',
+        },
+        q4: {
+          question: '一个助手可以绑定多个应用吗？',
+          answer: '不可以。同一个助手一旦绑定了某个应用，它的所有角色都只能绑定这个应用。如需更换应用，需要先删除所有角色绑定，再重新绑定。',
+        },
+        q5: {
+          question: '一个 Session Key 可以绑定多个角色吗？',
+          answer: '不可以。一个 Session Key 只能绑定一个角色。如需绑定多个角色，需要使用不同的 Session Key。',
+        },
+        q6: {
+          question: '资源修改后不生效？',
+          answer: '点击"刷新"按钮或重启应用',
+        },
+        q7: {
+          question: '用户数据存储在哪里？',
+          answer: '项目根目录的 `data/user` 下',
+        },
+      },
+      viewOnGitHub: '在 GitHub 上查看',
+    },
   },
 
   en: {
@@ -582,6 +755,9 @@ export const resources: TranslationResources = {
       localeNameEn: 'English',
       localeNameJa: '日本語',
       waitingForResponse: 'Sent, waiting for AI response',
+      back: 'Back',
+      clear: 'Clear',
+      update: 'Update',
     },
 
     tray: {
@@ -609,6 +785,7 @@ export const resources: TranslationResources = {
         characterIntegration: 'Character Integration',
         display: 'Display Management',
         system: 'System',
+        help: 'Help',
       },
       character: {
         title: 'Character Settings',
@@ -657,12 +834,15 @@ export const resources: TranslationResources = {
         cancel: 'Cancel',
         noDescription: 'No description',
         appearanceList: 'Appearance List',
+        noAppearances: 'No appearances yet',
+        addFirstAppearance: 'Add first appearance',
         addAppearance: 'Add Appearance',
         newAppearance: 'New Appearance',
         default: 'Default',
         setDefault: 'Set Default',
         actions: 'Actions',
         appearances: 'Appearances',
+        appearance: 'Appearance',
         addAppearanceError: 'Failed to add appearance: {{error}}',
         deleteAppearanceError: 'Failed to delete appearance: {{error}}',
         deleteAppearanceConfirm: 'Are you sure you want to delete appearance "{{name}}"?',
@@ -755,9 +935,6 @@ export const resources: TranslationResources = {
         characterIdHint: 'Character ID cannot be modified after creation',
         deleteCharacterHasAppearances: 'This character has {{count}} appearance(s). Please delete all appearances first.',
         deleteCharacterConfirm: 'Are you sure you want to delete character "{{name}}"?',
-        // Common fields
-        name: 'Name',
-        delete: 'Delete',
       },
       integration: {
         title: 'App Integration',
@@ -820,6 +997,7 @@ export const resources: TranslationResources = {
         selectApplication: 'Select Application',
         applicationReadOnlyHint: 'Cannot be modified in edit mode',
         autoBind: 'Auto Bind',
+        reBind: 'Rebind',
         switchToManual: 'Switch to Manual',
         switchToAuto: 'Switch to Auto',
         waitingBindReply: 'Waiting for reply...',
@@ -937,7 +1115,7 @@ export const resources: TranslationResources = {
       selectAppDesc: 'Please select the AI app to integrate',
       openclawName: 'OpenClaw',
       openclawDesc: 'Open-source AI assistant platform',
-      backButton: 'Back',
+      backButton: 'Previous',
       // Input Endpoint Step
       connectTitle: 'Connect to OpenClaw',
       connectDesc: 'Please enter OpenClaw\'s IP address, port, and authentication token',
@@ -988,7 +1166,7 @@ export const resources: TranslationResources = {
       completeButton: 'Complete',
       copyConfig: 'Copy Config',
       confirmButton: 'Confirm',
-      returnButton: 'Return',
+      returnButton: 'Previous',
       clickToComplete: 'Click [Confirm] to complete integration',
       bindingSuccess: 'Binding successful!',
       assistantId: 'Assistant ID:',
@@ -1057,6 +1235,172 @@ export const resources: TranslationResources = {
       selectApplication: 'Select Application',
       applicationReadOnlyHint: 'Automatically configured through the onboarding flow, cannot be modified',
     },
+
+    help: {
+      title: 'User Guide',
+      initialization: {
+        title: 'Initialization',
+        installPlugin: {
+          title: 'Install OpenClaw Plugin',
+          description: 'Send the content of `adapters/openclaw/README.md` to your OpenClaw to help you complete the plugin installation.',
+          auto: {
+            title: 'Automatic Installation (Recommended)',
+            command: `# Download plugin files from GitHub to specified folder, then rename
+wget https://github.com/GinSing1226/DeepJelly/releases/latest/download/deepjelly-openclaw-plugin.zip
+unzip deepjelly-openclaw-plugin.zip -d ~/.openclaw/extensions/
+mv ~/.openclaw/extensions/deepjelly-openclaw-plugin ~/.openclaw/extensions/deepjelly`,
+          },
+          manual: {
+            title: 'Manual Installation',
+            command: `# Copy plugin files to OpenClaw extension directory
+cd adapters/openclaw
+mkdir -p ~/.openclaw/extensions/deepjelly
+cp -r src dist openclaw.plugin.json README.md ~/.openclaw/extensions/deepjelly/
+
+# Start OpenClaw Gateway (plugin depends on ws from OpenClaw main dependencies, no separate installation needed)
+openclaw gateway restart`,
+          },
+          note: '**Important Notes**:\n- **Do not copy the `node_modules` folder** - Plugin uses the `ws` from OpenClaw main dependencies\n- **Plugin has built-in dependencies** - `ws` dependency is already declared in `package.json`',
+        },
+        integrationGuide: {
+          title: 'Integration Guide Process',
+          step1: '**Start DeepJelly**: First launch will automatically enter the onboarding page',
+          step2: '**Select Language**: Supports Chinese/English/日本語',
+          step3: '**Select App Type**: Currently supports OpenClaw',
+          step4: '**Copy Prompt**: Click "Copy Prompt" button and send to OpenClaw',
+          step5: '**Fill Connection Info**:\n   - IP Address: OpenClaw\'s IP (use `127.0.0.1` for local, actual IP for LAN)\n   - Port: Default `18790`\n   - Auth Token: Get from OpenClaw settings page (optional)\n   - App Name: Custom name, e.g., "My OpenClaw"\n   - App Description: Optional',
+          step6: '**Click Connect**: Wait for connection to succeed',
+          step7: '**Select Binding** (cascade selection order): ① Agent → ② Session Key → ③ Assistant → ④ Character',
+          step8: '**Select Integration Method**:\n   - **Auto Integration**: System automatically sends config info to SessionKey\n   - **Manual Integration**: Edit `openclaw.json` according to the config below',
+          step9: '**Complete Integration**',
+        },
+        verifyIntegration: {
+          title: 'Verify Integration',
+          description: 'Send a message in Feishu, Telegram, or other channels integrated with OpenClaw, and the character in DeepJelly will automatically respond.',
+        },
+      },
+      mainWorkflow: {
+        title: 'Main Workflow',
+        addAssistant: {
+          title: 'Add Assistant',
+          description: 'Fill in assistant ID (optional, auto-generated if empty), assistant name (required), assistant description (optional), then click save.',
+          path: '**Entry**: Settings → Character Management → Assistant List → Click "+" button',
+          note: '**Data Storage Location**: All user data is under `data/user` in the project root directory',
+        },
+        addCharacter: {
+          title: 'Add Character',
+          description: 'Select the assistant, fill in character name, then click save.',
+          path: '**Entry**: Settings → Character Management → Select Assistant → Character List → Click "+" button',
+        },
+        addAppearance: {
+          title: 'Add Appearance',
+          description: 'Fill in appearance name, upload animation frame images (supports single-frame PNG, sprite PNG, GIF).',
+          path: '**Entry**: Settings → Character Management → Select Assistant → Select Character → Appearance List → Click "+" button',
+          note: '**Note**: idle action is fixed as the default action',
+        },
+        addAction: {
+          title: 'Add Action Resources',
+          description: 'First enter the appearance detail page, select action type, upload animation resources (supports single-frame PNG, sprite PNG, GIF).',
+          path: '**Entry**: Settings → Character Management → Select Assistant → Select Character → Select Appearance → Action List',
+          note: '**Note**: First enter the appearance detail page, then upload resources for different actions',
+        },
+        appIntegration: {
+          title: 'App Integration',
+          description: 'Fill in app type, name, description, WebSocket address, auth token, then click save.',
+          path: '**Entry**: Settings → App Integration',
+          warning: '**Important Notes**:\n- ⚠️ **One OpenClaw only needs to be integrated once**\n- Do not integrate the same OpenClaw repeatedly, or config files will get messy\n- After integration is complete, you can directly integrate characters',
+        },
+        characterIntegration: {
+          title: 'Character Integration',
+          description: 'Cascade select Agent → Session Key → Assistant → Character, then click save.',
+          path: '**Entry**: Settings → Character Integration → Click "+ Add Binding"',
+          steps: '① Select Agent → ② Select Session Key → ③ Select Assistant → ④ Select Character',
+          limit: '**Limitations**:\n- ⚠️ **If an assistant is already bound to an app, all its characters can only bind to that app**\n- ⚠️ **One Session Key can only bind to one character**',
+        },
+        displayManagement: {
+          title: 'Display Management',
+          description: 'Click "Add Slot", cascade select Assistant → Character → Appearance.',
+          path: '**Entry**: Settings → Display Management',
+          note: '**Functions**:\n- Add display slot: cascade select Assistant → Character → Appearance\n- Resource refresh: Click "Refresh" button or restart the app',
+          limit: '**Limitation**: ⚠️ **The same assistant can only be displayed in one slot**',
+        },
+        sendMessage: {
+          title: 'Send Message',
+          way1: '**Method 1**: Input box at the bottom of the character window',
+          way2: '**Method 2**: Right-click character/tray icon → Open Dialog',
+          way3: '**Method 3**: Send messages in Feishu, Telegram, or other messaging channels',
+        },
+        sessionManagement: {
+          title: 'Session Management',
+          description: 'View historical sessions, switch sessions, search messages, send messages in session details.',
+          path: '**Entry**: Right-click character/tray icon → Open Dialog',
+        },
+      },
+      basicOperations: {
+        title: 'Basic Operations',
+        drag: {
+          title: 'Drag Character',
+          description: 'In solid mode, hold the left mouse button to drag the character',
+        },
+        penetration: {
+          title: 'Penetration Mode vs Solid Mode',
+          table: {
+            mode: 'Mode',
+            trigger: 'Trigger Condition',
+            effect: 'Effect',
+            solid: 'Solid Mode',
+            solidTrigger: 'Default state',
+            solidEffect: 'Mouse directly interacts with character',
+            penetrate: 'Penetration Mode',
+            penetrateTrigger: 'Hold `Ctrl` key',
+            penetrateEffect: 'Mouse penetrates through character',
+          },
+        },
+        display: {
+          title: 'Display Character',
+          step1: '1. Open **Settings → Display Management**',
+          step2: '2. Click "Add Slot"',
+          step3: '3. Select Assistant, Character, Appearance',
+        },
+        contextMenu: {
+          title: 'Context Menu',
+          entry: '**Entry**: Right-click on the character',
+          features: '**Functions**: Settings, language switch, display management, open dialog, quit app',
+        },
+      },
+      faq: {
+        title: 'Frequently Asked Questions',
+        q1: {
+          question: 'What to do if connection fails?',
+          answer: 'Check if OpenClaw is started, if IP address and port are correct, and firewall settings',
+        },
+        q2: {
+          question: 'Character not showing animation?',
+          answer: 'Check if the appearance has action resources configured, if the path is correct, and if you clicked "Refresh"',
+        },
+        q3: {
+          question: 'How to add multiple characters?',
+          answer: 'Create in character management, add slots in display management',
+        },
+        q4: {
+          question: 'Can one assistant bind to multiple apps?',
+          answer: 'No. Once an assistant is bound to an app, all its characters can only bind to that app. To switch apps, you need to delete all character bindings first, then rebind.',
+        },
+        q5: {
+          question: 'Can one Session Key bind to multiple characters?',
+          answer: 'No. One Session Key can only bind to one character. To bind multiple characters, you need to use different Session Keys.',
+        },
+        q6: {
+          question: 'Resource modifications not taking effect?',
+          answer: 'Click the "Refresh" button or restart the app',
+        },
+        q7: {
+          question: 'Where is user data stored?',
+          answer: 'In the `data/user` directory in the project root',
+        },
+      },
+      viewOnGitHub: 'View on GitHub',
+    },
   },
 
   ja: {
@@ -1097,6 +1441,9 @@ export const resources: TranslationResources = {
       localeNameEn: 'English',
       localeNameJa: '日本語',
       waitingForResponse: '送信しました、AIの応答をお待ちください',
+      back: '戻る',
+      clear: 'クリア',
+      update: '更新',
     },
 
     tray: {
@@ -1124,6 +1471,7 @@ export const resources: TranslationResources = {
         characterIntegration: 'キャラクター統合',
         display: '表示管理',
         system: 'システム',
+        help: 'ヘルプ',
       },
       character: {
         title: 'キャラクター設定',
@@ -1172,10 +1520,13 @@ export const resources: TranslationResources = {
         cancel: 'キャンセル',
         noDescription: '説明なし',
         appearanceList: '外見リスト',
+        noAppearances: '外見がありません',
+        addFirstAppearance: '最初の外見を追加',
         addAppearance: '外見を追加',
         default: 'デフォルト',
         actions: 'アクション',
         appearances: '外見',
+        appearance: '外見',
         newAppearance: '新しい外見',
         setDefault: 'デフォルトに設定',
         addAppearanceError: '外見の追加に失敗しました: {{error}}',
@@ -1270,9 +1621,6 @@ export const resources: TranslationResources = {
         characterIdHint: 'キャラクターIDは作成後に変更できません',
         deleteCharacterHasAppearances: 'このキャラクターには {{count}} つの外見があります。先にすべての外見を削除してください。',
         deleteCharacterConfirm: 'キャラクター "{{name}}" を削除してもよろしいですか？',
-        // 共通フィールド
-        name: '名称',
-        delete: '削除',
       },
       integration: {
         title: 'アプリ統合',
@@ -1335,6 +1683,7 @@ export const resources: TranslationResources = {
         selectApplication: 'アプリケーションを選択',
         applicationReadOnlyHint: '編集モードでは変更できません',
         autoBind: '自動バインド',
+        reBind: '再バインド',
         switchToManual: '手動に切り替え',
         switchToAuto: '自動に切り替え',
         waitingBindReply: '返信を待っています...',
@@ -1452,7 +1801,7 @@ export const resources: TranslationResources = {
       selectAppDesc: '統合するAIアプリを選択してください',
       openclawName: 'OpenClaw',
       openclawDesc: 'オープンソースAIアシスタントプラットフォーム',
-      backButton: '戻る',
+      backButton: '前のステップ',
       // Input Endpoint Step
       connectTitle: 'OpenClawに接続',
       connectDesc: 'OpenClawのIPアドレス、ポート、認証トークンを入力してください',
@@ -1503,7 +1852,7 @@ export const resources: TranslationResources = {
       completeButton: '完了',
       copyConfig: '設定をコピー',
       confirmButton: '確認',
-      returnButton: '戻る',
+      returnButton: '前のステップ',
       clickToComplete: '【確認】をクリックして統合を完了してください',
       bindingSuccess: 'バインド成功！',
       assistantId: 'アシスタントID：',
@@ -1571,6 +1920,172 @@ export const resources: TranslationResources = {
       selectCharacterDesc: 'アプリとキャラクターを選択して統合設定を完了',
       selectApplication: 'アプリを選択',
       applicationReadOnlyHint: 'オンボーディングフローで自動設定されるため変更できません',
+    },
+
+    help: {
+      title: 'ユーザーガイド',
+      initialization: {
+        title: '初期化',
+        installPlugin: {
+          title: 'OpenClawプラグインのインストール',
+          description: '`adapters/openclaw/README.md`の内容をOpenClawに送信して、プラグインのインストールを完了させてください。',
+          auto: {
+            title: '自動インストール（推奨）',
+            command: `# GitHubからプラグインファイルを指定フォルダにダウンロードしてから名前を変更
+wget https://github.com/GinSing1226/DeepJelly/releases/latest/download/deepjelly-openclaw-plugin.zip
+unzip deepjelly-openclaw-plugin.zip -d ~/.openclaw/extensions/
+mv ~/.openclaw/extensions/deepjelly-openclaw-plugin ~/.openclaw/extensions/deepjelly`,
+          },
+          manual: {
+            title: '手動インストール',
+            command: `# プラグインファイルをOpenClaw拡張ディレクトリにコピー
+cd adapters/openclaw
+mkdir -p ~/.openclaw/extensions/deepjelly
+cp -r src dist openclaw.plugin.json README.md ~/.openclaw/extensions/deepjelly/
+
+# OpenClaw Gatewayを起動（プラグインはOpenClawメイン依存関係のwsに依存、別途インストール不要）
+openclaw gateway restart`,
+          },
+          note: '**重要な注意事項**:\n- **`node_modules`フォルダをコピーしないでください** - プラグインはOpenClawメイン依存関係の`ws`を使用します\n- **プラグインには必要な依存関係が組み込まれています** - `package.json`で`ws`依存関係が宣言されています',
+        },
+        integrationGuide: {
+          title: '統合ガイドプロセス',
+          step1: '**DeepJellyを起動**: 初回起動時に自動的にオンボーディングページに入ります',
+          step2: '**言語を選択**: 中文/English/日本語をサポート',
+          step3: '**アプリタイプを選択**: 現在OpenClawをサポート',
+          step4: '**プロンプトをコピー**: "プロンプトをコピー"ボタンをクリックしてOpenClawに送信',
+          step5: '**接続情報を入力**:\n   - IPアドレス: OpenClawのIP（ローカルなら`127.0.0.1`、LANなら実際のIP）\n   - ポート: デフォルト`18790`\n   - 認証トークン: OpenClaw設定ページから取得（オプション）\n   - アプリ名: カスタム名、例："私のOpenClaw"\n   - アプリ説明: オプション',
+          step6: '**接続をクリック**: 接続が成功するまで待機',
+          step7: '**バインドを選択**（カスケード選択順序）: ① Agent → ② セッションキー → ③ アシスタント → ④ キャラクター',
+          step8: '**統合方法を選択**:\n   - **自動統合**: システムが自動的に設定情報をSessionKeyに送信\n   - **手動統合**: 以下の設定に従って`openclaw.json`を編集',
+          step9: '**統合を完了**',
+        },
+        verifyIntegration: {
+          title: '統合を確認',
+          description: 'Feishu、Telegram、またはOpenClawと統合されたチャネルでメッセージを送信すると、DeepJellyのキャラクターが自動的に応答します。',
+        },
+      },
+      mainWorkflow: {
+        title: 'メインワークフロー',
+        addAssistant: {
+          title: 'アシスタントを追加',
+          description: 'アシスタントID（オプション、空欄の場合は自動生成）、アシスタント名（必須）、アシスタント説明（オプション）を入力し、保存をクリック。',
+          path: '**入口**: 設定 → キャラクター管理 → アシスタントリスト → "+"ボタンをクリック',
+          note: '**データ保存場所**: すべてのユーザーデータはプロジェクトルートディレクトリの`data/user`以下にあります',
+        },
+        addCharacter: {
+          title: 'キャラクターを追加',
+          description: 'アシスタントを選択し、キャラクター名を入力し、保存をクリック。',
+          path: '**入口**: 設定 → キャラクター管理 → アシスタントを選択 → キャラクターリスト → "+"ボタンをクリック',
+        },
+        addAppearance: {
+          title: '外見を追加',
+          description: '外見名を入力し、アニメーションフレーム画像をアップロード（単一フレームPNG、スプライトPNG、GIFをサポート）。',
+          path: '**入口**: 設定 → キャラクター管理 → アシスタントを選択 → キャラクターを選択 → 外見リスト → "+"ボタンをクリック',
+          note: '**注意**: idleアクションはデフォルトアクションとして固定されます',
+        },
+        addAction: {
+          title: 'アクションリソースを追加',
+          description: 'まず外見詳細ページに入り、アクションタイプを選択し、アニメーションリソースをアップロード（単一フレームPNG、スプライトPNG、GIFをサポート）。',
+          path: '**入口**: 設定 → キャラクター管理 → アシスタントを選択 → キャラクターを選択 → 外見を選択 → アクションリスト',
+          note: '**注意**: まず外見詳細ページに入り、その後で各アクションのリソースをアップロードします',
+        },
+        appIntegration: {
+          title: 'アプリ統合',
+          description: 'アプリタイプ、名前、説明、WebSocketアドレス、認証トークンを入力し、保存をクリック。',
+          path: '**入口**: 設定 → アプリ統合',
+          warning: '**重要な注意事項**:\n- ⚠️ **1つのOpenClawは1回だけ統合すればよいです**\n- 同じOpenClawを繰り返し統合しないでください、設定ファイルが混乱します\n- 統合が完了したら、直接キャラクターを統合できます',
+        },
+        characterIntegration: {
+          title: 'キャラクター統合',
+          description: 'Agent → セッションキー → アシスタント → キャラクターをカスケード選択し、保存をクリック。',
+          path: '**入口**: 設定 → キャラクター統合 → "+ バインディング追加"をクリック',
+          steps: '① Agentを選択 → ② セッションキーを選択 → ③ アシスタントを選択 → ④ キャラクターを選択',
+          limit: '**制限**:\n- ⚠️ **アシスタントがすでにアプリにバインドされている場合、そのすべてのキャラクターはそのアプリにのみバインドできます**\n- ⚠️ **1つのセッションキーは1つのキャラクターにのみバインドできます**',
+        },
+        displayManagement: {
+          title: '表示管理',
+          description: '「スロットを追加」をクリックし、アシスタント → キャラクター → 外見をカスケード選択。',
+          path: '**入口**: 設定 → 表示管理',
+          note: '**機能**:\n- 表示スロットを追加: アシスタント → キャラクター → 外見をカスケード選択\n- リソース更新: 「更新」ボタンをクリックまたはアプリを再起動',
+          limit: '**制限**: ⚠️ **同じアシスタントは1つのスロットにのみ表示できます**',
+        },
+        sendMessage: {
+          title: 'メッセージを送信',
+          way1: '**方法1**: キャラクターウィンドウの下部にある入力ボックス',
+          way2: '**方法2**: キャラクター/トレイアイコンを右クリック → ダイアログを開く',
+          way3: '**方法3**: Feishu、Telegram、またはその他のメッセージングチャネルでメッセージを送信',
+        },
+        sessionManagement: {
+          title: 'セッション管理',
+          description: '過去のセッションを表示、セッションの切り替え、メッセージの検索、セッション詳細でメッセージを送信。',
+          path: '**入口**: キャラクター/トレイアイコンを右クリック → ダイアログを開く',
+        },
+      },
+      basicOperations: {
+        title: '基本操作',
+        drag: {
+          title: 'キャラクターをドラッグ',
+          description: 'ソリッドモードで、マウスの左ボタンを押してキャラクターをドラッグします',
+        },
+        penetration: {
+          title: 'ペネトレーションモードとソリッドモード',
+          table: {
+            mode: 'モード',
+            trigger: 'トリガー条件',
+            effect: '効果',
+            solid: 'ソリッドモード',
+            solidTrigger: 'デフォルト状態',
+            solidEffect: 'マウスでキャラクターと直接対話',
+            penetrate: 'ペネトレーションモード',
+            penetrateTrigger: '`Ctrl`キーを押す',
+            penetrateEffect: 'マウスがキャラクターを貫通',
+          },
+        },
+        display: {
+          title: 'キャラクターを表示',
+          step1: '1. **設定 → 表示管理**を開く',
+          step2: '2. 「スロットを追加」をクリック',
+          step3: '3. アシスタント、キャラクター、外見を選択',
+        },
+        contextMenu: {
+          title: 'コンテキストメニュー',
+          entry: '**入口**: キャラクター上で右クリック',
+          features: '**機能**: 設定、言語切り替え、表示管理、ダイアログを開く、アプリ終了',
+        },
+      },
+      faq: {
+        title: 'よくある質問',
+        q1: {
+          question: '接続に失敗した場合はどうすればよいですか？',
+          answer: 'OpenClawが起動しているか、IPアドレスとポートが正しいか、ファイアウォール設定を確認してください',
+        },
+        q2: {
+          question: 'キャラクターがアニメーションを表示しない？',
+          answer: '外見にアクションリソースが設定されているか、パスが正しいか、「更新」をクリックしたかを確認してください',
+        },
+        q3: {
+          question: '複数のキャラクターを追加するには？',
+          answer: 'キャラクター管理で作成し、表示管理でスロットを追加します',
+        },
+        q4: {
+          question: '1つのアシスタントは複数のアプリにバインドできますか？',
+          answer: 'いいえ。アシスタントがアプリにバインドされると、そのすべてのキャラクターはそのアプリにのみバインドできます。アプリを変更するには、まずすべてのキャラクターバインディングを削除してから、再度バインドする必要があります。',
+        },
+        q5: {
+          question: '1つのセッションキーは複数のキャラクターにバインドできますか？',
+          answer: 'いいえ。1つのセッションキーは1つのキャラクターにのみバインドできます。複数のキャラクターにバインドするには、異なるセッションキーを使用する必要があります。',
+        },
+        q6: {
+          question: 'リソースの変更が反映されない？',
+          answer: '「更新」ボタンをクリックするか、アプリを再起動してください',
+        },
+        q7: {
+          question: 'ユーザーデータはどこに保存されていますか？',
+          answer: 'プロジェクトルートの`data/user`ディレクトリに保存されています',
+        },
+      },
+      viewOnGitHub: 'GitHubで表示',
     },
   },
 };

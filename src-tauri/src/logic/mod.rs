@@ -16,6 +16,9 @@ pub use character::{
     AnimationActionId, AnimationCategory, AnimationCommand, AnimationDomain,
     AnimationResource, Appearance, AppearanceConfig, Character,
     CharacterConfig, ResourceType,
+    // Re-export from models for new data architecture
+    Assistant, AssistantManager, UpdatedAssistant,
+    generate_dj_id, generate_application_id,
 };
 pub use config::{
     AppConfig, BrainConfig, CharacterAppConfig, ConfigManager, GatewayConfig, ReactionConfig,

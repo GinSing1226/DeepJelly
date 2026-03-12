@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import type { Action, SpriteSheetConfig } from '../types/character';
 
 export interface SpriteFrame {
   texture: PIXI.Texture;
@@ -16,7 +17,13 @@ export interface AnimationConfig {
 
 /**
  * 精灵动画管理器
- * 支持帧动画和GIF动画
+ * 支持帧动画、精灵图动画（多种格式）和 GIF 动画
+ *
+ * 支持的精灵图格式：
+ * - pixi-json: PIXI.js 标准 JSON 格式
+ * - texture-packer: TexturePacker 导出的 JSON 数组格式
+ * - aseprite: Aseprite 导出的 JSON 格式
+ * - custom-grid: 自定义网格布局（通过行列和帧尺寸计算）
  */
 export class SpriteManager {
   private app: PIXI.Application;
@@ -188,6 +195,223 @@ export class SpriteManager {
   }
 
   /**
+   * 从自定义网格布局的精灵图加载动画
+   *
+   * 通过网格配置将大图切片成多个帧
+   *
+   * @param name - 动画名称
+   * @param imageUrl - 精灵图图片 URL
+   * @param grid - 网格布局配置
+   * @param frameRate - 帧率
+   * @param loop - 是否循环
+   * @param loopStartFrame - 循环起始帧索引
+   */
+  async loadCustomGridSpriteSheet(
+    name: string,
+    imageUrl: string,
+    grid: {
+      frameWidth: number;
+      frameHeight: number;
+      spacing?: number;
+      margin?: number;
+      rows: number;
+      cols: number;
+    },
+    frameRate: number = 12,
+    loop: boolean = true,
+    loopStartFrame?: number
+  ): Promise<void> {
+    const {
+      frameWidth,
+      frameHeight,
+      spacing = 0,
+      margin = 0,
+      rows,
+      cols,
+    } = grid;
+
+    const textures: PIXI.Texture[] = [];
+    const totalFrames = rows * cols;
+
+    // 加载精灵图
+    let baseTexture: PIXI.Texture;
+    try {
+      baseTexture = await PIXI.Assets.load<PIXI.Texture>(imageUrl);
+    } catch (error) {
+      console.error(`[SpriteManager] Failed to load spritesheet image:`, error);
+      return;
+    }
+
+    // 切片网格
+    for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
+      const col = frameIndex % cols;
+      const row = Math.floor(frameIndex / cols);
+
+      // 计算帧在精灵图中的位置
+      const x = margin + col * (frameWidth + spacing);
+      const y = margin + row * (frameHeight + spacing);
+
+      // 创建纹理矩形
+      const frameTexture = new PIXI.Texture({
+        source: baseTexture.source,
+        frame: new PIXI.Rectangle(x, y, frameWidth, frameHeight),
+      });
+
+      textures.push(frameTexture);
+    }
+
+    if (textures.length === 0) {
+      console.error(`[SpriteManager] Custom grid spritesheet ${name} has NO valid frames, skipping registration`);
+      return;
+    }
+
+    const frames: SpriteFrame[] = textures.map((texture) => ({
+      texture,
+      duration: 1000 / frameRate,
+    }));
+
+    this.animations.set(name, {
+      name,
+      frames,
+      loop,
+      loopStartFrame,
+    });
+  }
+
+  /**
+   * 从精灵图配置加载动画（支持多种格式）
+   *
+   * @param name - 动画名称
+   * @param config - 精灵图配置
+   * @param frameRate - 帧率
+   * @param loop - 是否循环
+   * @param loopStartFrame - 循环起始帧索引
+   * @param resourcePath - 资源路径（custom-grid 格式需要，从 action.resources[0] 获取）
+   */
+  async loadEnhancedSpriteSheet(
+    name: string,
+    config: SpriteSheetConfig,
+    frameRate: number = 12,
+    loop: boolean = true,
+    loopStartFrame?: number,
+    resourcePath?: string
+  ): Promise<void> {
+    switch (config.format) {
+      case 'pixi-json':
+      case 'aseprite':
+        // PIXI.js 和 Aseprite 格式：直接使用 PIXI.Assets.load
+        if (!config.url) {
+          console.error(`[SpriteManager] ${config.format} format requires url`);
+          return;
+        }
+        await this.loadSpriteSheet(name, config.url, [], frameRate, loop, loopStartFrame);
+        break;
+
+      case 'texture-packer':
+        // TexturePacker 格式：需要提供 frameNames
+        if (!config.url) {
+          console.error(`[SpriteManager] texture-packer format requires url`);
+          return;
+        }
+        if (!config.frameNames || config.frameNames.length === 0) {
+          console.error(`[SpriteManager] texture-packer format requires frameNames`);
+          return;
+        }
+        await this.loadSpriteSheet(name, config.url, config.frameNames, frameRate, loop, loopStartFrame);
+        break;
+
+      case 'custom-grid':
+        // 自定义网格格式
+        if (!config.grid) {
+          console.error(`[SpriteManager] custom-grid format requires grid config`);
+          return;
+        }
+        // custom-grid 格式需要从 action.resources 获取图片路径
+        if (!resourcePath) {
+          console.error(`[SpriteManager] custom-grid format requires resourcePath`);
+          return;
+        }
+        // 转换蛇形命名为驼峰命名（后端 -> 前端内部）
+        const camelGrid = {
+          frameWidth: config.grid.frame_width,
+          frameHeight: config.grid.frame_height,
+          spacing: config.grid.spacing,
+          margin: config.grid.margin,
+          rows: config.grid.rows,
+          cols: config.grid.cols,
+        };
+        await this.loadCustomGridSpriteSheet(
+          name,
+          resourcePath,
+          camelGrid,
+          frameRate,
+          loop,
+          loopStartFrame
+        );
+        break;
+
+      default:
+        console.error(`[SpriteManager] Unknown spritesheet format:`, (config as SpriteSheetConfig).format);
+    }
+  }
+
+  /**
+   * 统一动画加载接口
+   *
+   * 根据 Action 类型自动选择正确的加载方式
+   *
+   * @param name - 动画名称
+   * @param action - 动作配置
+   */
+  async loadFromAction(name: string, action: Action): Promise<void> {
+    switch (action.type) {
+      case 'frames':
+        // 多帧动画
+        await this.loadFrameAnimation(
+          name,
+          action.resources,
+          action.fps ?? 12,
+          action.loop
+        );
+        break;
+
+      case 'spritesheet':
+        // 精灵图动画
+        if (!action.spritesheet) {
+          console.error(`[SpriteManager] spritesheet type requires spritesheet config`);
+          return;
+        }
+        await this.loadEnhancedSpriteSheet(
+          name,
+          action.spritesheet,
+          action.fps ?? 12,
+          action.loop,
+          undefined,
+          action.resources[0]  // 传递资源路径（custom-grid 格式需要）
+        );
+        break;
+
+      case 'gif':
+        // GIF 动画（转换帧格式）
+        const gifFrames = action.resources.map((url) => ({
+          url,
+          delay: action.fps ? 1000 / action.fps : 1000 / 12,
+        }));
+        await this.loadGifAnimation(name, gifFrames, action.loop);
+        break;
+
+      case 'live2d':
+      case '3d':
+      case 'digital_human':
+        console.warn(`[SpriteManager] Action type ${action.type} not yet supported`);
+        break;
+
+      default:
+        console.error(`[SpriteManager] Unknown action type:`, action.type);
+    }
+  }
+
+  /**
    * 获取第一个可用动画作为回退选项
    */
   private getFirstAnimation(): string | null {
@@ -213,6 +437,10 @@ export class SpriteManager {
       const fallback = this.getFirstAnimation();
       if (fallback) {
         config = this.animations.get(fallback);
+        if (!config) {
+          console.error(`[SpriteManager] Fallback animation "${fallback}" not found`);
+          return;
+        }
         name = fallback;
       } else {
         console.error(`[SpriteManager] Animation "${name}" not found and no fallback available`);
@@ -259,6 +487,16 @@ export class SpriteManager {
 
     const targetFrameRate = config.frames.length > 0 ? 1000 / config.frames[0].duration : 12;
     this.sprite.animationSpeed = targetFrameRate / 60;
+
+    // 检查 app 是否有效
+    if (!this.app || !this.app.screen) {
+      console.warn('[SpriteManager] App or screen is null, skipping scale calculation');
+      this.container.addChild(this.sprite);
+      this.sprite.play();
+      this.currentAnimation = name;
+      this.playing = true;
+      return;
+    }
 
     const appWidth = this.app.screen.width;
     const appHeight = this.app.screen.height;

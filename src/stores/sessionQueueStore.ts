@@ -64,11 +64,9 @@ export const useSessionQueueStore = create<SessionQueueState>((set, get) => ({
       speakCompleted: false,
     };
 
-    console.log('[sessionQueueStore] addSession called:', { id, sessionId: session.sessionId, receiverId: session.receiverId, content: session.content?.substring(0, 30) });
     set((state) => ({
       sessions: [...state.sessions, newSession],
     }));
-    console.log('[sessionQueueStore] sessions count after add:', get().sessions.length);
   },
 
   markSpeakCompleted: (id) => {

@@ -1,0 +1,70 @@
+/**
+ * SessionCardSkeleton Styles - Claude Style v3
+ * name: 会话卡片骨架屏样式
+ * description: 米白主题骨架屏加载动画
+ */
+
+.session-card-skeleton {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  gap: 14px;
+  margin: 2px 12px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.skeleton-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.03) 0%,
+    rgba(0, 0, 0, 0.06) 50%,
+    rgba(0, 0, 0, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  flex-shrink: 0;
+}
+
+.skeleton-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-line {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.03) 0%,
+    rgba(0, 0, 0, 0.06) 50%,
+    rgba(0, 0, 0, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-title {
+  width: 120px;
+  height: 16px;
+  animation-delay: 0s;
+}
+
+.skeleton-preview {
+  width: 70%;
+  height: 14px;
+  animation-delay: 0.2s;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}

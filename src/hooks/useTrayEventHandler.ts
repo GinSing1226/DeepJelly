@@ -10,8 +10,9 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { changeLocale } from '@/i18n/init';
-import { useSettingsStore, getScreenCenter, type QueuedMessage } from '@/stores/settingsStore';
+import { useSettingsStore, getScreenCenter } from '@/stores/settingsStore';
 import { useCharacterStore } from '@/stores/characterStore';
 import { useMessageStore } from '@/stores/messageStore';
 
@@ -26,14 +27,9 @@ export interface UseTrayEventHandlerOptions {
   // 预留扩展：onConfirmQuit 可作为退出确认对话框的回调在窗口组件处理
 }
 
-// 防御：每个 hook 实例都有唯一ID，便于追踪是否多次实例
-let hookInstanceId = 0;
+export function useTrayEventHandler(_options: UseTrayEventHandlerOptions = {}) {
 
-export function useTrayEventHandler(options: UseTrayEventHandlerOptions = {}) {
-
-  const { t, i18n } = useTranslation(['status', 'error', 'tray', 'common']);
-
-  const instanceIdRef = useRef(++hookInstanceId);
+  const { t } = useTranslation(['status', 'error', 'tray', 'common']);
 
   // 状态管理
   const {
@@ -74,9 +70,9 @@ export function useTrayEventHandler(options: UseTrayEventHandlerOptions = {}) {
 
   // ========== 打开设置窗口 ==========
 
-  const openSettingsWindow = useCallback(async () => {
+  const openSettingsWindow = useCallback(async (tab?: string) => {
     try {
-      await invoke('open_settings_window');
+      await invoke('open_settings_window', { tab });
     } catch (error) {
       console.error('Failed to open settings window:', error);
       const errorMsg = error instanceof Error ? error.message : t('error:unknown');
@@ -110,7 +106,26 @@ export function useTrayEventHandler(options: UseTrayEventHandlerOptions = {}) {
   }, [addMessage]);
   */
 
+  // 防抖：防止重复打开退出确认窗口
+  const openQuitConfirmWindowRef = useRef<{
+    lastCall: number;
+    opening: boolean;
+  }>({ lastCall: 0, opening: false });
+
   const openQuitConfirmWindow = useCallback(async () => {
+    const now = Date.now();
+    // 防抖：500ms 内只允许一次调用
+    if (now - openQuitConfirmWindowRef.current.lastCall < 500) {
+      return;
+    }
+    // 防止并发调用
+    if (openQuitConfirmWindowRef.current.opening) {
+      return;
+    }
+
+    openQuitConfirmWindowRef.current.lastCall = now;
+    openQuitConfirmWindowRef.current.opening = true;
+
     try {
       await invoke('open_quit_confirm_window');
     } catch (error) {
@@ -122,8 +137,13 @@ export function useTrayEventHandler(options: UseTrayEventHandlerOptions = {}) {
         sender: 'system',
         duration: 3000,
       });
+    } finally {
+      // 延迟重置标志，确保窗口创建完成
+      setTimeout(() => {
+        openQuitConfirmWindowRef.current.opening = false;
+      }, 300);
     }
-  }, [addMessage]);
+  }, [addMessage, t]);
 
   // ========== 勿扰模式 ==========
 
@@ -166,6 +186,7 @@ export function useTrayEventHandler(options: UseTrayEventHandlerOptions = {}) {
     if (queuedMessages[0]) {
         setCurrentBubble({
           id: `queued_${Date.now()}`,
+          seqNo: Date.now(),
           content: queuedMessages[0].content,
           type: queuedMessages[0].type as 'chat' | 'status',
           sender: queuedMessages[0].sender,
@@ -345,6 +366,15 @@ export function useTrayEventHandler(options: UseTrayEventHandlerOptions = {}) {
 
     const setupListener = async () => {
       try {
+        // CRITICAL: Only the main window should handle global tray and settings events
+        // Display slot windows (char-window-*) should not register these listeners
+        // to prevent duplicate window creation when settings are opened.
+        const currentWindow = getCurrentWindow();
+        const windowLabel = currentWindow.label;
+
+        if (windowLabel !== 'main') {
+          return;
+        }
 
   const { listen } = await import('@tauri-apps/api/event');
 
@@ -359,6 +389,10 @@ export function useTrayEventHandler(options: UseTrayEventHandlerOptions = {}) {
 
             case 'settings':
               openSettingsWindow();
+              break;
+
+            case 'display-management':
+              openSettingsWindow('display');
               break;
 
             // REMOVED: Debug panel feature
@@ -406,9 +440,10 @@ export function useTrayEventHandler(options: UseTrayEventHandlerOptions = {}) {
           }
         });
 
-        const unlisten2 = await listen('open-settings', () => {
+        const unlisten2 = await listen('open-settings', (event) => {
           try {
-            openSettingsWindow();
+            const payload = event.payload as { tab?: string } | undefined;
+            openSettingsWindow(payload?.tab);
           } catch (e) {
             console.error('[useTrayEventHandler] Error in openSettingsWindow:', e);
           }

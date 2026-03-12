@@ -1,55 +1,158 @@
 # DeepJelly OpenClaw Plugin
 
-> DeepJelly 的 OpenClaw Channel 插件 - 将 AI 助手连接到桌面虚拟形象
+> Connects AI assistants from OpenClaw to desktop virtual characters in DeepJelly.
 
 ---
 
-## 📦 快速安装
+## Quick Installation
 
-### 方法一：使用安装脚本（推荐）
+### Option 1: Automatic Installation (Recommended)
 
 ```bash
-# 在 DeepJelly 项目根目录执行
-cd adapters/openclaw
-npm run install:openclaw
+# Download plugin from GitHub to the specified folder, then rename
+# 1. Download plugin archive
+wget https://github.com/GinSing1226/DeepJelly/releases/latest/download/deepjelly-openclaw-plugin.zip
+
+# 2. Extract to OpenClaw extensions directory
+unzip deepjelly-openclaw-plugin.zip -d ~/.openclaw/extensions/
+
+# 3. Rename folder (if needed)
+mv ~/.openclaw/extensions/deepjelly-openclaw-plugin ~/.openclaw/extensions/deepjelly
 ```
 
-### 方法二：手动安装
+### Option 2: Manual Installation
 
 ```bash
-# 1. 复制插件文件到 OpenClaw 扩展目录（只复制必要文件）
+# Copy plugin files to OpenClaw extensions directory
 cd adapters/openclaw
 mkdir -p ~/.openclaw/extensions/deepjelly
 cp -r src dist openclaw.plugin.json README.md ~/.openclaw/extensions/deepjelly/
 
-# 2. 在目标目录安装依赖（只需要 ws）
-cd ~/.openclaw/extensions/deepjelly
-npm install --production
-
-# 3. 启动 OpenClaw
-openclaw start
+# Restart OpenClaw Gateway (plugin uses ws from OpenClaw's main dependencies, no separate installation needed)
+openclaw gateway restart
 ```
 
-**重要说明**：
-- **不要复制 `node_modules` 文件夹** - OpenClaw 已有自己的依赖
-- 使用 `--production` 标志只安装运行时依赖（ws），跳过开发依赖
+**Important Notes**:
+- **Plugin includes required dependencies** - This plugin only uses the `ws` dependency; other dependencies use OpenClaw's main dependencies, no `npm install` needed
 
-### 验证安装
+### Verify Installation
 
 ```bash
-# 查看连接状态
+# Check connection status
 openclaw deepjelly status
 ```
 
 ---
 
-## 🌐 网络配置
+## Network Configuration
 
-### 本地开发（同一台机器）
+### Local Development (Same Machine)
 
-**防火墙**: 无需配置
+**Firewall**: No configuration needed
 
-**OpenClaw 配置** (`openclaw.json`):
+**OpenClaw Configuration** (`openclaw.json`):
+```json
+{
+  "channels": {
+    "deepjelly": {
+      "enabled": true,
+      "serverHost": "127.0.0.1",
+      "serverPort": 18790,
+      "autoStart": true
+    }
+  }
+}
+```
+
+**DeepJelly Connection**: `ws://127.0.0.1:18790`
+
+### LAN Deployment (Different Machines)
+
+**Firewall**: Allow inbound connections on port 18790
+
+**OpenClaw Configuration** (`openclaw.json`):
+```json
+{
+  "channels": {
+    "deepjelly": {
+      "enabled": true,
+      "serverHost": "0.0.0.0",
+      "serverPort": 18790,
+      "autoStart": true
+    }
+  }
+}
+```
+
+**DeepJelly Connection**: `ws://192.168.10.128:18790` (OpenClaw machine's LAN IP)
+
+---
+
+## Integration Guide
+
+After installing the plugin, follow these steps in DeepJelly's onboarding flow:
+
+1. **Start DeepJelly** - First launch automatically enters onboarding
+2. **Select Language** - Supports ???/English/????
+3. **Select Application Type** - Currently supports OpenClaw
+4. **Copy Prompt** - Click "Copy Prompt" button and send to OpenClaw
+5. **Fill Connection Information**:
+   - **IP Address**: OpenClaw's IP (use `127.0.0.1` for local, actual IP for LAN)
+   - **Port**: Default `18790`
+   - **Auth Token**: Get from OpenClaw settings page (optional)
+   - **Application Name**: Custom name, e.g., "My OpenClaw"
+   - **Application Description**: Optional
+6. **Click Connect** - Wait for successful connection
+7. **Select Bindings** (Cascade order): ① Agent ??? ② Session Key ??? ③ Assistant ??? ④ Character
+8. **Select Integration Method**:
+   - **Auto Integration**: System automatically generates configuration prompt for OpenClaw
+   - **Manual Integration**: Edit `openclaw.json` following the configuration below
+9. **Complete Integration**
+
+## Auto Integration
+
+When you select **Auto Integration**, DeepJelly generates a prompt that you send to OpenClaw. OpenClaw will automatically:
+
+1. **Configure channels module** - Add `applicationId` and `accounts` mapping
+2. **Configure bindings module** - Add agent binding
+3. **Restart gateway** - Apply changes automatically
+
+**Example prompt structure (English)**:
+```
+# Task
+Help me modify openclaw.json configuration for deepjelly integration.
+
+## Step 1: Configure the following structure to the channels module.
+"deepjelly": {
+  "enabled": true,
+  "serverHost": "ENTER_YOUR_LAN_IP_HERE",
+  "serverPort": 18790,
+  "autoStart": true,
+  "applicationId": "your_application_id",
+  "accounts": {
+    "agent:christina:main": {
+      "assistantId": "work_assistant",
+      "characterId": "char_feishu_private"
+    }
+  }
+}
+
+## Step 2: Update the following structure to the bindings module
+{
+  "agentId": "christina",
+  "match": {
+    "channel": "deepjelly"
+  }
+}
+
+## Step 3: Reply "Configuration successful" and restart gateway in 20s
+```
+
+## Manual Configuration
+
+If you selected manual integration, add the following to `openclaw.json`:
+
+**OpenClaw Configuration** (`openclaw.json`):
 ```json
 {
   "channels": {
@@ -58,7 +161,7 @@ openclaw deepjelly status
       "serverHost": "127.0.0.1",
       "serverPort": 18790,
       "autoStart": true,
-      "applicationId": "deepjelly为openclaw生成的应用id",
+      "applicationId": "your_application_id_from_deepjelly",
       "accounts": {
         "agent:christina:main": {
           "assistantId": "work_assistant",
@@ -74,85 +177,58 @@ openclaw deepjelly status
 }
 ```
 
-**accounts 配置说明**:
-- **键**: sessionKey（OpenClaw的会话标识）
-- **assistantId**: DeepJelly的助手ID（便于逻辑分组）
-- **characterId**: DeepJelly的角色ID（用于消息路由）
+**Configuration Details**:
+- **applicationId**: Application instance ID generated by DeepJelly (get from onboarding page)
+- **accounts**: Mapping of sessions to assistants/characters
+  - **Key**: sessionKey (OpenClaw session identifier, e.g., `agent:christina:main`)
+  - **assistantId**: DeepJelly assistant ID
+  - **characterId**: DeepJelly character ID
 
-**DeepJelly 连接**: `ws://127.0.0.1:18790`
-
-### 局域网部署（不同机器）
-
-**防火墙**: 需要允许 18790 端口入站连接
-
-**OpenClaw 配置** (`openclaw.json`):
+**Bindings Configuration**:
 ```json
 {
-  "channels": {
-    "deepjelly": {
-      "enabled": true,
-      "serverHost": "0.0.0.0",
-      "serverPort": 18790,
-      "autoStart": true,
-      "applicationId": "deepjelly为openclaw生成的应用id",
-      "accounts": {
-        "agent:christina:main": {
-          "assistantId": "work_assistant",
-          "characterId": "char_feishu_private"
-        }
-      }
-    }
+  "agentId": "christina",
+  "match": {
+    "channel": "deepjelly"
   }
 }
 ```
 
-**DeepJelly 连接**: `ws://192.168.10.128:18790`（OpenClaw 机器的局域网 IP）
+> **Configuration Flow**:
+> 1. Complete connection following onboarding steps
+> 2. Select assistants and characters to bind
+> 3. For **Auto Integration**: Send the generated prompt to OpenClaw
+> 4. For **Manual Integration**: Copy configuration from onboarding page to `openclaw.json`
+
+## Verify Integration
+
+After completing integration, send a message in Feishu, Telegram, or other channels integrated with OpenClaw. The character in DeepJelly will automatically respond.
 
 ---
 
-## 📚 依赖
+## Usage
 
-本项目仅需一个运行时依赖：
+After installing the plugin, follow the DeepJelly onboarding steps:
 
-```json
-{
-  "dependencies": {
-    "ws": "^8.18.0"
-  }
-}
-```
+1. Launch DeepJelly application
+2. Enter onboarding and input OpenClaw's IP address and port (default 18790)
+3. Select assistants to bind
+4. Complete integration
 
-安装依赖：
-```bash
-cd adapters/openclaw
-npm install
-```
+**Onboarding Code Reference**: [src/components/Onboarding/steps/InputEndpointStep.tsx](../../src/components/Onboarding/steps/InputEndpointStep.tsx)
 
 ---
 
-## 📖 使用方法
+## Links
 
-安装插件后，按照 DeepJelly 引导页的步骤进行集成即可：
-
-1. 启动 DeepJelly 应用
-2. 进入引导页，输入 OpenClaw 的 IP 地址和端口（默认 18790）
-3. 选择要绑定的助手
-4. 完成集成
-
-**引导页代码参考**: [src/components/Onboarding/steps/InputEndpointStep.tsx](../../src/components/Onboarding/steps/InputEndpointStep.tsx)
+- **DeepJelly Project**: [https://github.com/GinSing1226/DeepJelly](https://github.com/GinSing1226/DeepJelly)
 
 ---
 
-## 🔗 相关链接
-
-- **DeepJelly 主项目**: [https://github.com/GinSing1226/DeepJelly](https://github.com/GinSing1226/DeepJelly)
-
----
-
-## 📄 License
+## License
 
 MIT
 
 ---
 
-> **提示**: 本插件作为 DeepJelly 项目的一部分（位于 `adapters/openclaw` 目录），无需单独开源仓库。
+> **Note**: This plugin is part of the DeepJelly project (located in `adapters/openclaw` directory), no separate repository needed.

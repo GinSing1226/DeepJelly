@@ -32,6 +32,8 @@ rust-i18n = "3"
 rdev = "0.5"
 rand = "0.8"
 chrono = "0.4"
+regex = "1"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 
 [features]
 default = ["custom-protocol"]

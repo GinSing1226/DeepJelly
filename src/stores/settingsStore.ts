@@ -102,7 +102,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   ...defaultSettings,
 
   // Computed
-  isBound: () => get().boundApp !== null,
+  isBound: defaultSettings.boundApp !== null,
 
   // Settings Actions
   setAutoLaunch: async (autoLaunch) => {
@@ -124,8 +124,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setBrainUrl: (brainUrl) => set({ brainUrl }),
 
   // Binding Actions
-  setBoundApp: (boundApp) => set({ boundApp }),
-  clearBoundApp: () => set({ boundApp: null }),
+  setBoundApp: (boundApp) => set({ boundApp, isBound: true }),
+  clearBoundApp: () => set({ boundApp: null, isBound: false }),
 
   // DND Actions
   toggleDoNotDisturb: () => {
@@ -133,22 +133,10 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     const newDndState = !state.isDoNotDisturb;
 
     set({ isDoNotDisturb: newDndState });
-
-    // 如果退出勿扰模式且有积压消息，返回积压消息供显示
-    if (!newDndState && state.queuedMessages.length > 0) {
-      console.log(`Exiting DND with ${state.queuedMessages.length} queued messages`);
-    }
   },
 
   setDoNotDisturb: (isDoNotDisturb) => {
-    const state = get();
-
     set({ isDoNotDisturb });
-
-    // 如果退出勿扰模式且有积压消息
-    if (!isDoNotDisturb && state.queuedMessages.length > 0) {
-      console.log(`Exiting DND with ${state.queuedMessages.length} queued messages`);
-    }
   },
 
   // Hide Actions

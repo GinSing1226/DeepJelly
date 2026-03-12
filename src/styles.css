@@ -1,18 +1,21 @@
-/* Import theme system CSS variables */
-@import './styles/themes.css';
+/* Import design system CSS variables */
+@import './styles/design-system.css';
 
 :root {
-  --primary: #06b6d4;
-  --bg-primary: #FFFFFF;
-  --bg-secondary: #F5F5F5;
-  --text-primary: #333333;
-  --text-secondary: #666666;
+  /* Legacy variables - mapped to new design system */
+  --primary: var(--dj-accent);
+  --bg-primary: var(--dj-bg-primary);
+  --bg-secondary: var(--dj-bg-secondary);
+  --text-primary: var(--dj-text-primary);
+  --text-secondary: var(--dj-text-secondary);
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  border: none !important;
+  outline: none !important;
 }
 
 html, body {
@@ -21,10 +24,9 @@ html, body {
   margin: 0;
   padding: 0;
   background: transparent;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--dj-font-sans);
   font-size: 14px;
   overflow: hidden;
-  /* 移除可能的边框 */
   border: none !important;
   outline: none !important;
   box-shadow: none !important;
@@ -39,7 +41,6 @@ html, body {
 #app {
   width: 100%;
   height: 100%;
-  /* 移除可能的边框 */
   border: none !important;
   outline: none !important;
   box-shadow: none !important;

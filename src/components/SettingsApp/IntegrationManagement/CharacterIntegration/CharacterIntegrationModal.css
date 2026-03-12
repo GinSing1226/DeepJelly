@@ -1,0 +1,335 @@
+/**
+ * Character Integration Modal - MAC Style
+ *
+ * Meta-Name: Character Integration Modal
+ * Meta-Description: MAC-style modal for character integration binding
+ *
+ * Design: Reference AssistantModal style - clean, minimal, elegant
+ */
+
+/* ==================== Overlay ==================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: modalFadeIn 150ms ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ==================== Modal Container ==================== */
+.character-integration-modal {
+  width: 520px;
+  max-width: 90vw;
+  max-height: 85vh;
+  background: var(--dj-bg-elevated);
+  border-radius: var(--dj-radius-xl);
+  box-shadow: var(--dj-shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalSlideIn 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ==================== Header ==================== */
+.modal-header-mac {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--dj-space-5) var(--dj-space-6);
+  border-bottom: 1px solid var(--dj-border);
+  flex-shrink: 0;
+}
+
+.modal-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--dj-text-primary);
+  letter-spacing: -0.02em;
+}
+
+.modal-close-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--dj-radius-sm);
+  color: var(--dj-text-muted);
+  cursor: pointer;
+  transition: all var(--dj-transition-fast);
+}
+
+.modal-close-btn:hover {
+  background: var(--dj-bg-secondary);
+  color: var(--dj-text-primary);
+}
+
+.modal-close-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+/* ==================== Body ==================== */
+.modal-body-mac {
+  padding: var(--dj-space-6);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Scrollbar styling */
+.modal-body-mac::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-body-mac::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-body-mac::-webkit-scrollbar-thumb {
+  background: var(--dj-border);
+  border-radius: 3px;
+}
+
+.modal-body-mac::-webkit-scrollbar-thumb:hover {
+  background: var(--dj-border-strong);
+}
+
+/* ==================== Form Groups ==================== */
+.form-group-mac {
+  margin-bottom: var(--dj-space-5);
+}
+
+.form-group-mac:last-child {
+  margin-bottom: 0;
+}
+
+.form-label-mac {
+  display: flex;
+  align-items: center;
+  gap: var(--dj-space-1);
+  font-size: var(--dj-text-sm);
+  font-weight: 500;
+  color: var(--dj-text-secondary);
+  margin-bottom: var(--dj-space-2);
+}
+
+.form-required {
+  color: var(--dj-danger);
+}
+
+.form-optional {
+  font-size: var(--dj-text-sm);
+  color: var(--dj-text-muted);
+  font-weight: 400;
+}
+
+/* ==================== Select Input ==================== */
+.form-select-mac {
+  width: 100%;
+  padding: var(--dj-space-3);
+  font-size: var(--dj-text-base);
+  background: var(--dj-bg-primary);
+  border: 1px solid var(--dj-border-strong);
+  border-radius: var(--dj-radius-md);
+  color: var(--dj-text-primary);
+  outline: none;
+  transition: all var(--dj-transition-fast);
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%23737373' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.form-select-mac:focus {
+  border-color: var(--dj-accent);
+  box-shadow: 0 0 0 3px var(--dj-accent-glow);
+}
+
+.form-select-mac:disabled {
+  background: var(--dj-bg-secondary);
+  color: var(--dj-text-muted);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Disabled select wrapper */
+.form-select-disabled {
+  width: 100%;
+  padding: var(--dj-space-3);
+  font-size: var(--dj-text-base);
+  background: var(--dj-bg-secondary);
+  border: 1px solid var(--dj-border);
+  border-radius: var(--dj-radius-md);
+  color: var(--dj-text-muted);
+}
+
+/* ==================== Form Hint ==================== */
+.form-hint-mac {
+  font-size: var(--dj-text-sm);
+  color: var(--dj-text-muted);
+  margin-top: var(--dj-space-2);
+  line-height: 1.4;
+}
+
+/* ==================== Info Card ==================== */
+.info-card-mac {
+  background: var(--dj-bg-secondary);
+  border-radius: var(--dj-radius-md);
+  padding: var(--dj-space-4);
+  margin-top: var(--dj-space-3);
+}
+
+.info-row-mac {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dj-space-1);
+  margin-bottom: var(--dj-space-3);
+}
+
+.info-row-mac:last-child {
+  margin-bottom: 0;
+}
+
+.info-label-mac {
+  font-size: var(--dj-text-xs);
+  font-weight: 500;
+  color: var(--dj-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-value-mac {
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: var(--dj-text-sm);
+  color: var(--dj-text-primary);
+  word-break: break-all;
+  background: var(--dj-bg-primary);
+  padding: var(--dj-space-2) var(--dj-space-3);
+  border-radius: var(--dj-radius-sm);
+}
+
+/* ==================== Status Messages ==================== */
+.status-message {
+  padding: var(--dj-space-3) var(--dj-space-4);
+  border-radius: var(--dj-radius-md);
+  font-size: var(--dj-text-sm);
+  margin-bottom: var(--dj-space-3);
+}
+
+.status-message:last-child {
+  margin-bottom: 0;
+}
+
+.status-message.success {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.status-message.warning {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.status-message.error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.status-message.info {
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+/* ==================== Footer ==================== */
+.modal-footer-mac {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--dj-space-2);
+  padding: var(--dj-space-4) var(--dj-space-6);
+  background: var(--dj-bg-secondary);
+  border-top: 1px solid var(--dj-border);
+  flex-shrink: 0;
+}
+
+/* ==================== Buttons ==================== */
+.btn-mac {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 var(--dj-space-4);
+  font-size: var(--dj-text-base);
+  font-weight: 500;
+  border: none;
+  border-radius: var(--dj-radius-md);
+  cursor: pointer;
+  transition: all var(--dj-transition-fast);
+  white-space: nowrap;
+}
+
+.btn-mac:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-mac-primary {
+  background: var(--dj-text-primary);
+  color: var(--dj-bg-primary);
+}
+
+.btn-mac-primary:hover:not(:disabled) {
+  background: var(--dj-text-secondary);
+}
+
+.btn-mac-secondary {
+  background: var(--dj-bg-elevated);
+  color: var(--dj-text-primary);
+  border: 1px solid var(--dj-border-strong);
+}
+
+.btn-mac-secondary:hover:not(:disabled) {
+  background: var(--dj-bg-primary);
+  border-color: var(--dj-text-muted);
+}
+
+/* ==================== Loading Spinner ==================== */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--dj-text-muted);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}

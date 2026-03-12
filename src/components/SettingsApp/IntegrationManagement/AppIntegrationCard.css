@@ -1,0 +1,346 @@
+/**
+ * App Integration Card Styles
+ *
+ * Design: Refined minimalism with:
+ * - Precise 8px spacing grid
+ * - Subtle shadows and elevation
+ * - Smooth micro-interactions
+ * - Clean typography hierarchy
+ */
+
+/* ============ Card Container ============ */
+
+.app-integration-card {
+  background: var(--dj-bg-card, #ffffff);
+  border-radius: 12px;
+  border: 1px solid var(--dj-separator, #e5e5e7);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-integration-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.06);
+  border-color: var(--dj-separator-hover, #d1d1d6);
+}
+
+.app-integration-card.disabled {
+  opacity: 0.7;
+  background: var(--dj-bg-elevated, #f9f9fa);
+}
+
+/* ============ Card Header ============ */
+
+.app-integration-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--dj-separator, #e5e5e7);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.5) 100%);
+}
+
+.app-integration-card .card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-integration-card .provider-icon {
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+.app-integration-card .card-title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-integration-card .card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dj-text-primary, #1d1d1f);
+  letter-spacing: -0.2px;
+}
+
+.app-integration-card .card-provider {
+  font-size: 14px;
+  color: var(--dj-text-secondary, #86868b);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ============ Connection Status Indicator ============ */
+
+.connection-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.connection-status-indicator.connected {
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--dj-status-success, #34c759);
+}
+
+.connection-status-indicator.disconnected {
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--dj-status-error, #ff3b30);
+}
+
+.connection-status-indicator .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.connection-status-indicator .status-dot.connected {
+  background: var(--dj-status-success, #34c759);
+  box-shadow: 0 0 0 2px rgba(52, 199, 89, 0.2);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.connection-status-indicator .status-dot.disconnected {
+  background: var(--dj-status-error, #ff3b30);
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    box-shadow: 0 0 0 2px rgba(52, 199, 89, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(52, 199, 89, 0.1);
+  }
+}
+
+.connection-status-indicator .status-text {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ============ Card Content ============ */
+
+.app-integration-card .card-content {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.app-integration-card .info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.app-integration-card .info-label {
+  color: var(--dj-text-secondary, #86868b);
+  font-weight: 500;
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.app-integration-card .info-value {
+  color: var(--dj-text-primary, #1d1d1f);
+  flex: 1;
+  word-break: break-all;
+}
+
+.app-integration-card .info-value.mono {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  background: var(--dj-bg-elevated, #f5f5f7);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.app-integration-card .info-value.empty,
+.app-integration-card .info-value .empty-value {
+  color: var(--dj-text-tertiary, #a1a1a6);
+  font-style: italic;
+}
+
+.app-integration-card .bound-count {
+  color: var(--dj-accent, #1A1A1A);
+  font-weight: 500;
+}
+
+/* Bound Items List */
+.app-integration-card .bound-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-integration-card .bound-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.app-integration-card .bound-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--dj-bg-elevated, #f5f5f7);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--dj-text-primary, #1d1d1f);
+  font-weight: 500;
+  border: 1px solid var(--dj-separator, #e5e5e7);
+}
+
+/* ============ Card Footer ============ */
+
+.app-integration-card .card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px 16px;
+  background: var(--dj-bg-subtle, #f9f9fa);
+  border-top: 1px solid var(--dj-separator, #e5e5e7);
+}
+
+/* Footer Left - Toggle Switch */
+.app-integration-card .card-footer-left {
+  display: flex;
+  align-items: center;
+}
+
+.app-integration-card .toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  position: relative;
+}
+
+.app-integration-card .toggle-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.app-integration-card .toggle-slider {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background: #d1d1d6;
+  border-radius: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-integration-card .toggle-slider::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-integration-card .toggle-switch input:checked + .toggle-slider {
+  background: var(--dj-accent, #1A1A1A);
+}
+
+.app-integration-card .toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(16px);
+}
+
+.app-integration-card .toggle-switch input:not(:checked) + .toggle-slider:hover {
+  background: #c7c7cc;
+}
+
+.app-integration-card .toggle-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dj-text-secondary, #86868b);
+  user-select: none;
+}
+
+/* Footer Right - Icon Buttons */
+.app-integration-card .card-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-integration-card .icon-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dj-text-secondary, #86868b);
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.app-integration-card .icon-btn:hover:not(:disabled) {
+  background: var(--dj-bg-elevated, #e5e5e7);
+  color: var(--dj-text-primary, #1d1d1f);
+  transform: translateY(-1px);
+}
+
+.app-integration-card .icon-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.app-integration-card .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.app-integration-card .edit-btn:hover {
+  color: var(--dj-accent, #1A1A1A);
+  background: rgba(26, 26, 26, 0.1);
+}
+
+.app-integration-card .delete-btn:hover:not(:disabled) {
+  color: var(--dj-status-error, #ff3b30);
+  background: rgba(255, 59, 48, 0.1);
+}
+
+/* Tooltip hint via title attribute - OS native, no extra CSS needed */
+
+/* ============ Animations ============ */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.app-integration-card {
+  animation: fadeIn 0.2s ease-out;
+}

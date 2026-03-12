@@ -4,283 +4,485 @@
  * Standalone settings window component
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { listen, emit } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { useAppIntegrationStore } from '@/stores/appIntegrationStore';
-import { useOnboardingStore } from '@/stores/onboardingStore';
 import { useCharacterManagementStore } from '@/stores/characterManagementStore';
+import { useIntegrationStore } from '@/stores/integrationStore';
 import CharacterManagement from '@/components/CharacterManagement';
-import type { AppIntegration } from '@/types/appConfig';
+import { DisplaySettings } from './DisplaySettings';
+import { AppIntegrationModal } from './IntegrationManagement/AppIntegrationModal';
+import { AppIntegrationCard } from './IntegrationManagement/AppIntegrationCard';
+import { CharacterIntegrationModal } from './IntegrationManagement/CharacterIntegration/CharacterIntegrationModal';
+import { CharacterIntegrationCard } from './IntegrationManagement/CharacterIntegrationCard';
+import { ConfirmDialog } from './IntegrationManagement/ConfirmDialog';
+import { HelpSettings } from './HelpSettings';
+import type { AppIntegration } from '@/types/character';
+import type { CreateAppIntegrationDTO, UpdateAppIntegrationDTO } from '@/stores/integrationStore';
+import type { CreateCharacterIntegrationDTO, UpdateCharacterIntegrationDTO, CharacterIntegration } from '@/stores/integrationStore';
 import './styles.css';
+import './IntegrationManagement/integration.css';
+import './IntegrationManagement/ConfirmDialog.css';
+import './DisplaySettings/display.css';
 
-type SettingsTab = 'character' | 'integration' | 'system';
+type SettingsTab = 'character' | 'app_integration' | 'character_integration' | 'display' | 'help' | 'system';
 
-// Integration Settings Component
-function IntegrationSettings() {
-  const { t } = useTranslation(['settings', 'common']);
-  const { integrations, loadIntegrations, setPendingEditIntegrationId } = useAppIntegrationStore();
+// App Integration Settings Component
+function AppIntegrationSettings() {
+  const { t } = useTranslation(['settings', 'common', 'onboarding']);
+
+  const {
+    appIntegrations,
+    characterIntegrations,
+    loadAppIntegrations,
+    loadCharacterIntegrations,
+    addAppIntegration,
+    updateAppIntegration,
+    deleteAppIntegration,
+  } = useIntegrationStore();
+
   const { assistants, loadAssistants } = useCharacterManagementStore();
+
+  // Modal states
+  const [showAppModal, setShowAppModal] = useState(false);
+  const [editingAppIntegration, setEditingAppIntegration] = useState<AppIntegration | undefined>();
+
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    show: boolean;
+    item: AppIntegration | null;
+  }>({ show: false, item: null });
 
   // Load data on mount
   useEffect(() => {
-    loadIntegrations();
+    loadAppIntegrations();
+    loadCharacterIntegrations();
     loadAssistants();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Refresh data when window regains focus (e.g., after returning from onboarding)
+  // Refresh data when window regains focus
   useEffect(() => {
     let unlistenFocus: (() => void) | null = null;
     let unlistenCustom: (() => void) | null = null;
 
     const setupListeners = async () => {
       try {
-        // Listen for window focus events - fires when window regains focus
         unlistenFocus = await listen('tauri://focus', () => {
-          console.log('[IntegrationSettings] Window focused, refreshing data...');
-          loadIntegrations();
+          loadAppIntegrations();
+          loadCharacterIntegrations();
           loadAssistants();
         });
 
-        // Also listen for custom event emitted when onboarding completes
         unlistenCustom = await listen('onboarding:complete', () => {
-          console.log('[IntegrationSettings] Onboarding complete event, refreshing data...');
-          loadIntegrations();
+          loadAppIntegrations();
+          loadCharacterIntegrations();
           loadAssistants();
         });
       } catch (error) {
-        console.error('[IntegrationSettings] Failed to setup listeners:', error);
+        console.error('[AppIntegrationSettings] Failed to setup listeners:', error);
       }
     };
 
     setupListeners();
 
     return () => {
-      // Cleanup listeners on unmount
-      if (unlistenFocus) {
-        unlistenFocus();
-      }
-      if (unlistenCustom) {
-        unlistenCustom();
-      }
+      if (unlistenFocus) unlistenFocus();
+      if (unlistenCustom) unlistenCustom();
     };
-  }, [loadIntegrations, loadAssistants]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Get assistants that use this app integration
-  const getAssistantsForApp = (appIntegration: AppIntegration) => {
+  // Open onboarding for quick setup
+  const handleQuickSetup = async () => {
+    try {
+      await invoke('open_onboarding_window');
+    } catch (error) {
+      console.error('[AppIntegrationSettings] Failed to open onboarding window:', error);
+    }
+  };
+
+  // Handle edit
+  const handleEdit = (integration: AppIntegration) => {
+    setEditingAppIntegration(integration);
+    setShowAppModal(true);
+  };
+
+  // Handle save
+  const handleSave = async (data: CreateAppIntegrationDTO | UpdateAppIntegrationDTO) => {
+    if (editingAppIntegration) {
+      // 编辑模式：更新现有集成
+      await updateAppIntegration(editingAppIntegration.id, data as UpdateAppIntegrationDTO);
+    } else {
+      // 新增模式：创建新集成
+      await addAppIntegration(data as CreateAppIntegrationDTO);
+    }
+    handleCloseModal();
+  };
+
+  // Handle delete click
+  const handleDeleteClick = (integration: AppIntegration) => {
+    setDeleteConfirm({ show: true, item: integration });
+  };
+
+  // Confirm delete
+  const handleConfirmDelete = async () => {
+    const { item } = deleteConfirm;
+    if (!item) return;
+
+    try {
+      await deleteAppIntegration(item.id);
+    } catch (error) {
+      console.error('[AppIntegrationSettings] Delete failed:', error);
+      alert(String(error));
+    }
+
+    setDeleteConfirm({ show: false, item: null });
+  };
+
+  // Handle toggle enabled
+  const handleToggleEnabled = async (id: string, enabled: boolean) => {
+    try {
+      await updateAppIntegration(id, { enabled });
+    } catch (error) {
+      console.error('[AppIntegrationSettings] Toggle failed:', error);
+      alert(String(error));
+    }
+  };
+
+  // Close modal
+  const handleCloseModal = () => {
+    setShowAppModal(false);
+    setEditingAppIntegration(undefined);
+  };
+
+  // Get assistants bound to an app integration
+  const getBoundAssistantsForApp = useCallback((appIntegration: AppIntegration) => {
     return assistants.filter(assistant =>
       assistant.integrations?.some(integration =>
         integration.params.applicationId === appIntegration.applicationId
       )
     );
+  }, [assistants]);
+
+  // Get character integrations bound to an app integration
+  const getBoundCharacterIntegrationsForApp = useCallback((appIntegration: AppIntegration) => {
+    return characterIntegrations.filter(
+      (ci) => ci.integration.integrationId === appIntegration.id
+    );
+  }, [characterIntegrations]);
+
+  return (
+    <div className="integration-settings">
+      {/* App Integrations Section */}
+      <div className="integration-section">
+        <div className="integration-section-header">
+          <h3 className="section-title">
+            <span className="icon">🔌</span>
+            {t('settings:integration.title')}
+          </h3>
+          <div className="integration-actions">
+            <button className="btn-quick-setup" onClick={handleQuickSetup}>
+              <span>⚡</span>
+              {t('onboarding:quickSetup')}
+            </button>
+            <button className="btn-add-integration" onClick={() => setShowAppModal(true)}>
+              <span>+</span>
+              {t('settings:integration.addIntegration')}
+            </button>
+          </div>
+        </div>
+
+        {appIntegrations.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">🔌</div>
+            <h4 className="empty-state-title">{t('settings:integration.noIntegrations')}</h4>
+            <p className="empty-state-description">
+              {t('onboarding:quickSetupDescription')}
+            </p>
+            <button className="dj-btn dj-btn-primary" onClick={handleQuickSetup}>
+              {t('onboarding:startQuickSetup')}
+            </button>
+          </div>
+        ) : (
+          <div>
+            {appIntegrations.map((integration) => (
+              <AppIntegrationCard
+                key={integration.id}
+                integration={integration}
+                assistants={assistants}
+                characterIntegrations={characterIntegrations}
+                onEdit={handleEdit}
+                onDelete={handleDeleteClick}
+                onToggleEnabled={handleToggleEnabled}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* App Integration Modal */}
+      {showAppModal && (
+        <AppIntegrationModal
+          isOpen={showAppModal}
+          integration={editingAppIntegration}
+          onClose={handleCloseModal}
+          onSave={handleSave}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.show}
+        title={t('settings:integration.confirmDeleteIntegration')}
+        message={t('settings:integration.confirmDeleteIntegrationMessage', {
+          name: deleteConfirm.item?.name || '',
+        })}
+        warning={
+          (() => {
+            if (!deleteConfirm.item) return undefined;
+            const boundAssistants = getBoundAssistantsForApp(deleteConfirm.item);
+            const boundCharIntegrations = getBoundCharacterIntegrationsForApp(deleteConfirm.item);
+            const totalBindings = boundAssistants.length + boundCharIntegrations.length;
+            if (totalBindings > 0) {
+              return t('settings:integration.deleteHasBindingsWarning', { count: totalBindings });
+            }
+            return undefined;
+          })()
+        }
+        confirmText={t('common:delete')}
+        cancelText={t('common:cancel')}
+        isDanger={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteConfirm({ show: false, item: null })}
+      />
+    </div>
+  );
+}
+
+// Character Integration Settings Component
+function CharacterIntegrationSettings() {
+  const { t } = useTranslation(['settings', 'common', 'onboarding']);
+
+  const {
+    appIntegrations,
+    characterIntegrations,
+    loadAppIntegrations,
+    loadCharacterIntegrations,
+    addCharacterIntegration,
+    updateCharacterIntegration,
+    deleteCharacterIntegration,
+  } = useIntegrationStore();
+
+  const { assistants, loadAssistants } = useCharacterManagementStore();
+
+  // Modal states
+  const [showCharacterModal, setShowCharacterModal] = useState(false);
+  const [editingCharacterIntegration, setEditingCharacterIntegration] = useState<CharacterIntegration | undefined>();
+
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    show: boolean;
+    item: CharacterIntegration | null;
+  }>({ show: false, item: null });
+
+  // Load data on mount
+  useEffect(() => {
+    loadAppIntegrations();
+    loadCharacterIntegrations();
+    loadAssistants();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refresh data when window regains focus
+  useEffect(() => {
+    let unlistenFocus: (() => void) | null = null;
+    let unlistenCustom: (() => void) | null = null;
+
+    const setupListeners = async () => {
+      try {
+        unlistenFocus = await listen('tauri://focus', () => {
+          loadAppIntegrations();
+          loadCharacterIntegrations();
+          loadAssistants();
+        });
+
+        unlistenCustom = await listen('onboarding:complete', () => {
+          loadAppIntegrations();
+          loadCharacterIntegrations();
+          loadAssistants();
+        });
+      } catch (error) {
+        console.error('[CharacterIntegrationSettings] Failed to setup listeners:', error);
+      }
+    };
+
+    setupListeners();
+
+    return () => {
+      if (unlistenFocus) unlistenFocus();
+      if (unlistenCustom) unlistenCustom();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handle edit
+  const handleEdit = (integration: CharacterIntegration) => {
+    setEditingCharacterIntegration(integration);
+    setShowCharacterModal(true);
   };
 
-  const handleQuickSetup = async () => {
-    console.log('[IntegrationSettings] 🔧 Quick setup clicked');
-    // Open onboarding window
+  // Handle save
+  const handleSave = async (data: CreateCharacterIntegrationDTO | UpdateCharacterIntegrationDTO) => {
+    if (editingCharacterIntegration) {
+      // 编辑模式：更新现有绑定
+      await updateCharacterIntegration(editingCharacterIntegration.id, data as UpdateCharacterIntegrationDTO);
+    } else {
+      // 新增模式：创建新绑定
+      await addCharacterIntegration(data as CreateCharacterIntegrationDTO);
+    }
+    handleCloseModal();
+  };
+
+  // Handle delete click
+  const handleDeleteClick = (integration: CharacterIntegration) => {
+    setDeleteConfirm({ show: true, item: integration });
+  };
+
+  // Confirm delete
+  const handleConfirmDelete = async () => {
+    const { item } = deleteConfirm;
+    if (!item) return;
+
     try {
-      await invoke('open_onboarding_window');
+      await deleteCharacterIntegration(item.id);
     } catch (error) {
-      console.error('[IntegrationSettings] Failed to open onboarding window:', error);
+      console.error('[CharacterIntegrationSettings] Delete failed:', error);
+      alert(String(error));
+    }
+
+    setDeleteConfirm({ show: false, item: null });
+  };
+
+  // Handle toggle enabled
+  const handleToggleEnabled = async (id: string, enabled: boolean) => {
+    try {
+      await updateCharacterIntegration(id, { enabled });
+    } catch (error) {
+      console.error('[CharacterIntegrationSettings] Toggle failed:', error);
+      alert(String(error));
     }
   };
 
-  const handleEdit = async (integration: AppIntegration) => {
-    console.log('[IntegrationSettings] ✏️ Edit clicked for integration:', integration.applicationId);
-    // Set pending edit ID in store (for new windows)
-    // And pass it to the command (for existing windows via event)
-    try {
-      setPendingEditIntegrationId(integration.id);
-      await invoke('open_onboarding_window', {
-        editIntegrationId: integration.id,
-      });
-      console.log('[IntegrationSettings] ✅ Set pending edit ID and opened onboarding window:', integration.id);
-    } catch (error) {
-      console.error('[IntegrationSettings] Failed to open onboarding window:', error);
-    }
+  // Close modal
+  const handleCloseModal = () => {
+    setShowCharacterModal(false);
+    setEditingCharacterIntegration(undefined);
   };
 
   return (
     <div className="integration-settings">
-      {/* Quick setup info */}
-      <div className="integration-info">
-        <p style={{ color: '#6e6e73', fontSize: '14px', lineHeight: '1.5' }}>
-          {t('settings:integration.title')}
-        </p>
-      </div>
+      {/* Character Integrations Section */}
+      <div className="integration-section">
+        <div className="integration-section-header">
+          <h3 className="section-title">
+            <span className="icon">🎭</span>
+            {t('settings:integration.characterIntegration')}
+            <span className="section-count">{characterIntegrations.length}</span>
+          </h3>
+          <div className="integration-actions">
+            <button className="btn-add-integration" onClick={() => setShowCharacterModal(true)}>
+              <span>+</span>
+              {t('settings:integration.addBinding')}
+            </button>
+          </div>
+        </div>
 
-      {/* App Integration Cards */}
-      <div className="integration-cards" style={{ marginTop: '20px' }}>
-        {integrations.length === 0 ? (
-          <div className="no-integrations" style={{
-            textAlign: 'center',
-            padding: '40px 20px',
-            color: '#86868b',
-            background: '#f5f5f7',
-            borderRadius: '12px',
-          }}>
-            <p>{t('settings:integration.noIntegrations')}</p>
+        {characterIntegrations.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">🔗</div>
+            <h4 className="empty-state-title">{t('settings:integration.noBindings')}</h4>
+            <p className="empty-state-description">
+              {t('settings:integration.noBindingsDescription')}
+            </p>
           </div>
         ) : (
-          <>
-            {integrations.map((integration) => {
-              const linkedAssistants = getAssistantsForApp(integration);
-              return (
-                <div key={integration.id} className="integration-card" style={{
-                  background: '#ffffff',
-                  border: '1px solid #e5e5e7',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  marginBottom: '12px',
-                }}>
-                  {/* Card Header: App Name & Status */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '12px',
-                  }}>
-                    <h4 style={{
-                      margin: 0,
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      color: '#1d1d1f',
-                    }}>
-                      {integration.name}
-                    </h4>
-                    {/* TODO: 暂时隐藏启用/禁用状态标记，等功能实现后再显示
-                    <span className="status-badge connected" style={{
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      background: '#e8f5e9',
-                      color: '#1b5e20',
-                    }}>
-                      {integration.enabled !== false ? t('settings:integration.enabled') : t('settings:integration.disabled')}
-                    </span>
-                    */}
-                  </div>
-
-                  {/* Card Details */}
-                  <div className="integration-details" style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'auto 1fr',
-                    gap: '8px 16px',
-                    fontSize: '13px',
-                    color: '#6e6e73',
-                    marginBottom: '12px',
-                  }}>
-                    <div style={{ fontWeight: '500' }}>{t('settings:integration.appType')}:</div>
-                    <div>{integration.provider || 'N/A'}</div>
-
-                    <div style={{ fontWeight: '500' }}>{t('settings:integration.appId')}:</div>
-                    <div style={{
-                      fontFamily: 'monospace',
-                      background: '#f5f5f7',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      wordBreak: 'break-all',
-                    }}>
-                      {integration.applicationId}
-                    </div>
-
-                    <div style={{ fontWeight: '500' }}>{t('settings:integration.endpoint')}:</div>
-                    <div style={{
-                      fontFamily: 'monospace',
-                      fontSize: '12px',
-                    }}>
-                      {integration.endpoint}
-                    </div>
-
-                    {integration.authToken && (
-                      <>
-                        <div style={{ fontWeight: '500' }}>{t('settings:integration.token')}:</div>
-                        <div style={{
-                          fontFamily: 'monospace',
-                          fontSize: '12px',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {integration.authToken.slice(0, 20)}...
-                        </div>
-                      </>
-                    )}
-
-                    <div style={{ fontWeight: '500' }}>{t('settings:integration.boundAssistants')}:</div>
-                    <div>
-                      {linkedAssistants.length > 0 ? (
-                        linkedAssistants.map(assistant => (
-                          <span key={assistant.id} style={{
-                            display: 'inline-block',
-                            marginRight: '8px',
-                            marginBottom: '4px',
-                            padding: '2px 8px',
-                            background: '#e3f2fd',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            color: '#1565c0',
-                          }}>
-                            {assistant.name}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ color: '#86868b', fontStyle: 'italic' }}>
-                          {t('settings:integration.none')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Card Actions */}
-                  <div style={{
-                    display: 'flex',
-                    gap: '8px',
-                    paddingTop: '12px',
-                    borderTop: '1px solid #e5e5e7',
-                  }}>
-                    <button
-                      onClick={() => handleEdit(integration)}
-                      style={{
-                        flex: 1,
-                        padding: '8px 16px',
-                        background: '#0071e3',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#0077ed';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = '#0071e3';
-                      }}
-                    >
-                      {t('settings:integration.edit')}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </>
+          <div>
+            {characterIntegrations.map((integration) => (
+              <CharacterIntegrationCard
+                key={integration.id}
+                integration={integration}
+                appIntegrations={appIntegrations}
+                onEdit={handleEdit}
+                onDelete={handleDeleteClick}
+                onToggleEnabled={handleToggleEnabled}
+              />
+            ))}
+          </div>
         )}
       </div>
+
+      {/* Character Integration Modal */}
+      {showCharacterModal && (
+        <CharacterIntegrationModal
+          key={editingCharacterIntegration?.id || 'new'}
+          isOpen={showCharacterModal}
+          integration={editingCharacterIntegration}
+          assistants={assistants}
+          appIntegrations={appIntegrations}
+          existingIntegrations={characterIntegrations}
+          onClose={handleCloseModal}
+          onSave={handleSave}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.show}
+        title={t('settings:integration.confirmDeleteBinding')}
+        message={t('settings:integration.confirmDeleteBindingMessage', {
+          name: `${deleteConfirm.item?.assistantName} / ${deleteConfirm.item?.characterName}`,
+        })}
+        confirmText={t('common:delete')}
+        cancelText={t('common:cancel')}
+        isDanger={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteConfirm({ show: false, item: null })}
+      />
     </div>
   );
 }
 
 export function SettingsApp() {
-  const { t } = useTranslation(['settings', 'common']);
+  const { t } = useTranslation(['settings', 'common', 'onboarding']);
   const [activeTab, setActiveTab] = useState<SettingsTab>('character');
+
+  // Listen for tab switch events from backend
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    const setupListener = async () => {
+      try {
+        unlisten = await listen('settings:open-tab', (event) => {
+          const tab = event.payload as string;
+          if (tab === 'display') {
+            setActiveTab('display');
+          }
+        });
+      } catch (error) {
+        console.error('[SettingsApp] Failed to setup tab listener:', error);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   // 设置状态
   const {
@@ -306,10 +508,11 @@ export function SettingsApp() {
     e.preventDefault();
   };
 
-  // Handle close
+  // Handle close - use getCurrentWindow for direct window control
   const handleClose = async () => {
     try {
-      await invoke('close_settings_window');
+      const window = getCurrentWindow();
+      await window.close();
     } catch (error) {
       console.error('[SettingsApp] Failed to close settings window:', error);
     }
@@ -334,16 +537,34 @@ export function SettingsApp() {
             🎭 {t('settings:tabs.character')}
           </button>
           <button
-            className={`nav-item ${activeTab === 'integration' ? 'active' : ''}`}
-            onClick={() => setActiveTab('integration')}
+            className={`nav-item ${activeTab === 'app_integration' ? 'active' : ''}`}
+            onClick={() => setActiveTab('app_integration')}
           >
-            🔌 {t('settings:tabs.integration')}
+            🔌 {t('settings:tabs.appIntegration')}
+          </button>
+          <button
+            className={`nav-item ${activeTab === 'character_integration' ? 'active' : ''}`}
+            onClick={() => setActiveTab('character_integration')}
+          >
+            🎭 {t('settings:tabs.characterIntegration')}
+          </button>
+          <button
+            className={`nav-item ${activeTab === 'display' ? 'active' : ''}`}
+            onClick={() => setActiveTab('display')}
+          >
+            🪟 {t('settings:tabs.display')}
           </button>
           <button
             className={`nav-item ${activeTab === 'system' ? 'active' : ''}`}
             onClick={() => setActiveTab('system')}
           >
             ⚙️ {t('settings:tabs.system')}
+          </button>
+          <button
+            className={`nav-item ${activeTab === 'help' ? 'active' : ''}`}
+            onClick={() => setActiveTab('help')}
+          >
+            ❓ {t('settings:tabs.help')}
           </button>
         </div>
 
@@ -355,10 +576,21 @@ export function SettingsApp() {
             </div>
           )}
 
-          {activeTab === 'integration' && (
+          {activeTab === 'app_integration' && (
             <div className="settings-section">
-              <h3>{t('settings:integration.title')}</h3>
-              <IntegrationSettings />
+              <AppIntegrationSettings />
+            </div>
+          )}
+
+          {activeTab === 'character_integration' && (
+            <div className="settings-section">
+              <CharacterIntegrationSettings />
+            </div>
+          )}
+
+          {activeTab === 'display' && (
+            <div className="settings-section settings-section-full">
+              <DisplaySettings />
             </div>
           )}
 
@@ -392,6 +624,12 @@ export function SettingsApp() {
                   <option value="ja">{t('common:localeNameJa')}</option>
                 </select>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'help' && (
+            <div className="settings-section">
+              <HelpSettings />
             </div>
           )}
         </div>

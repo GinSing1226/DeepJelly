@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useMessageStore, Message, BubbleType } from '@/stores/messageStore';
+import { useMessageStore, Message } from '@/stores/messageStore';
 import './styles.css';
 
 interface BubbleProps {
@@ -9,7 +8,6 @@ interface BubbleProps {
 }
 
 export function Bubble({ message, onClose }: BubbleProps) {
-  const { t } = useTranslation();
   const bubbleRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

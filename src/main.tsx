@@ -5,7 +5,6 @@
  * Meta-Description: Initializes i18n, sets up error handlers, and renders the app
  */
 
-import React from "react";
 import ReactDOM from "react-dom/client";
 import { initI18n } from "./i18n/init";
 import App from "./App";

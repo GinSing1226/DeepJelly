@@ -52,7 +52,7 @@ export interface CAPParticipant {
 /**
  * CAP参与者类型
  */
-export type CAPParticipantType = 'user' | 'assistant' | 'system';
+export type CAPParticipantType = 'user' | 'assistant' | 'visitor';
 
 /**
  * 全局CAP消息信封
@@ -212,6 +212,15 @@ export interface EventPayload {
   event_type: string;
   event_name: string;
   context: Record<string, unknown>;
+}
+
+/**
+ * Payload for status message type
+ * Used for character status updates (emoji + text)
+ */
+export interface StatusPayload {
+  emoji: string;
+  text: string;
 }
 
 /**

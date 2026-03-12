@@ -57,6 +57,15 @@ pub fn create_tray(app: &AppHandleWry, _character_manager: &Mutex<CharacterManag
     )
     .map_err(|e| format!("Failed to create settings menu item: {}", e))?;
 
+    let display_management = MenuItem::with_id(
+        app,
+        "display_management",
+        rust_i18n::t!("tray_display_management"),
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| format!("Failed to create display_management menu item: {}", e))?;
+
     // ========== 调试面板 ==========
     // REMOVED: Debug panel feature
     /*
@@ -183,6 +192,7 @@ pub fn create_tray(app: &AppHandleWry, _character_manager: &Mutex<CharacterManag
         &[
             &open_dialog,
             &settings,
+            &display_management,
             // REMOVED: Debug panel feature
             // &debug_panel,
             // MVP阶段：注释掉切换角色/形象子菜单
@@ -240,6 +250,9 @@ pub fn handle_tray_menu_event(app: &AppHandleWry, event: &tauri::menu::MenuEvent
         }
         "settings" => {
             let _ = app.emit("tray-event", serde_json::json!({ "action": "settings" }));
+        }
+        "display_management" => {
+            let _ = app.emit("tray-event", serde_json::json!({ "action": "display-management" }));
         }
         // REMOVED: Debug panel feature
         /*

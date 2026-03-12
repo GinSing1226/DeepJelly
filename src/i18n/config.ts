@@ -38,7 +38,7 @@ i18n
     react: {
       useSuspense: false
     },
-    debug: import.meta.env.DEV
+    debug: (import.meta as any).env?.DEV || false
   });
 
 export default i18n;

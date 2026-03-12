@@ -61,39 +61,25 @@ export default function AppearanceDetailView({
 
   // 默认选中 idle 动作
   useEffect(() => {
-    console.log('[AppearanceDetailView] Component mounted');
-    console.log('[AppearanceDetailView] - character.id:', character.id);
-    console.log('[AppearanceDetailView] - character.assistantId:', character.assistantId);
-    console.log('[AppearanceDetailView] - appearance.actions keys:', Object.keys(appearance.actions));
-    console.log('[AppearanceDetailView] - selectedActionKey:', selectedActionKey);
-
     if (!selectedActionKey && Object.keys(appearance.actions).length > 0) {
       // 优先查找 idle 动作
       const idleKey = Object.keys(appearance.actions).find(key =>
         key.toLowerCase().includes('idle')
       );
       const keyToSelect = idleKey || Object.keys(appearance.actions)[0];
-      console.log('[AppearanceDetailView] - Auto-selecting action:', keyToSelect);
       setSelectedActionKey(keyToSelect);
     }
   }, [appearance.actions, selectedActionKey, character.id, character.assistantId]);
 
   // 构建资源路径前缀
+  // 实际目录结构: characters/{assistantId}/{characterId}/{appearanceId}/{actionKey}/
   const pathPrefix = `characters/${character.assistantId}/${character.id}`;
 
   // Debug: Log when selectedAction changes
   useEffect(() => {
-    console.log('[AppearanceDetailView] selectedAction changed:', {
-      selectedActionKey,
-      hasSelectedAction: !!selectedAction,
-      resourcesCount: selectedAction?.resources?.length || 0,
-      resources: selectedAction?.resources,
-      pathPrefix,
-    });
-  }, [selectedAction, selectedActionKey, pathPrefix]);
+  }, [selectedAction, selectedActionKey, pathPrefix, character.id, character.assistantId, character.name, appearance.id, appearance.name]);
 
   const handleSelectAction = (key: string) => {
-    console.log('[AppearanceDetailView] handleSelectAction:', key);
     setSelectedActionKey(key);
   };
 
@@ -120,13 +106,23 @@ export default function AppearanceDetailView({
     setIsEditing(false);
   };
 
+  // SVG Icons
+  const Icons = {
+    ArrowLeft: () => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 12H5" />
+        <path d="M12 19l-7-7 7-7" />
+      </svg>
+    ),
+  };
+
   return (
     <div className="appearance-detail-view-compact">
       {/* 顶部工具栏 */}
       <div className="adv-toolbar">
         <div className="toolbar-left">
           <button className="btn-icon" onClick={onBack} title={t('character.back')}>
-            ←
+            <Icons.ArrowLeft />
           </button>
           <div className="toolbar-title">
             {isEditing ? (
@@ -150,7 +146,9 @@ export default function AppearanceDetailView({
               <div className="title-display-row">
                 <span className="title-name">{appearance.name}</span>
                 {appearance.description && (
-                  <span className="title-desc">{appearance.description}</span>
+                  <span className="title-tooltip-trigger" title={appearance.description}>
+                    <span className="title-info-icon">ⓘ</span>
+                  </span>
                 )}
                 <span className="toolbar-id">{appearance.id}</span>
               </div>
@@ -201,9 +199,10 @@ export default function AppearanceDetailView({
               {/* 资源网格 - 占满剩余空间 */}
               <div className="action-resources-compact">
                 <ResourceGrid
-                  key={selectedActionKey}
+                  key={`${selectedActionKey}-${selectedAction.resources.length}`}
                   resources={selectedAction.resources}
                   pathPrefix={`${pathPrefix}/${selectedActionKey}`}
+                  assistantId={character.assistantId}
                   characterId={character.id}
                   appearanceId={appearance.id}
                   actionKey={selectedActionKey}
