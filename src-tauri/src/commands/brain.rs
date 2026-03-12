@@ -156,11 +156,18 @@ pub async fn send_message(session_id: String, content: String) -> Result<serde_j
 
 /// Get session message history
 #[tauri::command]
-pub async fn get_session_history(session_id: String, limit: Option<u32>, offset: Option<u32>) -> Result<serde_json::Value, String> {
+pub async fn get_session_history(
+    session_id: String,
+    limit: Option<u32>,
+    offset: Option<u32>,
+    before_timestamp: Option<u64>,
+) -> Result<serde_json::Value, String> {
     println!("[DeepJelly Backend] =======================================");
     println!("[DeepJelly Backend] get_session_history called");
     println!("[DeepJelly Backend]   session_id: {}", session_id);
     println!("[DeepJelly Backend]   limit: {:?}", limit);
+    println!("[DeepJelly Backend]   offset: {:?}", offset);
+    println!("[DeepJelly Backend]   before_timestamp: {:?}", before_timestamp);
     log::info!("{}", format_log_arg1(LogCategory::Brain, "[get_session_history] session_id: ", &session_id));
 
     let storage = get_client_storage();
@@ -176,7 +183,8 @@ pub async fn get_session_history(session_id: String, limit: Option<u32>, offset:
     let params = serde_json::json!({
         "session_id": session_id,
         "limit": limit.unwrap_or(50),
-        "offset": offset.unwrap_or(0)
+        "offset": offset.unwrap_or(0),
+        "beforeTimestamp": before_timestamp
     });
 
     let result = client.call("get_session_history", params).await?;
@@ -187,13 +195,15 @@ pub async fn get_session_history(session_id: String, limit: Option<u32>, offset:
     Ok(result)
 }
 
-/// Get all sessions
+/// Get all sessions, optionally filtered by character
 #[tauri::command]
 pub async fn get_all_sessions(
+    character_id: Option<String>,
     limit: Option<u32>,
 ) -> Result<serde_json::Value, String> {
     println!("[DeepJelly Backend] =======================================");
     println!("[DeepJelly Backend] get_all_sessions called");
+    println!("[DeepJelly Backend]   character_id: {:?}", character_id);
     println!("[DeepJelly Backend]   limit: {:?}", limit);
 
     let storage = get_client_storage();
@@ -207,6 +217,7 @@ pub async fn get_all_sessions(
 
     // Use JSON-RPC call to get all sessions from plugin
     let params = serde_json::json!({
+        "characterId": character_id,
         "limit": limit
     });
 

@@ -83,11 +83,12 @@ interface BrainState {
 
   // 消息相关 Actions
   sendMessage: (sessionId: string, content: string) => Promise<{ message_id: string; status: string; error?: string }>;
-  getSessionHistory: (sessionId: string, limit?: number, offset?: number) => Promise<SessionMessage[]>;
+  getSessionHistory: (sessionId: string, limit?: number, offset?: number, beforeTimestamp?: number) => Promise<SessionMessage[]>;
 
   // 多会话相关 Actions
   getAllSessions: (limit?: number) => Promise<SessionInfo[]>;
   getAgentSessions: (agentId: string) => Promise<SessionInfo[]>;
+  getSessionsByCharacterId: (characterId: string, limit?: number) => Promise<SessionInfo[]>;
 }
 
 export const useBrainStore = create<BrainState>((set, get) => ({
@@ -217,7 +218,7 @@ export const useBrainStore = create<BrainState>((set, get) => ({
    */
   sendMessage: async (sessionId, content) => {
     try {
-      const params = { session_id: sessionId, content };
+      const params = { sessionId, content };
       const result = await invoke<{message_id: string; status: string; error?: string}>('send_message', params);
 
       if (result && result.status === 'failed') {
@@ -239,9 +240,11 @@ export const useBrainStore = create<BrainState>((set, get) => ({
    * 获取会话历史消息
    * 通过 OpenClaw Gateway API 获取
    */
-  getSessionHistory: async (sessionId, limit = 200, offset = 0) => {
+  getSessionHistory: async (sessionId, limit = 50, offset = 0, beforeTimestamp?) => {
     try {
-      const rawResult = await invoke<unknown>('get_session_history', { sessionId, limit, offset });
+      console.log('[BrainStore] getSessionHistory called with:', { sessionId, limit, offset, beforeTimestamp });
+      const rawResult = await invoke<unknown>('get_session_history', { sessionId, limit, offset, beforeTimestamp });
+      console.log('[BrainStore] getSessionHistory rawResult:', rawResult);
 
       // Handle different response formats from OpenClaw
       let messages: SessionMessage[] = [];
@@ -250,8 +253,18 @@ export const useBrainStore = create<BrainState>((set, get) => ({
         messages = rawResult as SessionMessage[];
       } else if (rawResult && typeof rawResult === 'object' && 'result' in rawResult) {
         const result = (rawResult as any).result;
+        console.log('[BrainStore] Parsed result object:', result);
+
         if (result?.details?.messages && Array.isArray(result.details.messages)) {
           messages = result.details.messages as SessionMessage[];
+        } else if (result?.messages && Array.isArray(result.messages)) {
+          messages = result.messages as SessionMessage[];
+        } else if (result?.sessions && Array.isArray(result.sessions)) {
+          // BUG: Backend returned sessions instead of messages!
+          console.error('[BrainStore] ❌ Backend returned sessions instead of messages for getSessionHistory!');
+          console.error('[BrainStore] sessionId:', sessionId);
+          console.error('[BrainStore] This is a backend bug - get_session_history should return messages, not sessions');
+          messages = [];
         }
       } else if (rawResult && typeof rawResult === 'object' && 'messages' in rawResult) {
         const msgs = (rawResult as any).messages;
@@ -268,6 +281,7 @@ export const useBrainStore = create<BrainState>((set, get) => ({
         messages = [];
       }
 
+      console.log('[BrainStore] Parsed messages count:', messages.length);
       return messages;
     } catch (error) {
       console.error('[BrainStore] Failed to get session history:', error);
@@ -285,24 +299,33 @@ export const useBrainStore = create<BrainState>((set, get) => ({
    */
   getAllSessions: async (limit = 100) => {
     try {
+      console.log('[BrainStore] getAllSessions called with limit:', limit);
       const rawResult = await invoke<unknown>('get_all_sessions', {
         limit,
       });
+
+      console.log('[BrainStore] get_all_sessions returned:', rawResult);
+      console.log('[BrainStore] rawResult type:', typeof rawResult);
+      console.log('[BrainStore] rawResult keys:', rawResult && typeof rawResult === 'object' ? Object.keys(rawResult) : 'N/A');
 
       // Handle different response formats
       let sessions: SessionInfo[] = [];
 
       if (Array.isArray(rawResult)) {
         sessions = rawResult as SessionInfo[];
+        console.log('[BrainStore] rawResult is array, length:', sessions.length);
       } else if (rawResult && typeof rawResult === 'object') {
         const result = rawResult as any;
         if (result.sessions && Array.isArray(result.sessions)) {
           sessions = result.sessions as SessionInfo[];
+          console.log('[BrainStore] result.sessions is array, length:', sessions.length);
         } else if (result.result?.details?.sessions && Array.isArray(result.result.details.sessions)) {
           sessions = result.result.details.sessions as SessionInfo[];
+          console.log('[BrainStore] result.result.details.sessions is array, length:', sessions.length);
         }
       }
 
+      console.log('[BrainStore] Final sessions array length:', sessions.length);
       return sessions;
     } catch (error) {
       console.error('[BrainStore] Failed to get all sessions:', error);
@@ -319,8 +342,11 @@ export const useBrainStore = create<BrainState>((set, get) => ({
    */
   getAgentSessions: async (agentId: string) => {
     try {
+      console.log(`[BrainStore] getAgentSessions called with agentId: "${agentId}"`);
+
       // 获取所有会话（不限制数量）
       const allSessions = await get().getAllSessions(10000);
+      console.log(`[BrainStore] getAllSessions returned ${allSessions.length} sessions`);
 
       // 过滤出属于该 agent 的会话
       // Session key 格式: agent:<agentId>:main 或 agent:<agentId>:<channel>:<peerId>
@@ -336,11 +362,18 @@ export const useBrainStore = create<BrainState>((set, get) => ({
         const parts = sessionKey.split(':');
         if (parts.length >= 2 && parts[0] === 'agent') {
           const sessionAgentId = parts[1];
+          const matches = sessionAgentId.toLowerCase() === agentId.toLowerCase();
+          if (!matches) {
+            console.log(`[BrainStore]   Filtering out ${sessionKey}: sessionAgentId="${sessionAgentId}" != agentId="${agentId}"`);
+          }
           // 使用小写比较（agent ID 是大小写不敏感的）
-          return sessionAgentId.toLowerCase() === agentId.toLowerCase();
+          return matches;
         }
+        console.log(`[BrainStore]   Filtering out ${sessionKey}: doesn't match "agent:<agentId>:..." format`);
         return false;
       });
+
+      console.log(`[BrainStore] Filtered to ${agentSessions.length} sessions for agent ${agentId}`);
 
       // 按 sessionKey 排序 (main 在前，其他按字母序)
       agentSessions.sort((a: SessionInfo, b: SessionInfo) => {
@@ -362,6 +395,45 @@ export const useBrainStore = create<BrainState>((set, get) => ({
       return agentSessions;
     } catch (error) {
       console.error('[BrainStore] ❌ Failed to get agent sessions:', error);
+      set({ error: String(error) });
+      throw error;
+    }
+  },
+
+  /**
+   * 获取指定角色的会话列表
+   *
+   * @param characterId - Character ID
+   * @param limit - 最大返回会话数（默认：100）
+   * @returns 该角色绑定的 agent 的所有会话
+   */
+  getSessionsByCharacterId: async (characterId: string, limit = 100) => {
+    try {
+      console.log(`[BrainStore] getSessionsByCharacterId called: characterId=${characterId}, limit=${limit}`);
+
+      const rawResult = await invoke<unknown>('get_all_sessions', {
+        characterId,
+        limit,
+      });
+
+      console.log('[BrainStore] get_all_sessions (with characterId) returned:', rawResult);
+
+      // Handle different response formats
+      let sessions: SessionInfo[] = [];
+
+      if (Array.isArray(rawResult)) {
+        sessions = rawResult as SessionInfo[];
+      } else if (rawResult && typeof rawResult === 'object') {
+        const result = rawResult as any;
+        if (result.sessions && Array.isArray(result.sessions)) {
+          sessions = result.sessions as SessionInfo[];
+        }
+      }
+
+      console.log(`[BrainStore] ✅ Got ${sessions.length} sessions for character ${characterId}`);
+      return sessions;
+    } catch (error) {
+      console.error('[BrainStore] ❌ Failed to get sessions by characterId:', error);
       set({ error: String(error) });
       throw error;
     }
