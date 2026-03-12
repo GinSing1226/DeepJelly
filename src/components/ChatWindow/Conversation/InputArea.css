@@ -1,0 +1,84 @@
+/**
+ * InputArea Styles - Claude Style v3
+ * name: 输入区域样式
+ * description: 米白主题输入框，温暖专业的消息输入界面
+ */
+
+.input-area {
+  padding: 16px 20px;
+  background: var(--dj-bg-elevated);
+  border-top: 1px solid var(--dj-border);
+}
+
+.input-wrapper {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  background: var(--dj-bg-primary);
+  border: 1px solid var(--dj-border);
+  border-radius: 24px;
+  padding: 8px 8px 8px 16px;
+  transition: all 0.2s ease;
+}
+
+.input-wrapper:focus-within {
+  border-color: var(--dj-border-strong);
+  box-shadow: 0 0 0 3px var(--dj-accent-glow);
+}
+
+.input-textarea {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1.5;
+  resize: none;
+  max-height: 120px;
+  min-height: 24px;
+  font-family: inherit;
+  color: var(--dj-text-primary);
+  padding: 8px 0;
+}
+
+.input-textarea::placeholder {
+  color: var(--dj-text-muted);
+}
+
+.input-textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.send-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  border: none;
+  background: var(--dj-text-primary);
+  color: var(--dj-bg-primary);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.send-button:hover:not(:disabled) {
+  background: var(--dj-text-secondary);
+  transform: translateY(-1px);
+  box-shadow: var(--dj-shadow-md);
+}
+
+.send-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.send-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  background: var(--dj-bg-tertiary);
+  color: var(--dj-text-muted);
+}

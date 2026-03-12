@@ -11,9 +11,9 @@ export const DEFAULTS = {
   SESSION_PAGE_SIZE: 50,
   MESSAGE_PAGE_SIZE: 50,
   INITIAL_SESSION_LIMIT: 10,
-  INITIAL_MESSAGE_LIMIT: 50,  // Increased from 10 to 50 for better initial message history
+  INITIAL_MESSAGE_LIMIT: 100,
   LOAD_MORE_SESSION_LIMIT: 10,
-  LOAD_MORE_MESSAGE_LIMIT: 50,  // Increased from 20 to 50 for consistent pagination
+  LOAD_MORE_MESSAGE_LIMIT: 50,
   SEARCH_DEBOUNCE_MS: 300,
   INPUT_MAX_HEIGHT: 120,
   AVATAR_SIZE: 44,
