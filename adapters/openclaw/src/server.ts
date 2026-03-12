@@ -892,8 +892,15 @@ export class DeepJellyServer {
         }
       }
 
-      // ⬇️ 调试：打印原始数据结构
+      // ⬇️ 调试：打印原始数据结构和顺序
       console.log(`[DeepJelly Plugin] 🔍 Raw message item structure:`, JSON.stringify(messagesList[0], null, 2));
+      console.log(`[DeepJelly Plugin] 🔍 Message count: ${messagesList.length}`);
+      if (messagesList.length > 0) {
+        const firstTs = messagesList[0]?.timestamp || messagesList[0]?.created_at;
+        const lastTs = messagesList[messagesList.length - 1]?.timestamp || messagesList[messagesList.length - 1]?.created_at;
+        console.log(`[DeepJelly Plugin] 🔍 Message time range: first=${firstTs}, last=${lastTs}`);
+        console.log(`[DeepJelly Plugin] 🔍 Messages appear to be in ${firstTs > lastTs ? 'DESCENDING (newest first)' : 'ASCENDING (oldest first)'} order`);
+      }
 
       let messages: Message[] = [];
 
@@ -940,16 +947,17 @@ export class DeepJellyServer {
 
       console.log(`[DeepJelly Plugin] ✅ Loaded ${messages.length} messages from OpenClow API`);
 
-      // Sort messages by timestamp ascending (oldest first - traditional IM order)
-      messages.sort((a, b) => a.timestamp - b.timestamp);
-
-      // Apply beforeTimestamp filter if provided
+      // Apply beforeTimestamp filter FIRST (before sorting)
+      // This ensures we correctly filter messages based on timestamp
       if (beforeTimestamp) {
         console.log(`[DeepJelly Plugin] 🔍 Filtering messages before timestamp: ${beforeTimestamp}`);
         const beforeCount = messages.length;
         messages = messages.filter(m => m.timestamp < beforeTimestamp);
         console.log(`[DeepJelly Plugin] ✅ Filtered to ${messages.length} messages (from ${beforeCount})`);
       }
+
+      // Then sort messages by timestamp ascending (oldest first - traditional IM order)
+      messages.sort((a, b) => a.timestamp - b.timestamp);
 
       return { messages };
     } catch (error: any) {
