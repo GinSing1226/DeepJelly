@@ -815,15 +815,15 @@ pub fn load_character_resource_thumbnail(
     println!("[load_character_resource_thumbnail] Original file size: {} bytes ({:.2} MB)",
         file_size, file_size as f64 / (1024.0 * 1024.0));
 
-    // 强硬措施：文件超过 10MB 直接拒绝，不尝试解码
-    const MAX_FILE_SIZE: usize = 10 * 1024 * 1024; // 10MB
+    // 强硬措施：文件超过 20MB 直接拒绝，不尝试解码
+    const MAX_FILE_SIZE: usize = 20 * 1024 * 1024; // 20MB
     if file_size > MAX_FILE_SIZE {
         let size_mb = file_size as f64 / (1024.0 * 1024.0);
-        return Err(format!("图片文件过大 ({:.2} MB)，超过 10MB 限制。请使用更小的图片文件。", size_mb));
+        return Err(format!("图片文件过大 ({:.2} MB)，超过 20MB 限制。请使用更小的图片文件。", size_mb));
     }
 
-    // 警告：文件超过 5MB 可能会慢
-    const LARGE_FILE_THRESHOLD: usize = 5 * 1024 * 1024; // 5MB
+    // 警告：文件超过 10MB 可能会慢
+    const LARGE_FILE_THRESHOLD: usize = 10 * 1024 * 1024; // 10MB
     if file_size > LARGE_FILE_THRESHOLD {
         let size_mb = file_size as f64 / (1024.0 * 1024.0);
         println!("[load_character_resource_thumbnail] WARNING: Large file ({:.2} MB) - loading may be slow.", size_mb);

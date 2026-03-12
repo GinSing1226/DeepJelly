@@ -8,7 +8,7 @@ use crate::input_state::InputState;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, Theme};
 
 /// Data directory state for display slot operations
 pub type DataDirState = Mutex<PathBuf>;
@@ -454,7 +454,9 @@ pub fn create_character_window(
     .shadow(false)
     .always_on_top(true)
     .skip_taskbar(true)
-    .resizable(true);
+    .resizable(true)
+    // 修复 Windows release 打包后背景不透明问题：使用 dark 主题避免 WebView2 显示白色背景
+    .theme(Some(Theme::Dark));
 
     // Use saved position if available, otherwise position with offset
     if let Some(pos) = &slot.position {

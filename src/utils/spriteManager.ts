@@ -32,6 +32,8 @@ export class SpriteManager {
   private sprite: PIXI.AnimatedSprite | null = null;
   private container: PIXI.Container;
   private playing: boolean = false;
+  // Store GIF animation URLs for HTML img element rendering
+  private gifAnimations: Map<string, string> = new Map();
 
   constructor(app: PIXI.Application, container: PIXI.Container) {
     this.app = app;
@@ -153,7 +155,8 @@ export class SpriteManager {
   }
 
   /**
-   * 加载GIF动画（转换为帧）
+   * 加载GIF动画（存储 URL 用于 HTML img 元素渲染）
+   * GIF 动画不通过 PIXI 渲染，而是使用原生 HTML img 元素
    */
   async loadGifAnimation(
     name: string,
@@ -161,37 +164,14 @@ export class SpriteManager {
     loop: boolean = true,
     loopStartFrame?: number
   ): Promise<void> {
-    const frames: SpriteFrame[] = [];
-
-    for (let i = 0; i < gifFrames.length; i++) {
-      const frame = gifFrames[i];
-
-      if (!frame.url) {
-        continue;
-      }
-
-      try {
-        const texture = await PIXI.Assets.load<PIXI.Texture>(frame.url);
-        frames.push({
-          texture,
-          duration: frame.delay,
-        });
-      } catch (error) {
-        console.error(`[SpriteManager] Failed to load GIF frame ${i}:`, error);
-      }
+    // GIF 动画只存储 URL，由角色视窗使用 HTML img 元素渲染
+    // PIXI 不支持 GIF 动画，只能显示静态的第一帧
+    if (gifFrames.length > 0 && gifFrames[0].url) {
+      this.gifAnimations.set(name, gifFrames[0].url);
+      console.log(`[SpriteManager] Registered GIF animation: ${name}, URL: ${gifFrames[0].url.substring(0, 50)}...`);
+    } else {
+      console.warn(`[SpriteManager] GIF animation ${name} has no valid URL`);
     }
-
-    if (frames.length === 0) {
-      console.warn(`[SpriteManager] GIF animation ${name} has no valid frames, skipping registration`);
-      return;
-    }
-
-    this.animations.set(name, {
-      name,
-      frames,
-      loop,
-      loopStartFrame,
-    });
   }
 
   /**
@@ -412,30 +392,56 @@ export class SpriteManager {
   }
 
   /**
-   * 获取第一个可用动画作为回退选项
+   * 获取第一个可用动画作为回退选项（包括 GIF）
    */
   private getFirstAnimation(): string | null {
-    const keys = Array.from(this.animations.keys());
+    const animKeys = Array.from(this.animations.keys());
+    const gifKeys = Array.from(this.gifAnimations.keys());
+    const allKeys = [...animKeys, ...gifKeys];
+
     // 优先使用 internal-base-idle，其次是 base.idle，最后是任意一个
     const fallbackPriority = ['internal-base-idle', 'base.idle'];
     for (const priority of fallbackPriority) {
-      if (this.animations.has(priority)) {
+      if (this.animations.has(priority) || this.gifAnimations.has(priority)) {
         return priority;
       }
     }
-    return keys.length > 0 ? keys[0] : null;
+    return allKeys.length > 0 ? allKeys[0] : null;
   }
 
   /**
    * 播放指定动画
    * 如果动画不存在，自动回退到第一个可用动画
+   * 支持 GIF 动画（不创建 PIXI sprite，只设置 currentAnimation）
    */
   play(name: string): void {
+    // Check if this is a GIF animation
+    const isGif = this.gifAnimations.has(name);
+    if (isGif) {
+      // For GIF animations, just set currentAnimation
+      // The actual rendering is handled by HTML img element in the component
+      console.log(`[SpriteManager] Playing GIF animation: ${name}`);
+      this.currentAnimation = name;
+      this.playing = true;
+
+      // Hide PIXI sprite if exists
+      if (this.sprite) {
+        this.sprite.visible = false;
+        this.sprite.renderable = false;
+      }
+      return;
+    }
+
     let config = this.animations.get(name);
 
     if (!config) {
       const fallback = this.getFirstAnimation();
       if (fallback) {
+        // Check if fallback is a GIF
+        if (this.gifAnimations.has(fallback)) {
+          this.play(fallback);
+          return;
+        }
         config = this.animations.get(fallback);
         if (!config) {
           console.error(`[SpriteManager] Fallback animation "${fallback}" not found`);
@@ -550,10 +556,10 @@ export class SpriteManager {
   }
 
   /**
-   * 检查动画是否存在
+   * 检查动画是否存在（包括 GIF 动画）
    */
   hasAnimation(name: string): boolean {
-    return this.animations.has(name);
+    return this.animations.has(name) || this.gifAnimations.has(name);
   }
 
   /**
@@ -584,6 +590,34 @@ export class SpriteManager {
   }
 
   /**
+   * 检查动画是否是 GIF 类型
+   */
+  isGifAnimation(name: string): boolean {
+    return this.gifAnimations.has(name);
+  }
+
+  /**
+   * 获取 GIF 动画的 URL
+   */
+  getGifUrl(name: string): string | null {
+    return this.gifAnimations.get(name) || null;
+  }
+
+  /**
+   * 获取当前动画是否是 GIF
+   */
+  isCurrentAnimationGif(): boolean {
+    return this.currentAnimation ? this.gifAnimations.has(this.currentAnimation) : false;
+  }
+
+  /**
+   * 获取当前 GIF 动画的 URL
+   */
+  getCurrentGifUrl(): string | null {
+    return this.currentAnimation ? this.gifAnimations.get(this.currentAnimation) || null : null;
+  }
+
+  /**
    * 销毁管理器
    */
   destroy(): void {
@@ -592,6 +626,7 @@ export class SpriteManager {
       this.sprite = null;
     }
     this.animations.clear();
+    this.gifAnimations.clear();
     this.currentAnimation = null;
   }
 }

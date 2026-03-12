@@ -122,6 +122,8 @@ export function CharacterWindow({
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
   // Track the sessionKey we're waiting for response from
   const [waitingSessionKey, setWaitingSessionKey] = useState<string | null>(null);
+  // GIF animation support
+  const [currentGifUrl, setCurrentGifUrl] = useState<string | null>(null);
 
   // Window identity for parameter matching
   // 存储当前窗口的 assistantId 和 characterId，用于匹配 character:load 事件
@@ -434,6 +436,17 @@ export function CharacterWindow({
     enabled: spriteManagerReady,
     onAnimationChange: (animationId) => {
       setAnimation(animationId);
+
+      // Check if animation is GIF and update currentGifUrl
+      if (spriteManagerRef.current) {
+        const isGif = spriteManagerRef.current.isGifAnimation(animationId);
+        if (isGif) {
+          const gifUrl = spriteManagerRef.current.getGifUrl(animationId);
+          setCurrentGifUrl(gifUrl);
+        } else {
+          setCurrentGifUrl(null);
+        }
+      }
     },
   });
 
@@ -705,6 +718,33 @@ export function CharacterWindow({
           const actionType = action.type || 'frames'; // Default to frames for backward compatibility
 
           try {
+            // For GIF type, load the GIF file directly
+            if (actionType === 'gif') {
+              console.log(`[CharacterWindow] Loading GIF animation: ${actionKey}`);
+              const rawResources = action.resources;
+              if (!rawResources || !Array.isArray(rawResources) || rawResources.length === 0) {
+                console.warn(`[CharacterWindow] GIF action ${actionKey} has no resources`);
+                return null;
+              }
+
+              // Load the GIF file (use first resource)
+              const resourceName = `${appearanceId}/${actionKey}/${rawResources[0]}`;
+              const gifUrl = await invoke<string>('load_character_resource', {
+                assistantId,
+                characterId,
+                resourceName,
+              });
+
+              console.log(`[CharacterWindow] Loaded GIF URL: ${gifUrl.substring(0, 50)}...`);
+
+              return {
+                type: 'gif',
+                resources: [gifUrl], // Return array with single GIF URL
+                fps: action.fps || 12,
+                loop: action.loop ?? true,
+              };
+            }
+
             // For spritesheet type, load the spritesheet config file
             if (actionType === 'spritesheet') {
               // If no spritesheet config but has resources array, treat as frames type
@@ -815,6 +855,33 @@ export function CharacterWindow({
 
     loadCharacterWhenReady();
   }, [config, appearance, spriteManagerReady, loadState]);
+
+  // Monitor animation changes and update GIF overlay
+  useEffect(() => {
+    if (!spriteManagerRef.current) return;
+
+    const checkAnimation = () => {
+      const currentAnimation = spriteManagerRef.current?.getCurrentAnimation();
+      if (currentAnimation) {
+        const isGif = spriteManagerRef.current?.isGifAnimation(currentAnimation);
+        if (isGif) {
+          const gifUrl = spriteManagerRef.current?.getGifUrl(currentAnimation);
+          console.log('[CharacterWindow] Setting GIF URL for:', currentAnimation, gifUrl ? gifUrl.substring(0, 50) + '...' : 'null');
+          setCurrentGifUrl(gifUrl || null);
+        } else {
+          setCurrentGifUrl(null);
+        }
+      }
+    };
+
+    // Check immediately
+    checkAnimation();
+
+    // Poll for animation changes every 100ms
+    const interval = setInterval(checkAnimation, 100);
+
+    return () => clearInterval(interval);
+  }, [spriteManagerReady]);
 
   // Drag handling
   const dragStartPosRef = useRef({ x: 0, y: 0 });
@@ -1258,6 +1325,26 @@ export function CharacterWindow({
     >
       {/* Canvas container - always in DOM for PIXI initialization */}
       <div ref={containerRef} className="character-canvas" />
+
+      {/* GIF animation overlay - shown when current animation is a GIF */}
+      {currentGifUrl && (
+        <img
+          src={currentGifUrl}
+          alt="Character GIF Animation"
+          className="character-gif-overlay"
+          style={{
+            position: 'absolute',
+            top: '80px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            maxWidth: '80%',
+            maxHeight: 'calc(100% - 140px)',
+            objectFit: 'contain',
+            pointerEvents: 'none',
+            zIndex: 100,
+          }}
+        />
+      )}
 
       {/* Loading animation overlay for display slot windows */}
       {showLoading && (

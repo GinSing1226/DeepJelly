@@ -76,11 +76,20 @@ foreach ($Dll in $DllFiles) {
     Write-Host "  ✓ Copied $($Dll.Name)" -ForegroundColor Green
 }
 
-# Copy data folder
+# Copy data folder (exclude user folder)
 $DataDir = Join-Path $ProjectRoot "data"
+$PortableDataDir = Join-Path $PortableDir "data"
 if (Test-Path $DataDir) {
-    Copy-Item -Path $DataDir -Destination $PortableDir -Recurse -Force
-    Write-Host "  ✓ Copied data folder" -ForegroundColor Green
+    New-Item -ItemType Directory -Path $PortableDataDir -Force | Out-Null
+    # 只复制 default 文件夹，不复制 user 文件夹
+    $DefaultDir = Join-Path $DataDir "default"
+    if (Test-Path $DefaultDir) {
+        Copy-Item -Path $DefaultDir -Destination $PortableDataDir -Recurse -Force
+        Write-Host "  ✓ Copied data/default folder" -ForegroundColor Green
+    } else {
+        Write-Host "  ✗ data/default folder not found!" -ForegroundColor Red
+        exit 1
+    }
 } else {
     Write-Host "  ✗ data folder not found!" -ForegroundColor Red
     exit 1
