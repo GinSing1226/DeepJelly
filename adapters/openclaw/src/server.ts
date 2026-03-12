@@ -633,7 +633,12 @@ export class DeepJellyServer {
             break;
           case "get_session_history":
             console.log(`[DeepJelly Plugin] -> getSessionHistory`);
-            result = await this.getSessionHistory(params?.session_id, params?.limit, params?.offset);
+            result = await this.getSessionHistory(
+              params?.session_id,
+              params?.limit || 50,
+              params?.offset || 0,
+              params?.beforeTimestamp
+            );
             break;
           case "get_session_state":
             console.log(`[DeepJelly Plugin] -> getSessionState`);
@@ -809,12 +814,14 @@ export class DeepJellyServer {
     sessionId: string,
     limit: number = 50,
     offset: number = 0,
+    beforeTimestamp?: number,
   ): Promise<{ messages: Message[] }> {
     console.log(`[DeepJelly Plugin] =======================================`);
     console.log(`[DeepJelly Plugin] getSessionHistory called (via HTTP API):`);
     console.log(`[DeepJelly Plugin]   session_id: ${sessionId}`);
     console.log(`[DeepJelly Plugin]   limit: ${limit}`);
     console.log(`[DeepJelly Plugin]   offset: ${offset}`);
+    console.log(`[DeepJelly Plugin]   beforeTimestamp: ${beforeTimestamp || 'none'}`);
 
     // Use sessionId directly as sessionKey (no transformation)
     // Frontend is responsible for providing the correct session key format
@@ -888,7 +895,7 @@ export class DeepJellyServer {
       // ⬇️ 调试：打印原始数据结构
       console.log(`[DeepJelly Plugin] 🔍 Raw message item structure:`, JSON.stringify(messagesList[0], null, 2));
 
-      const messages: Message[] = [];
+      let messages: Message[] = [];
 
       for (const item of messagesList) {
         const role = item.role || 'assistant';
@@ -935,6 +942,14 @@ export class DeepJellyServer {
 
       // Sort messages by timestamp ascending (oldest first - traditional IM order)
       messages.sort((a, b) => a.timestamp - b.timestamp);
+
+      // Apply beforeTimestamp filter if provided
+      if (beforeTimestamp) {
+        console.log(`[DeepJelly Plugin] 🔍 Filtering messages before timestamp: ${beforeTimestamp}`);
+        const beforeCount = messages.length;
+        messages = messages.filter(m => m.timestamp < beforeTimestamp);
+        console.log(`[DeepJelly Plugin] ✅ Filtered to ${messages.length} messages (from ${beforeCount})`);
+      }
 
       return { messages };
     } catch (error: any) {
