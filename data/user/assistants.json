@@ -1,0 +1,20 @@
+{
+  "assistants": [
+    {
+      "id": "default_assistant",
+      "name": "christina",
+      "description": "《Steins;Gate》，makisise kurisu",
+      "characters": [
+        {
+          "characterId": "default",
+          "defaultAppearanceId": "default"
+        },
+        {
+          "characterId": "qq",
+          "defaultAppearanceId": "GG"
+        }
+      ],
+      "appType": "openclaw"
+    }
+  ]
+}
