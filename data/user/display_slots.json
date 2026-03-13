@@ -1,0 +1,20 @@
+{
+  "slots": [
+    {
+      "id": "slot_t5tgrskxbxvdqjk1",
+      "assistantId": "default_assistant",
+      "assistantName": "christina",
+      "characterId": "default",
+      "characterName": "default_assistant",
+      "appearanceId": "default",
+      "appearanceName": "default",
+      "windowId": "char-window-slot_t5tgrskxbxvdqjk1",
+      "visible": true,
+      "position": {
+        "x": 1453,
+        "y": 369
+      },
+      "createdAt": 1773377368003
+    }
+  ]
+}
