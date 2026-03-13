@@ -1,6 +1,6 @@
-//! Gateway types
+//! WebSocket gateway types
 //!
-//! Common types for WebSocket gateway communication.
+//! Types for WebSocket gateway communication.
 
 use serde::{Deserialize, Serialize};
 
