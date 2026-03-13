@@ -11,6 +11,7 @@ rust_i18n::i18n!("i18n");
 // Module declarations
 mod brain;
 mod commands;
+mod gateway;
 mod logic;
 mod models;
 mod resource_watcher;
@@ -29,9 +30,14 @@ use crate::utils::logging::{format_log, format_log_arg1};
 // Re-exports for use in other modules
 pub use brain::{AdapterClient, Assistant as BrainAssistant, BrainAdapterConfig, BrainAdapterSettings};
 pub use commands::app_integration::{AppIntegrationManagerState, CharacterIntegrationManagerState};
-pub use commands::assistant::{AssistantManagerState, get_all_assistants, get_assistant, create_assistant, update_assistant, delete_assistant, get_characters_dir};
+pub use commands::endpoint::{EndpointManagerState};
+pub use commands::data::{AssistantManagerState, data_get_all_characters, data_get_characters_by_assistant};
+pub use commands::assistant::{get_all_assistants, get_assistant, create_assistant, update_assistant, delete_assistant, get_characters_dir};
 pub use commands::character::{CharacterManagerState, get_all_characters, get_character, reload_character, set_current_appearance, get_current_appearance, get_available_animations,
     update_character, update_appearance, add_action, update_action, delete_action, update_action_resources, remove_action_resource, add_action_resources};
+pub use gateway::http::{HttpServer};
+pub use gateway::http::server::{HttpServerConfig, HttpServerState};
+pub use models::integration::{AppIntegration, CharacterIntegration, ProviderType};
 pub use logic::{
     AppConfig, BrainConfig, CharacterAppConfig, ConfigManager, GatewayConfig, ReactionConfig,
     AnimationActionId, AnimationCategory, AnimationCommand, AnimationDomain,
@@ -82,7 +88,7 @@ pub fn run() {
 
             // Determine the base data directory
             // Development: use ../data (from src-tauri)
-            // Production: use data/ (next to exe)
+            // Production: use resources/data (Tauri bundle) or data/ (next to exe)
             let data_dir = if cfg!(debug_assertions) {
                 // Development mode: use ../data
                 info!("{}", format_log(LogCategory::Setup, "Development mode: using ../data"));
@@ -91,13 +97,31 @@ pub fn run() {
                     .map_err(|e| format!("Failed to create data directory: {}", e))?;
                 data_path
             } else {
-                // Production mode: use data/ next to executable
-                info!("{}", format_log(LogCategory::Setup, "Production mode: using data/ next to exe"));
+                // Production mode: try resources/data first, then data/ next to exe
+                info!("{}", format_log(LogCategory::Setup, "Production mode: locating data directory..."));
                 if let Ok(exe_path) = std::env::current_exe() {
                     if let Some(exe_dir) = exe_path.parent() {
-                        let data_path = exe_dir.join("data");
-                        fs::create_dir_all(&data_path)
-                            .map_err(|e| format!("Failed to create data directory: {}", e))?;
+                        // Try resources/data first (Tauri bundle location on Windows)
+                        let resources_data_path = exe_dir.join("resources").join("data");
+                        let local_data_path = exe_dir.join("data");
+
+                        let data_path = if resources_data_path.exists() {
+                            info!("{}", format_log(LogCategory::Setup, "Using resources/data (bundled resources)"));
+                            resources_data_path
+                        } else {
+                            info!("{}", format_log(LogCategory::Setup, "Using data/ next to exe"));
+                            // Create data/ directory if it doesn't exist
+                            fs::create_dir_all(&local_data_path)
+                                .map_err(|e| format!("Failed to create data directory: {}", e))?;
+                            local_data_path
+                        };
+
+                        // Ensure user data directory exists for writable data
+                        if !data_path.join("user").exists() {
+                            fs::create_dir_all(data_path.join("user"))
+                                .map_err(|e| format!("Failed to create user data directory: {}", e))?;
+                        }
+
                         data_path
                     } else {
                         return Err(format!("Failed to determine executable directory").into());
@@ -228,6 +252,76 @@ pub fn run() {
             };
             let character_integration_manager_state: CharacterIntegrationManagerState = Mutex::new(character_integration_manager);
 
+            // ========== Initialize Endpoint Manager ==========
+            info!("{}", format_log(LogCategory::Setup, "Initializing endpoint manager..."));
+            let endpoint_manager = match models::endpoint::EndpointManager::new(user_data_dir.clone()) {
+                Ok(m) => {
+                    let config = m.get();
+                    info!("{}", format_log_arg1(LogCategory::Setup, "Loaded endpoint config: ", &config.url()));
+                    m
+                }
+                Err(e) => {
+                    error!("{}", format_log_arg1(LogCategory::Setup, "Failed to initialize endpoint manager: ", &e.to_string()));
+                    // Try to recover by creating fresh config
+                    models::endpoint::EndpointManager::new(user_data_dir.clone()).expect("Failed to create endpoint manager after recovery")
+                }
+            };
+            let endpoint_manager_state: EndpointManagerState = Mutex::new(endpoint_manager);
+
+            // ========== Start HTTP API Server ==========
+            info!("{}", format_log(LogCategory::Setup, "Starting HTTP API server..."));
+
+            // Get endpoint config for HTTP server
+            let endpoint_config = endpoint_manager_state.lock().unwrap().get();
+            info!("{}", format_log_arg1(LogCategory::Setup, "HTTP server will listen on: ", &endpoint_config.url()));
+
+            // Use 0.0.0.0 to listen on all network interfaces (LAN accessible)
+            let http_config = HttpServerConfig {
+                host: "0.0.0.0".to_string(),  // Listen on all interfaces
+                port: endpoint_config.port,
+                require_auth: false, // TODO: Add authentication when needed
+            };
+            info!("{}", format_log_arg1(LogCategory::Setup, "HTTP server binding to: ", &format!("{}:{}", http_config.host, http_config.port)));
+
+            // Create Arc-wrapped managers for HTTP server (separate instances that read from same files)
+            let http_app_integration_manager = Arc::new(Mutex::new(
+                match logic::character::AppIntegrationManager::new(user_data_dir.clone()) {
+                    Ok(m) => m,
+                    Err(_) => logic::character::AppIntegrationManager::new(user_data_dir.clone()).expect("Failed to create app integration manager for HTTP server")
+                }
+            ));
+            let http_character_integration_manager = Arc::new(Mutex::new(
+                match logic::character::CharacterIntegrationManager::new(user_data_dir.clone()) {
+                    Ok(m) => m,
+                    Err(_) => logic::character::CharacterIntegrationManager::new(user_data_dir.clone()).expect("Failed to create character integration manager for HTTP server")
+                }
+            ));
+            let http_assistant_manager = Arc::new(Mutex::new(
+                match logic::character::AssistantManager::new(user_data_dir.clone()) {
+                    Ok(m) => m,
+                    Err(_) => logic::character::AssistantManager::new(user_data_dir.clone()).expect("Failed to create assistant manager for HTTP server")
+                }
+            ));
+            let http_character_manager = Arc::new(Mutex::new(
+                logic::character::CharacterManager::new(user_data_dir.clone())
+            ));
+
+            // Create and spawn HTTP server
+            let http_server = HttpServer::new(
+                http_config,
+                http_app_integration_manager,
+                http_character_integration_manager,
+                http_assistant_manager,
+                http_character_manager,
+                user_data_dir.clone(),
+            );
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = http_server.start().await {
+                    error!("HTTP server error: {}", e);
+                }
+            });
+            info!("{}", format_log(LogCategory::Setup, "HTTP API server started"));
+
             // ========== Initialize Input State ==========
             info!("{}", format_log(LogCategory::Setup, "Initializing input state..."));
             let input_state = Arc::new(Mutex::new(input_state::InputState::new()));
@@ -260,6 +354,7 @@ pub fn run() {
             app.manage(character_manager_state);
             app.manage(app_integration_manager_state);
             app.manage(character_integration_manager_state);
+            app.manage(endpoint_manager_state);
             app.manage(input_state.clone());
             app.manage(Arc::new(Mutex::new(AppState::default())));
             app.manage(Mutex::new(user_data_dir.clone())); // DataDirState for display_slot commands
@@ -444,6 +539,11 @@ pub fn run() {
             // System commands
             commands::system::set_auto_launch,
             commands::system::is_auto_launch_enabled,
+            // Endpoint commands
+            commands::endpoint::get_endpoint_config,
+            commands::endpoint::update_endpoint_config,
+            commands::endpoint::get_local_ip,
+            commands::endpoint::get_recommended_host,
             // Window commands
             commands::window::open_dialog_window,
             commands::window::close_dialog_window,
@@ -464,6 +564,7 @@ pub fn run() {
             commands::window::toggle_hide_window,
             commands::window::open_onboarding_window,
             commands::window::close_onboarding_window,
+            commands::window::toggle_devtools,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

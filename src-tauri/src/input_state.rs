@@ -4,6 +4,7 @@
 
 use rdev::{EventType, Key, listen, Button};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
@@ -21,7 +22,8 @@ pub struct InputState {
     pub ctrl_left: bool,
     pub ctrl_right: bool,
     pub ctrl_from_frontend: bool,
-    pub passthrough_enabled: bool,
+    /// Per-window passthrough state: window_label -> is_penetrating
+    pub passthrough_windows: HashMap<String, bool>,
     pub is_dragging: bool,
     pub mouse_x: f64,
     pub mouse_y: f64,
@@ -36,7 +38,7 @@ impl InputState {
             ctrl_left: false,
             ctrl_right: false,
             ctrl_from_frontend: false,
-            passthrough_enabled: false,
+            passthrough_windows: HashMap::new(),
             is_dragging: false,
             mouse_x: 0.0,
             mouse_y: 0.0,
@@ -158,8 +160,8 @@ fn check_and_update_passthrough(
         let ctrl_pressed = state.is_ctrl_pressed();
         let should_penetrate = mouse_in_window && ctrl_pressed;
 
-        // Check current passthrough state for this window
-        let is_currently_penetrating = state.passthrough_enabled;
+        // Check current passthrough state for this specific window
+        let is_currently_penetrating = state.passthrough_windows.get(&window_label).copied().unwrap_or(false);
 
         if should_penetrate != is_currently_penetrating {
             // State changed for this window
@@ -176,7 +178,7 @@ fn check_and_update_passthrough(
                 )));
                 let _ = window.set_ignore_cursor_events(false);
             }
-            state.passthrough_enabled = should_penetrate;
+            state.passthrough_windows.insert(window_label.clone(), should_penetrate);
             state.mark_state_changed();
             let _ = app_handle.emit("penetration_mode_changed", should_penetrate);
         }
@@ -208,7 +210,8 @@ pub fn handle_ctrl_state_from_frontend(
 /// Handle drag start
 pub fn handle_drag_start(state: &mut InputState) {
     state.is_dragging = true;
-    state.passthrough_enabled = false;
+    // Clear passthrough state for all windows when dragging starts
+    state.passthrough_windows.clear();
 }
 
 /// Handle drag end
@@ -229,5 +232,7 @@ pub fn unregister_window(state: &mut InputState, window_label: &str) {
     if let Some(pos) = state.registered_windows.iter().position(|w| w == window_label) {
         log::info!("{}", format_log_arg1(LogCategory::Input, "Unregistered window from passthrough: ", window_label));
         state.registered_windows.remove(pos);
+        // Also remove the window's passthrough state
+        state.passthrough_windows.remove(window_label);
     }
 }

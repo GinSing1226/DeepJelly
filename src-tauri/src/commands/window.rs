@@ -2,7 +2,7 @@
 //!
 //! Provides commands to create and manage dialog window, settings window, and quit confirm window.
 
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use log::{info, error, debug};
 use crate::utils::logging::{LogCategory, format_log, format_log_arg1};
 use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
@@ -375,7 +375,7 @@ pub async fn show_main_window(app: AppHandle) -> Result<(), String> {
     if let Some(input_state) = app.try_state::<Arc<Mutex<crate::input_state::InputState>>>() {
         if let Ok(mut state) = input_state.lock() {
             debug!("{}", format_log(LogCategory::Window, "Resetting penetration mode state"));
-            state.passthrough_enabled = false;
+            state.passthrough_windows.clear();
             state.ctrl_from_frontend = false;
             state.ctrl_left = false;
             state.ctrl_right = false;
@@ -447,7 +447,7 @@ pub async fn toggle_hide_window(app: AppHandle) -> Result<(), String> {
             if let Some(input_state) = app.try_state::<Arc<Mutex<crate::input_state::InputState>>>() {
                 if let Ok(mut state) = input_state.lock() {
                     debug!("{}", format_log(LogCategory::Window, "Resetting penetration mode state"));
-                    state.passthrough_enabled = false;
+                    state.passthrough_windows.clear();
                     state.ctrl_from_frontend = false;
                     state.ctrl_left = false;
                     state.ctrl_right = false;
@@ -560,5 +560,12 @@ pub async fn close_onboarding_window(app: AppHandle) -> Result<(), String> {
                 format!("Failed to close onboarding window: {}", e)
             })?;
     }
+    Ok(())
+}
+
+/// Toggle DevTools for the current window
+#[tauri::command]
+pub async fn toggle_devtools(window: WebviewWindow) -> Result<(), String> {
+    window.open_devtools();
     Ok(())
 }
