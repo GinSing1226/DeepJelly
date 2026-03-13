@@ -2,6 +2,7 @@
 //!
 //! Accepts and manages WebSocket connections from AI applications.
 
+// Import stays the same - types is still a sibling module
 use super::types::{ConnectRequest, ConnectResponse, ConnectionInfo};
 use crate::logic::protocol::CapMessage;
 use futures_util::{SinkExt, StreamExt};
