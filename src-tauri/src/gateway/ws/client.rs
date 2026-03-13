@@ -2,6 +2,7 @@
 //!
 //! Manages individual WebSocket connections.
 
+// Import stays the same - types is still a sibling module
 use super::types::ConnectionInfo;
 use crate::logic::protocol::CapMessage;
 use futures_util::SinkExt;
