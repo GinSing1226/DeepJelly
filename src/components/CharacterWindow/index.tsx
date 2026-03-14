@@ -34,6 +34,7 @@ import { ContextMenu, ContextMenuItem } from '@/components/ContextMenu';
 import { StatusBubble, useStatusBubble } from '@/components/StatusBubble';
 import { ChatBubble } from '@/components/ChatBubble';
 import { SimpleInput } from './SimpleInput';
+import { useDevToolsShortcut } from '@/hooks/useDevToolsShortcut';
 
 import '@/styles/design-system.css';
 import './styles.css';
@@ -107,12 +108,17 @@ export function CharacterWindow({
   onOpenDialog,
 }: CharacterWindowProps) {
   const { t } = useTranslation(['tray', 'common']);
+
+  // Enable F12 shortcut for DevTools
+  useDevToolsShortcut();
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<PIXI.Application | null>(null);
   const spriteManagerRef = useRef<SpriteManager | null>(null);
   const touchDetectorRef = useRef<TouchDetector | null>(null);
   const hideGenerationRef = useRef(0);  // Version counter to prevent stale hide operations
   const removeSessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);  // Cleanup ref for session removal timer
+  const windowLabelRef = useRef<string | null>(null);  // Store window label for debugging
+  const waitingTimeoutRef = useRef<NodeJS.Timeout | null>(null);  // Auto-recover from waiting state after 3 minutes
   const [bubbleText, setBubbleText] = useState<string | null>(null);
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
@@ -180,14 +186,17 @@ export function CharacterWindow({
   } | null>(null);
 
   useEffect(() => {
-    const checkWindow = async () => {
+    const checkWindow = async (retryCount = 0) => {
       const windowLabel = getCurrentWindow().label;
+      windowLabelRef.current = windowLabel;  // Store for debugging
+      console.log(`[CharacterWindow ${windowLabel}] ========== WINDOW INITIALIZED ==========`);
       const isSlot = windowLabel.startsWith('char-window-');
       setIsDisplaySlotWindow(isSlot);
 
       // If this is a display slot window, fetch its configuration and load the character
       if (isSlot) {
         const slotId = windowLabel.replace('char-window-', '');
+        console.log(`[CharacterWindow ${windowLabel}] This is display slot window: ${slotId}`);
         try {
           const { invoke } = await import('@tauri-apps/api/core');
           const slots = await invoke<Array<{
@@ -195,20 +204,30 @@ export function CharacterWindow({
             assistantId: string;
             characterId: string;
             appearanceId: string;
+            windowId?: string;
           }>>('get_display_slots');
+
+          console.log(`[CharacterWindow ${windowLabel}] Got ${slots.length} slots from backend`);
 
           const slot = slots.find(s => s.id === slotId);
           if (slot) {
+            console.log(`[CharacterWindow ${windowLabel}] Found slot config:`, slot);
             setSlotConfig({
               assistantId: slot.assistantId,
               characterId: slot.characterId,
               appearanceId: slot.appearanceId,
             });
           } else {
-            console.warn('[CharacterWindow] Slot not found:', slotId);
+            console.warn(`[CharacterWindow ${windowLabel}] Slot ${slotId} not found in ${slots.length} slots. Will retry...`);
+            // Retry after 500ms if we haven't exceeded max retries
+            if (retryCount < 5) {
+              setTimeout(() => checkWindow(retryCount + 1), 500);
+            } else {
+              console.error(`[CharacterWindow ${windowLabel}] Max retries exceeded, slot ${slotId} not found`);
+            }
           }
         } catch (error) {
-          console.error('[CharacterWindow] Failed to fetch slot config:', error);
+          console.error(`[CharacterWindow ${windowLabel}] Failed to fetch slot config:`, error);
         }
       }
     };
@@ -240,7 +259,15 @@ export function CharacterWindow({
   // When slotConfig is fetched, load the character immediately
   // This replaces the unreliable Rust event-based loading
   useEffect(() => {
+    console.log(`[CharacterWindow ${windowLabelRef.current}] Proactive load check:`, {
+      hasSlotConfig: !!slotConfig,
+      isDisplaySlotWindow,
+      isLoaded: loadState.isLoaded,
+      isLoading: loadState.isLoading,
+      slotConfig,
+    });
     if (slotConfig && isDisplaySlotWindow === true && !loadState.isLoaded && !loadState.isLoading) {
+      console.log(`[CharacterWindow ${windowLabelRef.current}] Loading character proactively:`, slotConfig);
       loadCharacter(slotConfig.characterId, slotConfig.appearanceId, slotConfig.assistantId);
     }
   }, [slotConfig, isDisplaySlotWindow, loadState.isLoaded, loadState.isLoading, loadCharacter]);
@@ -294,6 +321,11 @@ export function CharacterWindow({
         clearTimeout(removeSessionTimeoutRef.current);
         removeSessionTimeoutRef.current = null;
       }
+      // 清除等待响应超时定时器，防止内存泄漏
+      if (waitingTimeoutRef.current) {
+        clearTimeout(waitingTimeoutRef.current);
+        waitingTimeoutRef.current = null;
+      }
       unlistenPromise.then(unlisten => unlisten()).catch(console.error);
     };
   }, []);
@@ -317,10 +349,16 @@ export function CharacterWindow({
           characterId?: string;
           appearanceId?: string;
           isRefresh?: boolean;
+          isNewWindow?: boolean;
         } | undefined;
-        // 参数匹配：只有当 payload 中的 assistantId 和 characterId 与当前窗口匹配时才处理
-        if (!payload?.assistantId || !payload?.characterId || !payload?.slotId) {
-          console.warn('[CharacterWindow] Ignoring event - missing required fields in payload');
+
+        console.log('[CharacterWindow] Received character:load event', event.payload);
+        console.log('[CharacterWindow] Parsed payload:', payload);
+        console.log('[CharacterWindow] My window label:', windowLabel);
+
+        // 参数匹配：只有当 payload 中的 slotId 与当前窗口匹配时才处理
+        if (!payload?.slotId) {
+          console.warn('[CharacterWindow] Ignoring event - missing slotId in payload');
           return;
         }
 
@@ -328,13 +366,20 @@ export function CharacterWindow({
         // window label 格式: char-window-{slotId}
         const mySlotId = windowLabel.replace('char-window-', '');
 
+        console.log('[CharacterWindow] My slot ID:', mySlotId, 'Event slot ID:', payload.slotId);
+
         // 只处理发给本窗口的事件
         if (payload.slotId !== mySlotId) {
+          console.log('[CharacterWindow] Ignoring event - slot ID mismatch');
           return;
         }
+
+        console.log('[CharacterWindow] Processing character:load event with payload:', payload);
+
         if (payload?.appearanceId) {
           // If this is a refresh operation, reload character config from file first
           if (payload.isRefresh === true) {
+            console.log('[CharacterWindow] This is a refresh operation, reloading config from file');
             try {
               const { invoke } = await import('@tauri-apps/api/core');
               await invoke('reload_character', { characterId: payload.characterId });
@@ -347,6 +392,12 @@ export function CharacterWindow({
           // Clear cached resources for this character to ensure fresh load
           const { globalCharacterLoader } = await import('./utils/characterLoader');
           globalCharacterLoader.clearCharacterCache(payload.characterId);
+
+          console.log('[CharacterWindow] Calling loadCharacter with:', {
+            characterId: payload.characterId,
+            appearanceId: payload.appearanceId,
+            assistantId: payload.assistantId,
+          });
 
           // Load the character
           loadCharacter(payload.characterId, payload.appearanceId, payload.assistantId);
@@ -435,6 +486,8 @@ export function CharacterWindow({
     spriteManager: spriteManagerReady ? spriteManagerRef.current : null,
     enabled: spriteManagerReady,
     onAnimationChange: (animationId) => {
+      const windowLabel = windowLabelRef.current || 'unknown';
+      console.log(`[CharacterWindow ${windowLabel}] Animation changed to: ${animationId}`);
       setAnimation(animationId);
 
       // Check if animation is GIF and update currentGifUrl
@@ -442,8 +495,10 @@ export function CharacterWindow({
         const isGif = spriteManagerRef.current.isGifAnimation(animationId);
         if (isGif) {
           const gifUrl = spriteManagerRef.current.getGifUrl(animationId);
+          console.log(`[CharacterWindow ${windowLabel}] onAnimationChange: GIF detected, URL: ${gifUrl ? gifUrl.substring(0, 50) + '...' : 'null'}`);
           setCurrentGifUrl(gifUrl);
         } else {
+          console.log(`[CharacterWindow ${windowLabel}] onAnimationChange: Not a GIF animation`);
           setCurrentGifUrl(null);
         }
       }
@@ -457,14 +512,11 @@ export function CharacterWindow({
   // Use polling instead of subscription to avoid re-entrancy issues
   useEffect(() => {
     if (!characterIdForRouting || !spriteManagerReady) return;
+
     // Poll the queue every 100ms
     const pollInterval = setInterval(() => {
       const queue = animationQueueStore.getState().getQueue(characterIdForRouting);
       const currentAnim = animationQueueStore.getState().getCurrent(characterIdForRouting);
-
-      // Debug: log polling state
-      if (queue.length > 0) {
-      }
 
       if (queue.length > 0 && !isQueuePaused()) {
         const nextAnim = animationQueueStore.getState().dequeue(characterIdForRouting);
@@ -518,23 +570,6 @@ export function CharacterWindow({
     });
 
     return unsubscribe;
-  }, [characterIdForRouting]);
-  // Debug: Log store states
-  useEffect(() => {
-    const logInterval = setInterval(() => {
-      const animState = animationQueueStore.getState();
-      const statusState = statusBubbleStore.getState();
-      const sessionState = sessionQueueStore.getState();
-
-      const _myQueue = animState.getQueue(characterIdForRouting);
-      const _myStatus = statusState.getStatus(characterIdForRouting);
-      const _mySessions = sessionState.getSessions(characterIdForRouting);
-
-      // Debug logging here if needed
-      console.log('[CharacterWindow] Debug state:', { _myQueue, _myStatus, _mySessions });
-    }, 5000); // Log every 5 seconds
-
-    return () => clearInterval(logInterval);
   }, [characterIdForRouting]);
 
   // 监听 assistants 变化，确保数据已加载
@@ -620,6 +655,11 @@ export function CharacterWindow({
       );
 
       if (hasAssistantResponse) {
+        // Clear the waiting timeout since we got a response
+        if (waitingTimeoutRef.current) {
+          clearTimeout(waitingTimeoutRef.current);
+          waitingTimeoutRef.current = null;
+        }
         setIsWaitingForResponse(false);
         setWaitingSessionKey(null);
       }
@@ -713,14 +753,18 @@ export function CharacterWindow({
         const assistantId = config.assistant_id || config.id;
         const characterId = config.id;
         const appearanceId = appearance.id;
+        const windowLabel = windowLabelRef.current || 'unknown';
+        console.log(`[CharacterWindow ${windowLabel}] Loading character: ${characterId}, appearance: ${appearanceId}`);
+        console.log(`[CharacterWindow ${windowLabel}] Available actions:`, Object.keys(appearance.actions));
         // Helper: Load resources based on action type
         const loadActionResources = async (actionKey: string, action: any): Promise<any | null> => {
           const actionType = action.type || 'frames'; // Default to frames for backward compatibility
+          console.log(`[CharacterWindow ${windowLabel}] Action ${actionKey}: type=${actionType}, resources=`, action.resources?.[0]);
 
           try {
             // For GIF type, load the GIF file directly
             if (actionType === 'gif') {
-              console.log(`[CharacterWindow] Loading GIF animation: ${actionKey}`);
+              console.log(`[CharacterWindow ${windowLabel}] Loading GIF animation: ${actionKey}`);
               const rawResources = action.resources;
               if (!rawResources || !Array.isArray(rawResources) || rawResources.length === 0) {
                 console.warn(`[CharacterWindow] GIF action ${actionKey} has no resources`);
@@ -735,7 +779,7 @@ export function CharacterWindow({
                 resourceName,
               });
 
-              console.log(`[CharacterWindow] Loaded GIF URL: ${gifUrl.substring(0, 50)}...`);
+              console.log(`[CharacterWindow ${windowLabel}] Loaded GIF URL: ${gifUrl.substring(0, 50)}...`);
 
               return {
                 type: 'gif',
@@ -752,20 +796,47 @@ export function CharacterWindow({
                 if (action.resources && Array.isArray(action.resources)) {
                   // Fall through to frames handling below
                 } else {
-                  console.warn(`[CharacterWindow] Spritesheet action ${actionKey} missing spritesheet config and no resources`);
+                  console.warn(`[CharacterWindow ${windowLabel}] Spritesheet action ${actionKey} missing spritesheet config and no resources`);
                   return null;
                 }
               } else {
                 const spritesheetConfig = action.spritesheet;
-                // 新的目录结构: {character_id}/{appearance_id}/{action_key}/{resource}
-                const resourceName = `${appearanceId}/${actionKey}/${spritesheetConfig.url}`;
+                let resourceUrl: string | null = null;
 
-                // Load spritesheet resource (JSON or PNG)
-                const resourceUrl = await invoke<string>('load_character_resource', {
-                  assistantId,
-                  characterId,
-                  resourceName,
-                });
+                // For custom-grid format, load image from resources[0]
+                // For other formats (pixi-json, aseprite, texture-packer), load from url
+                if (spritesheetConfig.format === 'custom-grid') {
+                  if (action.resources && action.resources.length > 0) {
+                    const resourceName = `${appearanceId}/${actionKey}/${action.resources[0]}`;
+                    console.log(`[CharacterWindow ${windowLabel}] Loading custom-grid spritesheet: ${actionKey}, resource: ${resourceName}`);
+
+                    resourceUrl = await invoke<string>('load_character_resource', {
+                      assistantId,
+                      characterId,
+                      resourceName,
+                    });
+
+                    console.log(`[CharacterWindow ${windowLabel}] Custom-grid spritesheet loaded: ${actionKey}, URL: ${resourceUrl.substring(0, 50)}...`);
+                  } else {
+                    console.warn(`[CharacterWindow ${windowLabel}] Custom-grid spritesheet ${actionKey} has no resources`);
+                    return null;
+                  }
+                } else if (spritesheetConfig.url) {
+                  // For pixi-json, aseprite, texture-packer formats
+                  const resourceName = `${appearanceId}/${actionKey}/${spritesheetConfig.url}`;
+                  console.log(`[CharacterWindow ${windowLabel}] Loading spritesheet: ${actionKey}, resource: ${resourceName}`);
+
+                  resourceUrl = await invoke<string>('load_character_resource', {
+                    assistantId,
+                    characterId,
+                    resourceName,
+                  });
+
+                  console.log(`[CharacterWindow ${windowLabel}] Spritesheet loaded: ${actionKey}, URL: ${resourceUrl.substring(0, 50)}...`);
+                } else {
+                  console.warn(`[CharacterWindow ${windowLabel}] Spritesheet ${actionKey} has format ${spritesheetConfig.format} but no url`);
+                  return null;
+                }
 
                 // Return action with resolved resource URL
                 return {
@@ -776,13 +847,17 @@ export function CharacterWindow({
                   },
                   fps: action.fps || 12,
                   loop: action.loop ?? true,
+                  resources: action.resources,  // Pass resources for custom-grid format
                 };
               }
             }
 
             // For frames type (default), load all frame images
             const rawFrames = action.resources || action.frames;
-            if (!rawFrames || !Array.isArray(rawFrames)) return null;
+            if (!rawFrames || !Array.isArray(rawFrames) || rawFrames.length === 0) {
+              // Empty action - skip silently (these are placeholder animations)
+              return null;
+            }
 
             // 新的目录结构: {character_id}/{appearance_id}/{action_key}/{frame}
             // 构建完整资源路径：appearanceId/actionKey/fileName
@@ -824,12 +899,20 @@ export function CharacterWindow({
 
         // Priority 1: Load idle animation first
         const idleAction = appearance.actions['internal-base-idle'];
+        console.log(`[CharacterWindow ${windowLabel}] Idle action:`, idleAction);
+        console.log(`[CharacterWindow ${windowLabel}] Idle action.type:`, idleAction?.type);
+        console.log(`[CharacterWindow ${windowLabel}] Idle action.spritesheet:`, idleAction?.spritesheet);
         if (idleAction) {
           const idleData = await loadActionResources('internal-base-idle', idleAction);
+          console.log(`[CharacterWindow ${windowLabel}] idleData returned:`, idleData);
           if (idleData && spriteManagerRef.current) {
+            console.log(`[CharacterWindow ${windowLabel}] About to loadFromAction...`);
             // Use unified loadFromAction interface
             await spriteManagerRef.current.loadFromAction('internal-base-idle', idleData);
+            console.log(`[CharacterWindow ${windowLabel}] loadFromAction completed, playing...`);
             spriteManagerRef.current.play('internal-base-idle');
+          } else {
+            console.log(`[CharacterWindow ${windowLabel}] Skipped - idleData: ${!!idleData}, spriteManager: ${!!spriteManagerRef.current}`);
           }
         }
 
@@ -837,17 +920,23 @@ export function CharacterWindow({
         const otherActions = Object.entries(appearance.actions)
           .filter(([key]) => key !== 'internal-base-idle');
 
+        console.log(`[CharacterWindow ${windowLabel}] Loading ${otherActions.length} other actions:`, otherActions.map(([k]) => k));
+
         // Load all in parallel, don't await
         otherActions.forEach(async ([actionKey, action]) => {
+          console.log(`[CharacterWindow ${windowLabel}] Processing action: ${actionKey}, type: ${action.type}`);
           const actionData = await loadActionResources(actionKey, action);
 
           if (actionData && spriteManagerRef.current) {
             try {
               // Use unified loadFromAction interface
               await spriteManagerRef.current.loadFromAction(actionKey, actionData);
+              console.log(`[CharacterWindow ${windowLabel}] Successfully loaded: ${actionKey}`);
             } catch (error) {
               console.error(`[CharacterWindow] Failed: ${actionKey}`, error);
             }
+          } else {
+            console.log(`[CharacterWindow ${windowLabel}] Skipped action ${actionKey} (no data or spriteManager)`);
           }
         });
       }
@@ -860,17 +949,27 @@ export function CharacterWindow({
   useEffect(() => {
     if (!spriteManagerRef.current) return;
 
+    const windowLabel = windowLabelRef.current || 'unknown';
+
     const checkAnimation = () => {
       const currentAnimation = spriteManagerRef.current?.getCurrentAnimation();
       if (currentAnimation) {
         const isGif = spriteManagerRef.current?.isGifAnimation(currentAnimation);
         if (isGif) {
           const gifUrl = spriteManagerRef.current?.getGifUrl(currentAnimation);
-          console.log('[CharacterWindow] Setting GIF URL for:', currentAnimation, gifUrl ? gifUrl.substring(0, 50) + '...' : 'null');
+          console.log(`[CharacterWindow ${windowLabel}] GIF animation detected: ${currentAnimation}, URL: ${gifUrl ? gifUrl.substring(0, 50) + '...' : 'null'}`);
           setCurrentGifUrl(gifUrl || null);
         } else {
+          // Only log when switching from GIF to non-GIF
+          const currentGif = spriteManagerRef.current?.isCurrentAnimationGif();
+          if (currentGif) {
+            console.log(`[CharacterWindow ${windowLabel}] Switching from GIF to non-GIF: ${currentAnimation}`);
+          }
           setCurrentGifUrl(null);
         }
+      } else {
+        // No animation set yet
+        setCurrentGifUrl(null);
       }
     };
 
@@ -880,7 +979,10 @@ export function CharacterWindow({
     // Poll for animation changes every 100ms
     const interval = setInterval(checkAnimation, 100);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      console.log(`[CharacterWindow ${windowLabel}] GIF check interval cleared`);
+    };
   }, [spriteManagerReady]);
 
   // Drag handling
@@ -1281,6 +1383,24 @@ export function CharacterWindow({
     // 设置等待状态和保存 sessionKey
     setIsWaitingForResponse(true);
     setWaitingSessionKey(sessionKeyToSend);
+
+    // 启动 3 分钟超时定时器，如果一直没收到响应则自动恢复
+    // Clear any existing timeout first
+    if (waitingTimeoutRef.current) {
+      clearTimeout(waitingTimeoutRef.current);
+    }
+    waitingTimeoutRef.current = setTimeout(() => {
+      console.log('[CharacterWindow] Waiting timeout (3 minutes), auto-recovering input state');
+      setIsWaitingForResponse(false);
+      setWaitingSessionKey(null);
+      addMessage({
+        content: '等待响应超时，输入已恢复',
+        type: 'status',
+        sender: 'system',
+        duration: 3000,
+      });
+    }, 3 * 60 * 1000); // 3 minutes
+
     try {
       const params = { sessionId: sessionKeyToSend, content: trimmed };
       await invoke('send_message', params);
@@ -1292,9 +1412,13 @@ export function CharacterWindow({
         sender: 'system',
         duration: 3000,
       });
-      // 发送失败时清除等待状态和 sessionKey
+      // 发送失败时清除等待状态、sessionKey 和超时定时器
       setIsWaitingForResponse(false);
       setWaitingSessionKey(null);
+      if (waitingTimeoutRef.current) {
+        clearTimeout(waitingTimeoutRef.current);
+        waitingTimeoutRef.current = null;
+      }
     }
   }, [config, assistants, selectedAssistant, isConnected, addMessage]);
 
