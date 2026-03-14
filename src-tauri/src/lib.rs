@@ -35,8 +35,6 @@ pub use commands::data::{AssistantManagerState, data_get_all_characters, data_ge
 pub use commands::assistant::{get_all_assistants, get_assistant, create_assistant, update_assistant, delete_assistant, get_characters_dir};
 pub use commands::character::{CharacterManagerState, get_all_characters, get_character, reload_character, set_current_appearance, get_current_appearance, get_available_animations,
     update_character, update_appearance, add_action, update_action, delete_action, update_action_resources, remove_action_resource, add_action_resources};
-pub use gateway::http::{HttpServer};
-pub use gateway::http::server::{HttpServerConfig, HttpServerState};
 pub use models::integration::{AppIntegration, CharacterIntegration, ProviderType};
 pub use logic::{
     AppConfig, BrainConfig, CharacterAppConfig, ConfigManager, GatewayConfig, ReactionConfig,
