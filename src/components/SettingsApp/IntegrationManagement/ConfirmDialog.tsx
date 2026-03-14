@@ -49,8 +49,8 @@ export function ConfirmDialog({
   };
 
   return (
-    <div className="confirm-dialog-overlay" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className="confirm-dialog-overlay">
+      <div className="confirm-dialog">
         {/* Header */}
         <div className="confirm-dialog-header">
           <h3>{title}</h3>

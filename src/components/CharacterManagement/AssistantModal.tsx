@@ -151,8 +151,8 @@ export default function AssistantModal({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleCancel}>
-      <div className="assistant-modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="assistant-modal-content">
         {/* Header - MAC风格简洁 */}
         <div className="modal-header-mac">
           <div className="modal-title">

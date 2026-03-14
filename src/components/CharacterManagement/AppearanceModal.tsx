@@ -184,8 +184,8 @@ export default function AppearanceModal({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleCancel}>
-      <div className="appearance-modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="appearance-modal-content">
         {/* Header - MAC风格简洁 */}
         <div className="modal-header-mac">
           <div className="modal-title">

@@ -212,8 +212,8 @@ export default function ActionEditModal({
   const requiresFps = resourceType === 'frames' || resourceType === 'spritesheet';
 
   return (
-    <div className="modal-overlay" onClick={handleCancel}>
-      <div className="assistant-modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="assistant-modal-content">
         {/* Header */}
         <div className="modal-header-mac">
           <div className="modal-title">编辑动作参数</div>

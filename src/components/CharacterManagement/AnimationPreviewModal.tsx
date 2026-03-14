@@ -592,8 +592,8 @@ export default function AnimationPreviewModal({
   }, [onClose]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="assistant-modal-content ap-modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="assistant-modal-content ap-modal-content">
         {/* Header - MAC风格 */}
         <div className="modal-header-mac">
           <div className="modal-title">动画预览 - {actionKey}</div>

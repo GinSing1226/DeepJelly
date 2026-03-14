@@ -1778,8 +1778,8 @@ DeepJellyのHTTP APIを呼び出す際にこの情報が必要です：
 
       {/* 成功弹窗 */}
       {showSuccessModal && (
-        <div className="modal-overlay" onClick={handleSuccessModalClose}>
-          <div className="assistant-modal-content" style={{ width: '380px' }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="assistant-modal-content" style={{ width: '380px' }}>
             {/* Header */}
             <div className="modal-header-mac">
               <div className="modal-title">集成成功</div>

@@ -816,8 +816,8 @@ export function CharacterIntegrationModal({
   const isAppOpenClaw = selectedAppIntegration?.provider === 'openclaw';
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="character-integration-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="character-integration-modal">
         {/* Header - MAC Style */}
         <div className="modal-header-mac">
           <div className="modal-title">

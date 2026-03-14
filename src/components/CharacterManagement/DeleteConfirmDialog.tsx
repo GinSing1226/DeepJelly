@@ -48,8 +48,8 @@ export default function DeleteConfirmDialog({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="delete-confirm-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="delete-confirm-dialog">
         {/* Header with warning icon */}
         <div className="delete-confirm-header">
           <div className="delete-confirm-icon">

@@ -9,7 +9,7 @@
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 
-English | [简体中文](README.md)
+English | [简体中文](README.md) | [AI Guide](README_AGENT.md)
 
 </div>
 
@@ -45,14 +45,30 @@ English | [简体中文](README.md)
 - **Status Feedback** - Emotional reactions like surprise, confusion, happiness when receiving messages
 - **Companionship** - Digital companion during long work hours, relieving loneliness
 
-#### 4. Deep OpenClaw Integration
+#### 4. Multi-Assistant, Multi-Character, Multi-Avatar
+- **Multi-Assistant Management** - Support managing multiple AI assistants
+- **Multi-Character Binding** - For OpenClaw, one Agent is one assistant, Agent's sessionKey is one character
+- **Multi-Avatar Switching** - Configure different virtual appearances for different characters
+- **Multi-Team Display** - Display OpenClaw multi-teams on desktop with real-time observation of changes and conversation content
+
+#### 5. Multi-Character Desktop Display
+- **Simultaneous Display** - Display multiple characters on one desktop
+- **Independent Response** - Each character responds to its bound Agent
+- **Position Management** - Support dragging to adjust character positions
+
+#### 6. AI Skill Automation
+- **Automated Integration** - AI can automate DeepJelly operations through Skills
+- **Integration Management** - Help you manage assistant, character, and avatar binding relationships
+- **Zero-Configuration Setup** - AI Agent can self-complete DeepJelly integration configuration
+
+#### 7. Deep OpenClaw Integration
 - **WebSocket Bidirectional Communication** - Low-latency real-time status synchronization
 - **Hook Mechanism** - Subscribe to OpenClaw lifecycle events
 - **Tool Call Visualization** - Visualize AI tool invocation process
 - **Multi-Channel Message Sync** - Messages you send via Feishu and other messaging channels will also receive OpenClaw replies displayed on the desktop pet
 - **Seamless Integration** - Plug and play, no need to modify OpenClaw core code
 
-#### 5. Security & Privacy
+#### 8. Security & Privacy
 - **No Cloud Services** - DeepJelly does not rely on any cloud services
 - **Local Data** - All data (character resources, configurations, etc.) are stored locally on your computer
 - **Privacy Protection** - Only communicates via local network with your own AI apps (like OpenClaw) and messaging channels (like Feishu)
@@ -105,45 +121,79 @@ npm run tauri:build
 
 ### 1. Launch DeepJelly
 
-First launch will enter the onboarding flow. Follow the prompts to complete OpenClaw integration configuration.
+First launch will enter the onboarding flow. Follow the prompts to complete integration configuration.
 
-### 2. Configure OpenClaw Connection
+### 2. Configure AI App Connection
 
-Enter OpenClaw's IP address and port (default 18790):
-- **Local Development**: Use `127.0.0.1:18790`
-- **LAN Deployment**: Use the LAN IP of the OpenClaw machine
+In the onboarding page, select the AI app to integrate (currently supports OpenClaw):
 
-### 3. Select AI Assistant
+- **IP Address**: Enter the AI app's IP address
+  - Use `127.0.0.1` for local development
+  - Use the AI app machine's LAN IP for LAN deployment
+- **Port**: Default `18790` (or custom port)
+- **Auth Token**: Optional, fill in if the AI app requires authentication
 
-Choose the AI assistant to bind from the list and complete binding.
+### 3. Configure Skills (Optional)
 
-### 4. Start Using
+If using OpenClaw, you can install DeepJelly Skills for AI-automated integration:
+
+1. Create a `skills` folder in the OpenClaw root directory
+2. Download `deepjelly-integrate` and `deepjelly-character` skills
+3. Modify `openclaw.json` to add skill loading path
+4. Get DeepJelly API info from onboarding page and configure to skill's `config.md`
+
+See [AI Installation Guide](README_AGENT.md)
+
+### 4. Bind Assistants and Characters
+
+1. **Select Assistant** - Choose the AI assistant to bind from the list (for OpenClaw, one Agent is one assistant)
+2. **Select Character** - Choose the assistant's session (sessionKey) as the character
+3. **Select Avatar** - Choose a virtual appearance for the character
+4. **Complete Binding** - After saving, the character will appear on the desktop
+
+### 5. Multi-Character Management
+
+- **Add More Characters** - Add new binding relationships in settings
+- **Adjust Positions** - Drag characters to any position on the desktop
+- **Switch Avatars** - Configure different appearances for different characters
+
+### 6. Start Using
 
 - When AI is thinking, the character displays thinking animation
 - When AI calls tools, the character displays working animation
 - When AI sends messages, chat bubble is displayed
 - Click the character to trigger quick actions
+- Multiple characters respond to their respective bound Agents simultaneously
 
 ---
 
 ## OpenClaw Integration
 
-DeepJelly includes an OpenClaw Channel plugin that enables bidirectional communication via WebSocket.
+DeepJelly provides OpenClaw Channel plugin and AI Skills for deep bidirectional integration.
 
-### Install Plugin
+### Method 1: Manual Configuration
+
+#### 1. Install Plugin
 
 ```bash
-# 1. Copy plugin to OpenClaw extensions directory
-cp -r adapters/openclaw ~/.openclaw/extensions/deepjelly
+# Download plugin
+wget https://github.com/GinSing1226/DeepJelly/releases/download/deepjelly-V0.1.0/deepjelly-openclaw-plugin.zip
 
-# 2. Install dependencies (only needs ws)
-cd ~/.openclaw/extensions/deepjelly
-npm install
+# Extract to OpenClaw extensions directory
+unzip deepjelly-openclaw-plugin.zip -d ~/.openclaw/extensions/
+mv ~/.openclaw/extensions/deepjelly-openclaw-plugin ~/.openclaw/extensions/deepjelly
 ```
 
-### Configure OpenClaw
+**Windows (PowerShell)**:
+```powershell
+Invoke-WebRequest -Uri "https://github.com/GinSing1226/DeepJelly/releases/download/deepjelly-V0.1.0/deepjelly-openclaw-plugin.zip" -OutFile "deepjelly-openclaw-plugin.zip"
+Expand-Archive -Path "deepjelly-openclaw-plugin.zip" -DestinationPath "$env:USERPROFILE\.openclaw\extensions\"
+Rename-Item "$env:USERPROFILE\.openclaw\extensions\deepjelly-openclaw-plugin" "$env:USERPROFILE\.openclaw\extensions\deepjelly"
+```
 
-Add deepjelly channel configuration in `openclaw.json`:
+#### 2. Configure OpenClaw
+
+Add deepjelly channel in `openclaw.json`:
 
 **Local Development**:
 ```json
@@ -165,7 +215,7 @@ Add deepjelly channel configuration in `openclaw.json`:
   "channels": {
     "deepjelly": {
       "enabled": true,
-      "serverHost": "0.0.0.0",
+      "serverHost": "192.168.10.128",
       "serverPort": 18790,
       "autoStart": true
     }
@@ -173,9 +223,65 @@ Add deepjelly channel configuration in `openclaw.json`:
 }
 ```
 
-> **Note**: LAN deployment requires allowing port 18790 inbound connections in firewall.
+> **Note**: For LAN deployment, use the OpenClaw machine's LAN IP for `serverHost`, **NOT** `0.0.0.0`.
 
-See [OpenClaw Plugin Documentation](adapters/openclaw/README.md) for details
+### Method 2: AI Auto-Configuration (Recommended)
+
+Send the following prompt to OpenClaw AI, and it will automatically complete plugin installation and configuration:
+
+```
+Please help me integrate with DeepJelly:
+
+## Step 1: Install deepjelly plugin
+
+Read the following documentation to install the deepjelly plugin for OpenClaw
+https://github.com/GinSing1226/DeepJelly/blob/main/adapters/openclaw/README.md
+
+## Step 2: Install deepjelly skills
+
+Create a skills folder in the OpenClaw root directory. Then put the deepjelly-integrate and deepjelly-character skill folders into this folder
+
+Then, modify openclaw.json to add skills.load.extraDirs
+Example structure:
+{
+  "skills": {
+    "load": {
+      "extraDirs": [
+        "./skills"
+      ],
+      "watch": true
+    }
+  }
+}
+
+## Step 3: Save endpoint data
+
+Save the endpoint data I send you to the config.md files of both skills. Both skills need this data.
+
+## Step 4: Reply to user
+
+Finally, tell me your IP address (LAN IP) and port (the port you're listening on, e.g., 18790).
+Reply to me first, then execute a command: automatically restart gateway in 20s.
+```
+
+### Configure Firewall
+
+LAN deployment requires opening the port:
+
+**Windows (PowerShell - Administrator)**:
+```powershell
+New-NetFirewallRule -DisplayName "DeepJelly OpenClaw" -Direction Inbound -LocalPort 18790 -Protocol TCP -Action Allow
+```
+
+**Linux (ufw)**:
+```bash
+sudo ufw allow 18790/tcp
+```
+
+### Detailed Documentation
+
+- [Plugin Installation Guide](adapters/openclaw/README.md)
+- [AI Installation Guide](README_AGENT.md)
 
 ---
 
@@ -248,11 +354,14 @@ DeepJelly/
 ├── adapters/                 # AI app adapters
 │   └── openclaw/             # OpenClaw plugin
 │       ├── src/              # Plugin source
-│       │   ├── server.ts     # WebSocket server
-│       │   ├── converter.ts  # CAP message conversion
-│       │   └── tools.ts      # Agent tools
 │       └── README.md         # Plugin documentation
-└── test/                     # Test files
+├── skills/                   # AI skills (for OpenClaw and other AI apps)
+│   ├── deepjelly-integrate/  # Integration management skill
+│   └── deepjelly-character/  # Character control skill
+├── test/                     # Test files
+├── README.md                 # Chinese documentation
+├── README_EN.md              # English documentation
+└── README_AGENT.md           # AI Agent installation guide
 ```
 
 ---
@@ -287,9 +396,7 @@ npm run lint
 ### 1. Rich Integration
 
 - **More AI Apps** - Support Claude Code, ChatGPT, Cursor and other AI development tools
-- **Multi-Character & Multi-Avatar** - Support multiple assistants, multiple characters, multiple avatars simultaneously
-- **Session Binding** - Different avatars bind to different sessions of the same AI for multi-task parallelism
-- **Custom Appearance** - Users can import custom character resources (Live2D, VRM, etc.)
+- **More Appearance Types** - Support rendering Live2D
 
 ### 2. Mobile
 

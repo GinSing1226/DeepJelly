@@ -291,8 +291,8 @@ function AddActionModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal-content">
         <div className="modal-header">
           <h3>{t('character.addAction')}</h3>
           <button className="modal-close" onClick={onClose}>×</button>
@@ -418,8 +418,8 @@ function EditActionModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal-content">
         <div className="modal-header">
           <h3>{t('character.editAction')}</h3>
           <button className="modal-close" onClick={onClose}>×</button>

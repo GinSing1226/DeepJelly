@@ -226,8 +226,8 @@ export function DisplaySettings() {
 
       {/* 添加槽位弹窗 */}
       {showAddModal && (
-        <div className="modal-overlay" onClick={closeModals}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div className="modal-header">
               <h3>{t('display.addSlot')}</h3>
               <button className="btn-close" onClick={closeModals}>×</button>
@@ -245,8 +245,8 @@ export function DisplaySettings() {
 
       {/* 编辑槽位弹窗 */}
       {showEditModal && editingSlot && (
-        <div className="modal-overlay" onClick={closeModals}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div className="modal-header">
               <h3>{t('display.editSlot')}</h3>
               <button className="btn-close" onClick={closeModals}>×</button>

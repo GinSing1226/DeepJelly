@@ -111,8 +111,8 @@ export default function AlertDialog({
   const styleClass = getStyleClassForType(type);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className={`alert-dialog ${styleClass}`} onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className={`alert-dialog ${styleClass}`}>
         {/* Header - MAC风格简洁 */}
         <div className="alert-dialog-header">
           <div className={`alert-dialog-icon ${styleClass}`}>

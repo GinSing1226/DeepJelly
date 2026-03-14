@@ -192,8 +192,8 @@ export function AppIntegrationModal({
   const hasPrompt = integrationPrompt.length > 0;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="app-integration-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="app-integration-modal">
         {/* Header - MAC Style */}
         <div className="modal-header-mac">
           <div className="modal-title">
