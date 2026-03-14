@@ -37,6 +37,10 @@ export function DisplaySettings() {
       const result = await invoke<DisplaySlot[]>('get_display_slots', {
         includePrimary: false,
       });
+      console.log('[DisplaySettings] loadSlots: Loaded', result.length, 'slots');
+      result.forEach(slot => {
+        console.log('[DisplaySettings] Slot:', slot.id, slot.assistantName, slot.characterName, 'window_id:', slot.windowId);
+      });
       setSlots(result);
     } catch (error) {
       console.error('[DisplaySettings] Failed to load slots:', error);
@@ -134,9 +138,14 @@ export function DisplaySettings() {
 
   // 刷新槽位资源
   const handleRefreshSlot = async (slotId: string) => {
+    console.log('[DisplaySettings] handleRefreshSlot CALLED with slotId:', slotId);
     try {
       const slot = slots.find(s => s.id === slotId);
-      if (!slot) return;
+      if (!slot) {
+        console.error('[DisplaySettings] Slot not found:', slotId);
+        return;
+      }
+      console.log('[DisplaySettings] Found slot:', slot);
       // 全局广播 character:load 事件，所有窗口都会收到
       const { emit } = await import('@tauri-apps/api/event');
       // 全局广播事件，包含完整的路由信息
@@ -147,7 +156,9 @@ export function DisplaySettings() {
         appearanceId: slot.appearanceId,
         isRefresh: true,  // 标记这是刷新操作，需要重新加载配置
       };
+      console.log('[DisplaySettings] Emitting character:load event with payload:', payload);
       await emit('character:load', payload);
+      console.log('[DisplaySettings] Event emitted successfully');
     } catch (error) {
       console.error('[DisplaySettings] Failed to refresh slot:', error);
       alert(String(error));
@@ -307,8 +318,11 @@ function SlotCard({ slot, onEdit, onDelete, onToggleVisibility, onRefresh }: Slo
             id: string;
             name: string;
             actions: Record<string, {
+              type?: string;
               resources?: string[];
               frames?: string[];
+              fps?: number;
+              loop?: boolean;
             }>;
           }>;
         }>('get_character', { characterId: slot.characterId });
@@ -331,17 +345,19 @@ function SlotCard({ slot, onEdit, onDelete, onToggleVisibility, onRefresh }: Slo
         }
 
         const action = appearance.actions[firstActionKey];
-        // 处理两种格式：resources（新格式）或 frames（旧格式）
-        const frameList = action.resources || action.frames;
-        if (!frameList || frameList.length === 0) {
+
+        // 检查动作类型
+        const actionType = action.type || 'frames';
+
+        // 获取资源列表（GIF、spritesheet、frames 都用 resources）
+        const resourceList = action.resources || action.frames;
+        if (!resourceList || resourceList.length === 0) {
           return;
         }
 
-        // 第一帧作为封面图
-        // 新的目录结构: {character_id}/{appearance_id}/{action_key}/{resource}
-        const firstFrame = frameList[0];
-        const resourceName = `${slot.appearanceId}/${firstActionKey}/${firstFrame}`;
-        // 加载图片资源
+        // 第一个资源作为封面图
+        const resourceName = `${slot.appearanceId}/${firstActionKey}/${resourceList[0]}`;
+
         const resourceMap = await invoke<Record<string, string>>('load_character_resources', {
           assistantId: slot.assistantId,
           characterId: slot.characterId,
@@ -350,7 +366,6 @@ function SlotCard({ slot, onEdit, onDelete, onToggleVisibility, onRefresh }: Slo
         const dataUrl = resourceMap[resourceName];
         if (dataUrl) {
           setCoverImage(dataUrl);
-        } else {
         }
       } catch (error) {
         console.error('[SlotCard] Failed to load cover image:', error);
@@ -364,6 +379,7 @@ function SlotCard({ slot, onEdit, onDelete, onToggleVisibility, onRefresh }: Slo
 
   // 处理刷新按钮点击
   const handleRefresh = async () => {
+    console.log('[SlotCard] handleRefresh CALLED for slot:', slot.id, slot.assistantName, slot.characterName);
     setRefreshing(true);
     try {
       // 调用父组件的刷新逻辑（发送事件给窗口）

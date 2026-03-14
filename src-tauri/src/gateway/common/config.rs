@@ -1,4 +1,5 @@
 //! Common server configuration
+#![allow(dead_code)]
 
 /// Generic server configuration
 #[derive(Debug, Clone)]

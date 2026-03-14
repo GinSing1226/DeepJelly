@@ -1,4 +1,5 @@
 //! Common gateway error types
+#![allow(dead_code)]
 
 /// Gateway error types
 #[derive(Debug, Clone)]

@@ -9,37 +9,162 @@
 ### Option 1: Automatic Installation (Recommended)
 
 ```bash
-# Download plugin from GitHub to the specified folder, then rename
-# 1. Download plugin archive
-wget https://github.com/GinSing1226/DeepJelly/releases/latest/download/deepjelly-openclaw-plugin.zip
+# Download plugin from GitHub Release
+wget https://github.com/GinSing1226/DeepJelly/releases/download/deepjelly-V0.1.0/deepjelly-openclaw-plugin.zip
 
-# 2. Extract to OpenClaw extensions directory
+# Extract to OpenClaw extensions directory
 unzip deepjelly-openclaw-plugin.zip -d ~/.openclaw/extensions/
 
-# 3. Rename folder (if needed)
+# Rename folder (if needed)
 mv ~/.openclaw/extensions/deepjelly-openclaw-plugin ~/.openclaw/extensions/deepjelly
+```
+
+**Windows (PowerShell)**:
+```powershell
+# Download plugin
+Invoke-WebRequest -Uri "https://github.com/GinSing1226/DeepJelly/releases/download/deepjelly-V0.1.0/deepjelly-openclaw-plugin.zip" -OutFile "deepjelly-openclaw-plugin.zip"
+
+# Extract
+Expand-Archive -Path "deepjelly-openclaw-plugin.zip" -DestinationPath "$env:USERPROFILE\.openclaw\extensions\"
+
+# Rename folder (if needed)
+Rename-Item "$env:USERPROFILE\.openclaw\extensions\deepjelly-openclaw-plugin" "$env:USERPROFILE\.openclaw\extensions\deepjelly"
 ```
 
 ### Option 2: Manual Installation
 
 ```bash
+# Clone DeepJelly repository (if not already cloned)
+git clone https://github.com/GinSing1226/DeepJelly.git
+cd DeepJelly
+
 # Copy plugin files to OpenClaw extensions directory
 cd adapters/openclaw
 mkdir -p ~/.openclaw/extensions/deepjelly
 cp -r src dist openclaw.plugin.json README.md ~/.openclaw/extensions/deepjelly/
+```
 
-# Restart OpenClaw Gateway (plugin uses ws from OpenClaw's main dependencies, no separate installation needed)
-openclaw gateway restart
+**Windows (PowerShell)**:
+```powershell
+# Clone DeepJelly repository
+git clone https://github.com/GinSing1226/DeepJelly.git
+cd DeepJelly
+
+# Copy plugin files
+cd adapters\openclaw
+mkdir ~/.openclaw/extensions/deepjelly -Force
+copy src ~/.openclaw/extensions/deepjelly/src -Recurse
+copy dist ~/.openclaw/extensions/deepjelly/dist -Recurse
+copy openclaw.plugin.json ~/.openclaw/extensions/deepjelly/
+copy README.md ~/.openclaw/extensions/deepjelly/
 ```
 
 **Important Notes**:
-- **Plugin includes required dependencies** - This plugin only uses the `ws` dependency; other dependencies use OpenClaw's main dependencies, no `npm install` needed
+- **No npm install needed** - This plugin only uses the `ws` dependency from OpenClaw's main dependencies
+- **Restart OpenClaw Gateway** after installation
 
-### Verify Installation
+---
 
+## Install DeepJelly Skills
+
+### Step 1: Create Skills Directory
+
+Create a `skills` folder in your OpenClaw root directory:
+
+**Linux/macOS**:
 ```bash
-# Check connection status
-openclaw deepjelly status
+mkdir -p /opt/openclaw/skills
+```
+
+**Windows**:
+```powershell
+mkdir C:\OpenClaw\skills
+```
+
+### Step 2: Download Skills
+
+Download the following skill folders from [DeepJelly/skills](https://github.com/GinSing1226/DeepJelly/tree/main/skills):
+- `deepjelly-integrate`
+- `deepjelly-character`
+
+Copy both folders to the `skills` directory created in Step 1.
+
+### Step 3: Configure OpenClaw
+
+Edit `openclaw.json` to add the skills loading path:
+
+```json
+{
+  "skills": {
+    "load": {
+      "extraDirs": [
+        "./skills"
+      ],
+      "watch": true
+    }
+  }
+}
+```
+
+**Note**: Both relative and absolute paths are supported. Relative paths are recommended.
+
+---
+
+## Port Selection and Firewall Setup
+
+### Step 1: Check Port Availability
+
+Verify that the default port (18790) is available:
+
+**Windows (PowerShell)**:
+```powershell
+netstat -ano | findstr :18790
+```
+
+**Linux/macOS**:
+```bash
+lsof -i :18790
+# OR
+netstat -tuln | grep 18790
+```
+
+If port 18790 is occupied, choose an alternative port (e.g., 18791, 18792).
+
+### Step 2: Get Local LAN IP
+
+For LAN deployment, get your machine's LAN IP address:
+
+**Windows**:
+```powershell
+ipconfig
+# Look for "IPv4 Address", e.g., 192.168.10.128
+```
+
+**Linux/macOS**:
+```bash
+ip addr show
+# OR
+hostname -I
+```
+
+### Step 3: Configure Firewall Rules
+
+**Important**: Configure firewall rules to allow inbound connections.
+
+**Windows (PowerShell - Run as Administrator)**:
+```powershell
+New-NetFirewallRule -DisplayName "DeepJelly OpenClaw" -Direction Inbound -LocalPort 18790 -Protocol TCP -Action Allow
+```
+
+**Linux (ufw)**:
+```bash
+sudo ufw allow 18790/tcp
+```
+
+**Linux (firewalld)**:
+```bash
+sudo firewall-cmd --permanent --add-port=18790/tcp
+sudo firewall-cmd --reload
 ```
 
 ---
@@ -76,7 +201,7 @@ openclaw deepjelly status
   "channels": {
     "deepjelly": {
       "enabled": true,
-      "serverHost": "0.0.0.0",
+      "serverHost": "192.168.10.128",
       "serverPort": 18790,
       "autoStart": true
     }
@@ -84,75 +209,81 @@ openclaw deepjelly status
 }
 ```
 
-**DeepJelly Connection**: `ws://192.168.10.128:18790` (OpenClaw machine's LAN IP)
+**DeepJelly Connection**: `ws://192.168.10.128:18790`
+
+**Important**: For LAN deployment, use the **OpenClaw machine's LAN IP** (e.g., `192.168.10.128`), **NOT** `0.0.0.0` or `127.0.0.1`.
 
 ---
 
 ## Integration Guide
 
-After installing the plugin, follow these steps in DeepJelly's onboarding flow:
+After installing the plugin and skills, follow these steps in DeepJelly:
 
-1. **Start DeepJelly** - First launch automatically enters onboarding
-2. **Select Language** - Supports ???/English/????
-3. **Select Application Type** - Currently supports OpenClaw
-4. **Copy Prompt** - Click "Copy Prompt" button and send to OpenClaw
-5. **Fill Connection Information**:
-   - **IP Address**: OpenClaw's IP (use `127.0.0.1` for local, actual IP for LAN)
+### Step 1: Start DeepJelly
+
+**Option A - Installed Application**:
+```
+Open the DeepJelly desktop application
+```
+
+**Option B - Development Environment**:
+```bash
+cd /path/to/DeepJelly
+npm run tauri:dev
+```
+
+### Step 2: Enter Onboarding
+
+1. First launch automatically shows onboarding
+2. If skipped, go to **Settings → Integration Management → Add Integration**
+
+### Step 3: Configure Connection
+
+1. **Select Application Type**: Choose "OpenClaw"
+2. **Fill Connection Information**:
+   - **IP Address**: OpenClaw's LAN IP (e.g., `192.168.10.128`) or `127.0.0.1` for local
    - **Port**: Default `18790`
-   - **Auth Token**: Get from OpenClaw settings page (optional)
-   - **Application Name**: Custom name, e.g., "My OpenClaw"
-   - **Application Description**: Optional
-6. **Click Connect** - Wait for successful connection
-7. **Select Bindings** (Cascade order): ① Agent ??? ② Session Key ??? ③ Assistant ??? ④ Character
-8. **Select Integration Method**:
-   - **Auto Integration**: System automatically generates configuration prompt for OpenClaw
+   - **Auth Token**: Optional, if OpenClaw requires authentication
+3. **Click Connect** and wait for success
+
+### Step 4: Configure Skills
+
+After connection, DeepJelly will display configuration information:
+
+1. **DeepJelly API Address**: e.g., `127.0.0.1`
+2. **DeepJelly API Port**: e.g., `12261`
+3. **DeepJelly API Token**: 32-character random string
+
+Update these values in both skill config files:
+- `skills/deepjelly-integrate/config.md`
+- `skills/deepjelly-character/config.md`
+
+### Step 5: Complete Integration
+
+1. **Select Bindings** (in order): Agent ID → Session Key → Assistant ID → Character ID
+2. **Choose Integration Method**:
+   - **Auto Integration**: DeepJelly generates a prompt for OpenClaw AI
    - **Manual Integration**: Edit `openclaw.json` following the configuration below
-9. **Complete Integration**
+
+---
 
 ## Auto Integration
 
-When you select **Auto Integration**, DeepJelly generates a prompt that you send to OpenClaw. OpenClaw will automatically:
+When you select **Auto Integration**, DeepJelly generates a prompt. Send it to OpenClaw AI, which will automatically:
 
-1. **Configure channels module** - Add `applicationId` and `accounts` mapping
-2. **Configure bindings module** - Add agent binding
-3. **Restart gateway** - Apply changes automatically
+1. Configure channels module
+2. Configure bindings module
+3. Restart gateway after 20 seconds
 
-**Example prompt structure (English)**:
-```
-# Task
-Help me modify openclaw.json configuration for deepjelly integration.
+**For AI Agents**: Refer to [README_AGENT.md](../../README_AGENT.md) for detailed installation instructions.
 
-## Step 1: Configure the following structure to the channels module.
-"deepjelly": {
-  "enabled": true,
-  "serverHost": "ENTER_YOUR_LAN_IP_HERE",
-  "serverPort": 18790,
-  "autoStart": true,
-  "applicationId": "your_application_id",
-  "accounts": {
-    "agent:christina:main": {
-      "assistantId": "work_assistant",
-      "characterId": "char_feishu_private"
-    }
-  }
-}
-
-## Step 2: Update the following structure to the bindings module
-{
-  "agentId": "christina",
-  "match": {
-    "channel": "deepjelly"
-  }
-}
-
-## Step 3: Reply "Configuration successful" and restart gateway in 20s
-```
+---
 
 ## Manual Configuration
 
 If you selected manual integration, add the following to `openclaw.json`:
 
-**OpenClaw Configuration** (`openclaw.json`):
+**Channels Configuration**:
 ```json
 {
   "channels": {
@@ -166,10 +297,6 @@ If you selected manual integration, add the following to `openclaw.json`:
         "agent:christina:main": {
           "assistantId": "work_assistant",
           "characterId": "char_feishu_private"
-        },
-        "agent:christina:group": {
-          "assistantId": "work_assistant",
-          "characterId": "char_feishu_group"
         }
       }
     }
@@ -178,9 +305,9 @@ If you selected manual integration, add the following to `openclaw.json`:
 ```
 
 **Configuration Details**:
-- **applicationId**: Application instance ID generated by DeepJelly (get from onboarding page)
+- **applicationId**: Get from DeepJelly onboarding page
 - **accounts**: Mapping of sessions to assistants/characters
-  - **Key**: sessionKey (OpenClaw session identifier, e.g., `agent:christina:main`)
+  - **Key**: sessionKey (e.g., `agent:christina:main`)
   - **assistantId**: DeepJelly assistant ID
   - **characterId**: DeepJelly character ID
 
@@ -194,41 +321,50 @@ If you selected manual integration, add the following to `openclaw.json`:
 }
 ```
 
-> **Configuration Flow**:
-> 1. Complete connection following onboarding steps
-> 2. Select assistants and characters to bind
-> 3. For **Auto Integration**: Send the generated prompt to OpenClaw
-> 4. For **Manual Integration**: Copy configuration from onboarding page to `openclaw.json`
+---
 
 ## Verify Integration
 
-After completing integration, send a message in Feishu, Telegram, or other channels integrated with OpenClaw. The character in DeepJelly will automatically respond.
+After completing integration:
+
+1. Restart OpenClaw Gateway
+2. Send a message in Feishu, Telegram, or other integrated channels
+3. The DeepJelly character should automatically respond
 
 ---
 
-## Usage
+## Troubleshooting
 
-After installing the plugin, follow the DeepJelly onboarding steps:
+### Port Already in Use
+```bash
+# Check port usage
+lsof -i :18790  # Linux/macOS
+netstat -ano | findstr :18790  # Windows
 
-1. Launch DeepJelly application
-2. Enter onboarding and input OpenClaw's IP address and port (default 18790)
-3. Select assistants to bind
-4. Complete integration
+# Choose an alternative port (18791, 18792, etc.)
+```
 
-**Onboarding Code Reference**: [src/components/Onboarding/steps/InputEndpointStep.tsx](../../src/components/Onboarding/steps/InputEndpointStep.tsx)
+### Skills Not Loading
+- Verify `skills.load.extraDirs` path is correct (relative or absolute)
+- Check that skill folders contain `SKILL.md` and `config.md`
+- Ensure paths use forward slashes `/` or double backslashes `\\`
+
+### Connection Failed
+- Confirm DeepJelly application is running
+- Check firewall rules allow port 18790 inbound
+- Verify IP address and port are correct
+- Ensure OpenClaw Gateway is running
 
 ---
 
 ## Links
 
 - **DeepJelly Project**: [https://github.com/GinSing1226/DeepJelly](https://github.com/GinSing1226/DeepJelly)
+- **AI Installation Guide**: [README_AGENT.md](../../README_AGENT.md)
+- **Issue Tracker**: [https://github.com/GinSing1226/DeepJelly/issues](https://github.com/GinSing1226/DeepJelly/issues)
 
 ---
 
 ## License
 
 MIT
-
----
-
-> **Note**: This plugin is part of the DeepJelly project (located in `adapters/openclaw` directory), no separate repository needed.

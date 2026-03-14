@@ -54,6 +54,7 @@ export default function CharacterModal({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [idError, setIdError] = useState('');
+  const [nameError, setNameError] = useState('');
 
   // 初始化表单数据
   useEffect(() => {
@@ -90,14 +91,15 @@ export default function CharacterModal({
   };
 
   const handleConfirm = () => {
+    // 验证名称
     if (!name.trim()) {
-      alert(t('character.characterNameRequired'));
+      setNameError(t('character.characterNameRequired'));
       return;
     }
+    setNameError('');
 
     // 新增模式下验证ID
     if (!isEdit && idError) {
-      alert(idError);
       return;
     }
 
@@ -113,6 +115,7 @@ export default function CharacterModal({
       setName('');
       setDescription('');
       setIdError('');
+      setNameError('');
     }
   };
 
@@ -220,11 +223,15 @@ export default function CharacterModal({
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameError('');
+              }}
               placeholder={t('character.characterNamePlaceholder')}
               className="form-input-mac"
               autoFocus={isEdit}
             />
+            {nameError && <div className="form-error-mac">{nameError}</div>}
           </div>
 
           <div className="form-group-mac">

@@ -234,8 +234,10 @@ export interface AppIntegration {
   description?: string;
   /** WebSocket 地址 */
   endpoint: string;
-  /** 认证令牌 (最多500字符) */
+  /** 认证令牌 (最多500字符) - 这是AI应用的token，DeepJelly用它来调用AI应用 */
   authToken?: string;
+  /** DeepJelly API令牌 (最多500字符) - DeepJelly生成的token，AI应用用它来调用DeepJelly的HTTP API */
+  deepjellyToken?: string;
   /** 是否启用 */
   enabled?: boolean;
   /** 创建时间戳 (毫秒) */
@@ -317,6 +319,8 @@ export interface CreateActionDTO {
   type: ActionType;
   /** 资源文件路径列表 */
   resources: string[];
+  /** 精灵图配置 (仅当 type='spritesheet' 时需要) */
+  spritesheet?: SpriteSheetConfig;
   /** 帧率 (1-60，可选) */
   fps?: number;
   /** 是否循环播放 */

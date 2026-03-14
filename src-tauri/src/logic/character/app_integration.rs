@@ -27,10 +27,14 @@ pub struct AppIntegration {
     pub description: Option<String>,
     /// WebSocket 地址
     pub endpoint: String,
-    /// 认证令牌（如需要）
+    /// 认证令牌（如需要）- AI 应用的 token，DeepJelly 用它调用 AI
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "authToken")]
     pub auth_token: Option<String>,
+    /// DeepJelly API token - DeepJelly 生成的 token，AI 用它调用 DeepJelly
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "deepjellyToken")]
+    pub deepjelly_token: Option<String>,
     /// 绑定的助手ID列表
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[serde(rename = "assistant")]

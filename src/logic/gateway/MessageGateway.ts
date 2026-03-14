@@ -138,6 +138,7 @@ export class MessageGateway {
       // Cast to AnyTypedCAPMessage since we've validated the message type
       this.dispatchToCharacter(message as AnyTypedCAPMessage, decision.target);
     } else if (decision.action === 'drop') {
+      console.log('[MessageGateway] Message dropped:', decision.reason);
     }
 
     // 6. 更新统计

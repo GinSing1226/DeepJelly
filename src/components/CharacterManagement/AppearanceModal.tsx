@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { usePenetrationMode } from '@/hooks/usePenetrationMode';
 
 interface AppearanceModalProps {
   /** 是否显示弹窗 */
@@ -64,16 +65,21 @@ export default function AppearanceModal({
   isFirst = false,
 }: AppearanceModalProps) {
   const { t } = useTranslation('settings');
+  const { restoreSolidMode } = usePenetrationMode();
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isDefault, setIsDefault] = useState(false);
   const [idError, setIdError] = useState('');
+  const [nameError, setNameError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 初始化表单数据
   useEffect(() => {
     if (isOpen) {
+      // 弹窗打开时，禁用穿透模式以确保输入框可以正常工作
+      restoreSolidMode();
+
       if (isEdit && appearance) {
         setId(appearance.id);
         setName(appearance.name);
@@ -90,7 +96,7 @@ export default function AppearanceModal({
         setIdError('');
       }
     }
-  }, [isOpen, isEdit, appearance, isFirst]);
+  }, [isOpen, isEdit, appearance, isFirst, restoreSolidMode]);
 
   // 验证ID
   useEffect(() => {
@@ -111,14 +117,15 @@ export default function AppearanceModal({
   const handleConfirm = () => {
     if (isSubmitting) return;
 
+    // 验证名称
     if (!name.trim()) {
-      alert(t('character.appearanceNameRequired') || '形象名称不能为空');
+      setNameError(t('character.appearanceNameRequired') || '形象名称不能为空');
       return;
     }
+    setNameError('');
 
     // 新增模式下验证ID
     if (!isEdit && idError) {
-      alert(idError);
       return;
     }
 
@@ -140,6 +147,7 @@ export default function AppearanceModal({
         setDescription('');
         setIsDefault(false);
         setIdError('');
+        setNameError('');
       }
     }, 100);
   };
@@ -251,11 +259,15 @@ export default function AppearanceModal({
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameError('');
+              }}
               placeholder={t('character.appearanceNamePlaceholder') || '例如：休闲装'}
               className="form-input-mac"
               autoFocus={isEdit}
             />
+            {nameError && <div className="form-error-mac">{nameError}</div>}
           </div>
 
           <div className="form-group-mac">

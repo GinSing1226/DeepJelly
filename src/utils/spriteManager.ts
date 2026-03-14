@@ -161,8 +161,8 @@ export class SpriteManager {
   async loadGifAnimation(
     name: string,
     gifFrames: { url: string; delay: number }[],
-    loop: boolean = true,
-    loopStartFrame?: number
+    _loop: boolean = true,
+    _loopStartFrame?: number
   ): Promise<void> {
     // GIF 动画只存储 URL，由角色视窗使用 HTML img 元素渲染
     // PIXI 不支持 GIF 动画，只能显示静态的第一帧
@@ -213,10 +213,60 @@ export class SpriteManager {
     const textures: PIXI.Texture[] = [];
     const totalFrames = rows * cols;
 
+    console.log(`[SpriteManager] Loading custom grid spritesheet: ${name}, imageUrl: ${imageUrl.substring(0, 50)}...`);
+    console.log(`[SpriteManager] Grid config:`, grid);
+    console.log(`[SpriteManager] Expected total frames: ${totalFrames} (rows=${rows} x cols=${cols})`);
+    console.log(`[SpriteManager] Expected frame size: ${frameWidth}x${frameHeight}`);
+    const expectedWidth = frameWidth * cols + margin * 2 + spacing * (cols - 1);
+    const expectedHeight = frameHeight * rows + margin * 2 + spacing * (rows - 1);
+    console.log(`[SpriteManager] Expected total image size: ${expectedWidth}x${expectedHeight}`);
+
     // 加载精灵图
     let baseTexture: PIXI.Texture;
+    let actualWidth = 0;
+    let actualHeight = 0;
+
     try {
-      baseTexture = await PIXI.Assets.load<PIXI.Texture>(imageUrl);
+      // Check if this is a data URL
+      if (imageUrl.startsWith('data:')) {
+        console.log(`[SpriteManager] Loading from data URL...`);
+        // Create Image element and load from data URL
+        const img = new Image();
+        img.src = imageUrl;
+
+        // Wait for image to load
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = (err) => reject(err);
+          // Set a timeout in case image doesn't load
+          setTimeout(() => reject(new Error('Image load timeout')), 10000);
+        });
+
+        actualWidth = img.naturalWidth;
+        actualHeight = img.naturalHeight;
+        console.log(`[SpriteManager] Image natural size: ${actualWidth}x${actualHeight}`);
+
+        // Check if size matches expected
+        if (actualWidth !== expectedWidth || actualHeight !== expectedHeight) {
+          console.warn(`[SpriteManager] ⚠️ Size mismatch! Expected ${expectedWidth}x${expectedHeight}, got ${actualWidth}x${actualHeight}`);
+          console.warn(`[SpriteManager] Suggested frame size: ${actualWidth / cols}x${actualHeight / rows} (if ${cols}x${rows} grid)`);
+        }
+
+        // Create texture from loaded image
+        // In PIXI v8, use Texture.from() with the image element as source
+        baseTexture = PIXI.Texture.from(img) as any;
+        console.log(`[SpriteManager] Data URL loaded successfully: ${name}, texture size: ${baseTexture.width}x${baseTexture.height}`);
+      } else {
+        // For regular URLs, use PIXI.Assets.load
+        baseTexture = await PIXI.Assets.load<PIXI.Texture>(imageUrl);
+        actualWidth = baseTexture.width;
+        actualHeight = baseTexture.height;
+        console.log(`[SpriteManager] Spritesheet loaded successfully: ${name}, size: ${actualWidth}x${actualHeight}`);
+
+        if (actualWidth !== expectedWidth || actualHeight !== expectedHeight) {
+          console.warn(`[SpriteManager] ⚠️ Size mismatch! Expected ${expectedWidth}x${expectedHeight}, got ${actualWidth}x${actualHeight}`);
+        }
+      }
     } catch (error) {
       console.error(`[SpriteManager] Failed to load spritesheet image:`, error);
       return;
@@ -256,6 +306,8 @@ export class SpriteManager {
       loop,
       loopStartFrame,
     });
+
+    console.log(`[SpriteManager] Custom grid spritesheet ${name} registered successfully with ${frames.length} frames`);
   }
 
   /**
@@ -361,13 +413,20 @@ export class SpriteManager {
           console.error(`[SpriteManager] spritesheet type requires spritesheet config`);
           return;
         }
+        console.log(`[SpriteManager] Loading spritesheet animation: ${name}, format: ${action.spritesheet.format}`);
+        console.log(`[SpriteManager] resources:`, action.resources);
+        // For custom-grid format, use action.spritesheet.url (loaded data URL)
+        // For other formats, action.spritesheet.url contains the config file path
+        const resourcePath = action.spritesheet.format === 'custom-grid'
+          ? action.spritesheet.url  // Use loaded data URL
+          : action.resources?.[0];   // Use original resource path for other formats
         await this.loadEnhancedSpriteSheet(
           name,
           action.spritesheet,
           action.fps ?? 12,
           action.loop,
           undefined,
-          action.resources[0]  // 传递资源路径（custom-grid 格式需要）
+          resourcePath
         );
         break;
 

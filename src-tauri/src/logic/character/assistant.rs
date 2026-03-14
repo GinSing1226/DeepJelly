@@ -680,7 +680,7 @@ impl AssistantManager {
         spritesheet: Option<crate::models::SpriteSheetConfig>,
         description: Option<String>,
     ) -> Result<(), DeepJellyError> {
-        use crate::models::{Action, SpriteSheetConfig};
+        use crate::models::Action;
 
         // 0. Find the assistant that owns this character
         let assistant_id = self.find_assistant_by_character(character_id)

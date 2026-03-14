@@ -191,27 +191,5 @@
   }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .status-bubble-content {
-    background: linear-gradient(135deg, #2D2A24 0%, #25221E 100%);
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2),
-                0 4px 16px rgba(0, 0, 0, 0.15),
-                0 0 0 1px rgba(255, 255, 255, 0.05) inset;
-  }
-
-  .status-bubble:hover .status-bubble-content {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25),
-                0 8px 24px rgba(0, 0, 0, 0.2),
-                0 0 0 1px rgba(255, 255, 255, 0.05) inset;
-  }
-
-  .status-bubble-text {
-    color: #F5F3EE;
-  }
-
-  .status-bubble-char {
-    color: #F5F3EE;
-  }
-}
+/* Dark mode support - TODO: Not implemented yet */
+/* @media (prefers-color-scheme: dark) { ... } */

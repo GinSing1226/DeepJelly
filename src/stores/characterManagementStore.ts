@@ -75,7 +75,7 @@ interface CharacterManagementState {
   /** 添加角色 */
   addCharacter: (
     assistantId: string,
-    character: Omit<Character, 'id' | 'assistantId' | 'appearances'>
+    character: Omit<Character, 'assistantId' | 'appearances'> & { id?: string }
   ) => Promise<Character>;
   /** 更新角色 */
   updateCharacter: (
@@ -458,12 +458,14 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
     // ============ 角色 Actions ============
 
     loadAllCharacters: async () => {
+      console.log('[CharacterManagement] loadAllCharacters: START');
       set({ isLoading: true, error: null });
 
       try {
         // 获取后端返回的原始角色配置 (NEW DATA MODEL)
+        console.log('[CharacterManagement] loadAllCharacters: invoking data_get_all_characters...');
         const backendCharacters = await invoke<BackendCharacterConfig[]>('data_get_all_characters');
-
+        console.log('[CharacterManagement] loadAllCharacters: received', backendCharacters.length, 'characters');
 
         // 转换并按助手ID分组角色
         const grouped: Record<string, Character[]> = {};
@@ -478,7 +480,8 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
           }
           grouped[assistantId].push(character);
         }
-        
+
+        console.log('[CharacterManagement] loadAllCharacters: END, grouped characters:', Object.keys(grouped));
         set({ characters: grouped, isLoading: false });
       } catch (error) {
         console.error('[CharacterManagement] ERROR in loadAllCharacters:', error);
@@ -532,7 +535,8 @@ export const useCharacterManagementStore = create<CharacterManagementState>(
         return result;
       };
 
-      const newId = generateDjId();
+      // 使用传入的 id 或自动生成
+      const newId = characterData.id || generateDjId();
 
       // 乐观更新：先创建本地角色对象
       const newCharacter: Character = {

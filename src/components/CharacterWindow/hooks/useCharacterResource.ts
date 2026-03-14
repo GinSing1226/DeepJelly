@@ -81,6 +81,7 @@ export function useCharacterResource(
    */
   const loadCharacter = useCallback(
     async (characterId: string, appearanceId: string, assistantId?: string) => {
+      console.log('[useCharacterResource] loadCharacter CALLED with:', { characterId, appearanceId, assistantId });
 
       // 生成唯一加载ID
       const loadId = ++loadIdRef.current;
@@ -93,10 +94,17 @@ export function useCharacterResource(
 
       try {
         // 加载配置，传递 assistantId（如果提供）
+        console.log('[useCharacterResource] About to call loadCharacterConfig...');
         const loadedConfig = await loadCharacterConfig(characterId, appearanceId, assistantId);
+        console.log('[useCharacterResource] loadCharacterConfig returned:', {
+          id: loadedConfig.id,
+          assistant_id: loadedConfig.assistant_id,
+          name: loadedConfig.name,
+        });
 
         // 检查是否是最新的加载请求
         if (loadId !== loadIdRef.current) {
+          console.log('[useCharacterResource] Load cancelled - newer request initiated');
           return;
         }
 
@@ -106,12 +114,15 @@ export function useCharacterResource(
           loadedConfig.appearances.find((a) => a.isDefault) ||
           loadedConfig.appearances[0];
 
+        console.log('[useCharacterResource] Found appearance:', loadedAppearance?.id);
+
         if (!loadedAppearance) {
           throw new Error(`No appearance found for character: ${characterId}`);
         }
 
         // 预加载动画帧
         if (preloadAnimations) {
+          console.log('[useCharacterResource] Preloading animations...');
           await globalCharacterLoader.preloadCharacterAnimations(
             loadedConfig,
             loadedAppearance.id
@@ -119,11 +130,13 @@ export function useCharacterResource(
 
           // 再次检查加载ID
           if (loadId !== loadIdRef.current) {
+            console.log('[useCharacterResource] Load cancelled - newer request initiated');
             return;
           }
         }
 
         // 更新状态
+        console.log('[useCharacterResource] Updating state with loaded character');
         setConfig(loadedConfig);
         setAppearance(loadedAppearance);
         setLoadState({

@@ -24,12 +24,15 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useCharacterManagementStore } from '@/stores/characterManagementStore';
 import { useTrayEventHandler } from '@/hooks/useTrayEventHandler';
 import { useGlobalHotkeys } from '@/hooks/useGlobalHotkeys';
+import { useDevToolsShortcut } from '@/hooks/useDevToolsShortcut';
 // NEW: Message Gateway for routing
 import { initMessageGateway, FileBindingStore } from '@/logic';
 import { useTheme } from '@/hooks/useTheme';
 import './App.css';
 
 function App() {
+  // Enable F12 shortcut for DevTools (works in production builds too)
+  useDevToolsShortcut();
   // ========== 获取当前窗口标签（同步）==========
   const windowLabel = getCurrentWindow().label;
 

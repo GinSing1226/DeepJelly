@@ -109,5 +109,7 @@
 
 .confirm-dialog-footer .card-action-btn {
   width: auto;
+  min-width: 80px;
   flex: 0;
+  white-space: nowrap;
 }

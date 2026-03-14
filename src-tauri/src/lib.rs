@@ -22,7 +22,6 @@ mod utils;
 
 use std::sync::{Arc, Mutex};
 use std::fs;
-use std::path::PathBuf;
 use tauri::Manager;
 use log::{info, error};
 use crate::utils::logging::{format_log, format_log_arg1};
@@ -191,7 +190,7 @@ pub fn run() {
                     logic::character::AssistantManager::new(user_data_dir.clone()).expect("Failed to create assistant manager after recovery")
                 }
             };
-            let assistant_manager_state: AssistantManagerState = Mutex::new(assistant_manager);
+            let assistant_manager_state: AssistantManagerState = Arc::new(Mutex::new(assistant_manager));
 
             // ========== Initialize Character Manager ==========
             info!("{}", format_log(LogCategory::Setup, "Initializing character manager..."));

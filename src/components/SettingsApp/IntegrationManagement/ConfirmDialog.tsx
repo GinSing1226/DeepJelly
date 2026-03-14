@@ -6,6 +6,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
+import './ConfirmDialog.css';
 
 export interface ConfirmDialogProps {
   /** Whether to show the dialog */

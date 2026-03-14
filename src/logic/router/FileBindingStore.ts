@@ -45,37 +45,58 @@ export class FileBindingStore implements BindingStore {
         this.bindings = data.map((integration) => {
           // 处理 params 字段，确保包含 sessionKeys 数组
           const integrationParams = integration.integration.params ?? {};
-          const params: { sessionKeys: string[]; [key: string]: unknown } = {
-            sessionKeys: [],
-            ...integrationParams,
-            ...integration.params,
-          };
 
-          // 如果有 sessionKey（单数），添加到 sessionKeys 数组
-          const sessionKey = (integration.params?.sessionKey ?? integrationParams.sessionKey) as string | undefined;
+          // 如果有 sessionKey（单数），转换为 sessionKeys（复数）数组
+          const sessionKeys: string[] = [];
+          const sessionKey = integrationParams.sessionKey as string | undefined;
           if (sessionKey) {
-            params.sessionKeys = [sessionKey];
+            sessionKeys.push(sessionKey);
           }
 
-          return {
+          // 如果 integrationParams 中已经有 sessionKeys，使用它而不是空数组
+          if (integrationParams.sessionKeys && Array.isArray(integrationParams.sessionKeys)) {
+            sessionKeys.length = 0;  // 清空
+            sessionKeys.push(...integrationParams.sessionKeys as string[]);
+          }
+
+          const params: { sessionKeys: string[]; [key: string]: unknown } = {
+            sessionKeys,
+            ...integrationParams,
+          };
+
+          const binding = {
             id: integration.id,
-            characterId: integration.character_id,
-            characterName: integration.character_name,
-            assistantId: integration.assistant_id,
-            assistantName: integration.assistant_name,
+            characterId: integration.characterId,
+            characterName: integration.characterName,
+            assistantId: integration.assistantId,
+            assistantName: integration.assistantName,
             integration: {
-              integrationId: integration.integration.integration_id,
+              integrationId: integration.integration.integrationId,
               provider: integration.integration.provider,
-              applicationId: integration.integration.application_id,
-              agentId: integration.integration.agent_id,
+              applicationId: integration.integration.applicationId,
+              agentId: integration.integration.agentId,
               params,
             },
-            enabled: integration.enabled,
+            enabled: integration.enabled ?? true,
           };
+
+          return binding;
         });
 
         this.lastLoadTime = Date.now();
         console.log('[FileBindingStore] Loaded bindings:', this.bindings.length);
+        console.log('[FileBindingStore] Bindings data:', this.bindings);
+        // Log first binding in detail
+        if (this.bindings.length > 0) {
+          console.log('[FileBindingStore] First binding:', {
+            id: this.bindings[0].id,
+            characterId: this.bindings[0].characterId,
+            assistantId: this.bindings[0].assistantId,
+            applicationId: this.bindings[0].integration.applicationId,
+            agentId: this.bindings[0].integration.agentId,
+            sessionKeys: this.bindings[0].integration.params.sessionKeys,
+          });
+        }
       } catch (error) {
         console.error('[FileBindingStore] Failed to load bindings:', error);
         this.bindings = [];
@@ -117,20 +138,20 @@ export class FileBindingStore implements BindingStore {
 /**
  * Tauri CharacterIntegration 类型定义
  * 与后端返回的类型匹配
+ * 注意：Rust 使用 #[serde(rename = "characterId")] 序列化为 camelCase
  */
 interface CharacterIntegration {
   id: string;
-  character_id: string;
-  character_name: string;
-  assistant_id: string;
-  assistant_name: string;
+  characterId: string;  // not character_id
+  characterName: string;  // not character_name
+  assistantId: string;  // not assistant_id
+  assistantName: string;  // not assistant_name
   integration: {
-    integration_id: string;
+    integrationId: string;  // not integration_id
     provider: string;
-    application_id: string;
-    agent_id: string;
+    applicationId: string;  // not application_id
+    agentId: string;  // not agent_id
     params?: Record<string, unknown>;
   };
-  enabled: boolean;
-  params?: Record<string, unknown>;
+  enabled?: boolean;
 }

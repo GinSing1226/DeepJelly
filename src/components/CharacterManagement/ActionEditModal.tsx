@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useCharacterManagementStore } from '@/stores/characterManagementStore';
+import { usePenetrationMode } from '@/hooks/usePenetrationMode';
 import type { SpriteSheetConfig, SpriteSheetFormat } from '@/types/character';
 
 interface ActionEditModalProps {
@@ -67,6 +68,7 @@ export default function ActionEditModal({
 }: ActionEditModalProps) {
   const { t: _t } = useTranslation('settings');
   const loadCharacters = useCharacterManagementStore(state => state.loadCharacters);
+  const { restoreSolidMode } = usePenetrationMode();
 
   // 表单状态
   const [resourceType, setResourceType] = useState<ResourceType>('frames');
@@ -81,10 +83,14 @@ export default function ActionEditModal({
   const [cols, setCols] = useState<string>('4');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string>('');
 
   // 初始化表单数据
   useEffect(() => {
     if (isOpen && action) {
+      // 弹窗打开时，禁用穿透模式以确保输入框可以正常工作
+      restoreSolidMode();
+
       const type = action.type as ResourceType;
       setResourceType(['frames', 'spritesheet', 'gif'].includes(type) ? type : 'frames');
       setFps(action.fps?.toString() || '24');
@@ -100,13 +106,14 @@ export default function ActionEditModal({
         }
       }
     }
-  }, [isOpen, action]);
+  }, [isOpen, action, restoreSolidMode]);
 
   const handleConfirm = async () => {
     if (isSubmitting) return;
+    setFormError('');
 
     if (action.resources.length === 0) {
-      alert('请先添加资源文件');
+      setFormError('请先添加资源文件');
       return;
     }
 
@@ -114,7 +121,7 @@ export default function ActionEditModal({
     const fpsNum = parseInt(fps, 10);
 
     if (requiresFps && (isNaN(fpsNum) || fpsNum < 1 || fpsNum > 60)) {
-      alert('FPS 必须在 1-60 之间');
+      setFormError('FPS 必须在 1-60 之间');
       return;
     }
 
@@ -125,10 +132,10 @@ export default function ActionEditModal({
       const r = parseInt(rows, 10);
       const c = parseInt(cols, 10);
 
-      if (isNaN(fw) || fw <= 0) { alert('帧宽度必须大于0'); return; }
-      if (isNaN(fh) || fh <= 0) { alert('帧高度必须大于0'); return; }
-      if (isNaN(r) || r <= 0) { alert('行数必须大于0'); return; }
-      if (isNaN(c) || c <= 0) { alert('列数必须大于0'); return; }
+      if (isNaN(fw) || fw <= 0) { setFormError('帧宽度必须大于0'); return; }
+      if (isNaN(fh) || fh <= 0) { setFormError('帧高度必须大于0'); return; }
+      if (isNaN(r) || r <= 0) { setFormError('行数必须大于0'); return; }
+      if (isNaN(c) || c <= 0) { setFormError('列数必须大于0'); return; }
     }
 
     setIsSubmitting(true);
@@ -172,7 +179,8 @@ export default function ActionEditModal({
       onConfirm();
     } catch (error) {
       console.error('Failed to update action:', error);
-      alert(`更新动作失败: ${error}`);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setFormError(`更新动作失败: ${errorMsg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -218,6 +226,9 @@ export default function ActionEditModal({
 
         {/* Body */}
         <div className="modal-body-mac">
+          {/* 表单错误提示 */}
+          {formError && <div className="form-error-mac" style={{ marginBottom: 'var(--dj-space-4)' }}>{formError}</div>}
+
           {/* 动作键（只读） */}
           <div className="form-group-mac">
             <label className="form-label-mac">动作键</label>

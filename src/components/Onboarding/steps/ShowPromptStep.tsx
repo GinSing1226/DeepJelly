@@ -26,7 +26,15 @@ export function ShowPromptStep({ onSkip }: ShowPromptStepProps) {
   useEffect(() => {
     const selectedAppType = useOnboardingStore.getState().selectedAppType;
     if (selectedAppType) {
-      setGeneratedPrompt(generateIntegrationPrompt(selectedAppType, locale));
+      // 注意：此步骤已废弃，show_prompt 已从流程中移除
+      // 使用占位值避免编译错误
+      setGeneratedPrompt(generateIntegrationPrompt(
+        selectedAppType,
+        '待填写', // deepjellyHost
+        '12260',  // deepjellyPort
+        '待填写', // deepjellyToken
+        locale
+      ));
     }
   }, [setGeneratedPrompt]);
 
@@ -34,7 +42,14 @@ export function ShowPromptStep({ onSkip }: ShowPromptStepProps) {
   useEffect(() => {
     const selectedAppType = useOnboardingStore.getState().selectedAppType;
     if (selectedAppType) {
-      setGeneratedPrompt(generateIntegrationPrompt(selectedAppType, locale));
+      // 注意：此步骤已废弃，show_prompt 已从流程中移除
+      setGeneratedPrompt(generateIntegrationPrompt(
+        selectedAppType,
+        '待填写', // deepjellyHost
+        '12260',  // deepjellyPort
+        '待填写', // deepjellyToken
+        locale
+      ));
     }
   }, [locale]);
 

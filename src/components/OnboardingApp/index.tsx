@@ -26,26 +26,28 @@ function getUrlParam(name: string): string | null {
 }
 
 export function OnboardingApp() {
-  const { setBoundApp } = useSettingsStore();
+  const { setBoundApp, loadSettings } = useSettingsStore();
   const { loadIntegrations, getIntegration } = useAppIntegrationStore();
   const { setStep } = useOnboardingStore();
   const { initializeLocale } = useLocaleStore();
   const [isLocaleReady, setIsLocaleReady] = useState(false);
 
-  // Initialize locale from backend on mount
+  // Initialize locale and settings from backend on mount
   useEffect(() => {
-    const initLocale = async () => {
+    const init = async () => {
       try {
         await initializeLocale();
+        // Load endpoint config to get the correct LAN IP
+        await loadSettings();
       } catch (error) {
-        console.error('[OnboardingApp] Failed to initialize locale:', error);
+        console.error('[OnboardingApp] Failed to initialize:', error);
       } finally {
         setIsLocaleReady(true);
       }
     };
 
-    initLocale();
-  }, [initializeLocale]);
+    init();
+  }, [initializeLocale, loadSettings]);
 
   // Check for pending edit integration on mount (for new windows)
   useEffect(() => {

@@ -9,14 +9,10 @@ pub mod assistant;
 pub mod character;
 pub mod appearance;
 pub mod integration;
+pub mod endpoint;
 
 // Re-export all model types for convenience
 pub use assistant::{Assistant, AssistantsData, Integration};
 pub use character::{Character, CharacterReference};
-pub use appearance::{Appearance, Action, ActionType, SpriteSheetConfig, SpriteSheetFormat, SpriteSheetGrid};
-pub use integration::{
-    AppIntegration, AppIntegrationsData,
-    CharacterIntegration, CharacterIntegrationsData,
-    DisplaySlot, DisplaySlotsData,
-    ProviderType, IntegrationInfo,
-};
+pub use appearance::{Appearance, Action, ActionType, SpriteSheetConfig};
+pub use integration::{DisplaySlot, DisplaySlotsData};

@@ -1,9 +1,10 @@
 //! WebSocket gateway server
 //!
 //! Accepts and manages WebSocket connections from AI applications.
+#![allow(dead_code)]
 
 // Import stays the same - types is still a sibling module
-use super::types::{ConnectRequest, ConnectResponse, ConnectionInfo};
+use super::types::{ConnectRequest, ConnectResponse};
 use crate::logic::protocol::CapMessage;
 use futures_util::{SinkExt, StreamExt};
 use std::collections::HashMap;

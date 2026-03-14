@@ -11,6 +11,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { changeLocale } from '@/i18n/init';
 import i18n from '@/i18n/config';
 import type { BoundApp } from '@/types/appConfig';
+import type { EndpointConfig } from '@/types/endpoint';
 
 /** 路由信息 */
 export interface MessageRouting {
@@ -40,6 +41,7 @@ export interface AppSettings {
   autoLaunch: boolean;        // 开机自启动
   language: 'zh' | 'en' | 'ja';  // 界面语言
   brainUrl: string;           // AI应用地址
+  endpointConfig: EndpointConfig;  // DeepJelly HTTP API 端点配置
 
   // 绑定状态
   boundApp: BoundApp | null;  // 已绑定的AI应用
@@ -59,6 +61,11 @@ interface SettingsState extends AppSettings {
   setAutoLaunch: (value: boolean) => Promise<void>;
   setLanguage: (language: 'zh' | 'en' | 'ja') => Promise<void>;
   setBrainUrl: (url: string) => void;
+
+  // Endpoint Actions
+  loadEndpointConfig: () => Promise<void>;
+  updateEndpointConfig: (config: EndpointConfig) => Promise<void>;
+  getRecommendedHost: () => Promise<string>;
 
   // Binding Actions
   setBoundApp: (app: BoundApp) => void;
@@ -91,6 +98,10 @@ const defaultSettings: AppSettings = {
   autoLaunch: false,
   language: 'zh',
   brainUrl: 'ws://127.0.0.1:18790',
+  endpointConfig: {
+    host: '127.0.0.1',
+    port: 12260,
+  },
   boundApp: null,
   isDoNotDisturb: false,
   isHidden: false,
@@ -122,6 +133,33 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     }
   },
   setBrainUrl: (brainUrl) => set({ brainUrl }),
+
+  // Endpoint Actions
+  loadEndpointConfig: async () => {
+    try {
+      const config = await invoke<EndpointConfig>('get_endpoint_config');
+      set({ endpointConfig: config });
+    } catch (error) {
+      console.error('[SettingsStore] Failed to load endpoint config:', error);
+    }
+  },
+  updateEndpointConfig: async (endpointConfig) => {
+    try {
+      await invoke('update_endpoint_config', { config: endpointConfig });
+      set({ endpointConfig });
+    } catch (error) {
+      console.error('[SettingsStore] Failed to update endpoint config:', error);
+      throw error;
+    }
+  },
+  getRecommendedHost: async () => {
+    try {
+      return await invoke<string>('get_recommended_host');
+    } catch (error) {
+      console.error('[SettingsStore] Failed to get recommended host:', error);
+      return '127.0.0.1';
+    }
+  },
 
   // Binding Actions
   setBoundApp: (boundApp) => set({ boundApp, isBound: true }),
@@ -173,6 +211,25 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       if (['zh', 'en', 'ja'].includes(currentLocale)) {
         set({ language: currentLocale as 'zh' | 'en' | 'ja' });
       }
+
+      // Load endpoint config from backend
+      let endpointConfig = await invoke<EndpointConfig>('get_endpoint_config');
+
+      // Always get the actual LAN IP on startup and update if different
+      // This mimics the "Get Local IP" button behavior in settings
+      try {
+        const lanIp = await invoke<string>('get_recommended_host');
+        // Update if the detected IP is different from current config
+        if (lanIp !== endpointConfig.host) {
+          endpointConfig = { ...endpointConfig, host: lanIp };
+          // Save the updated config to file
+          await invoke('update_endpoint_config', { config: endpointConfig });
+        }
+      } catch (error) {
+        console.error('[SettingsStore] Failed to get LAN IP:', error);
+      }
+
+      set({ endpointConfig });
     } catch (error) {
       console.error('[SettingsStore] Failed to load settings:', error);
     }

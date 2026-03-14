@@ -61,38 +61,8 @@
   color: var(--dj-text-primary);
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .language-selector {
-    background: rgba(40, 40, 40, 0.95);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  }
-
-  .language-selector:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  }
-
-  .language-selector-select {
-    background-color: #2a2a2a;
-    color: #e0e0e0;
-    border-color: #404040;
-  }
-
-  .language-selector-select:hover {
-    border-color: #606060;
-  }
-
-  .language-selector-select:focus {
-    border-color: var(--dj-accent);
-    box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
-  }
-
-  .language-selector-select option {
-    background-color: #2a2a2a;
-    color: #e0e0e0;
-  }
-}
+/* Dark mode support - TODO: Not implemented yet */
+/* @media (prefers-color-scheme: dark) { ... } */
 
 /* Accessibility: High contrast mode support */
 @media (prefers-contrast: high) {

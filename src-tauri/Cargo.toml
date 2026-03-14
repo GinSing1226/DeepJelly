@@ -10,7 +10,7 @@ license = "MIT"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "devtools"] }
 tauri-plugin-shell = "2"
 tauri-plugin-process = "2"
 tauri-plugin-dialog = "2"
@@ -35,11 +35,20 @@ chrono = "0.4"
 regex = "1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 
+# HTTP API server dependencies
+axum = "0.7"
+tower = "0.5"
+tower-http = { version = "0.5", features = ["cors", "trace", "limit"] }
+async-trait = "0.1"
+http = "1.1"
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [dev-dependencies]
 tempfile = "3"
+reqwest = { version = "0.12", features = ["json"] }
+tokio-test = "0.4"
 
 

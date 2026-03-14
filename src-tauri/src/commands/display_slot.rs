@@ -3,7 +3,6 @@
 //! Tauri commands for managing display slots (展示槽位) - character window configurations.
 
 use crate::models::{DisplaySlot, DisplaySlotsData, Assistant, Character, CharacterReference};
-use crate::logic::character::AssistantManager;
 use crate::input_state::InputState;
 use std::fs;
 use std::path::PathBuf;
@@ -74,6 +73,7 @@ fn find_assistant(data_dir: &PathBuf, assistant_id: &str) -> Result<Assistant, S
 }
 
 /// Find a character reference in an assistant
+#[allow(dead_code)]
 fn find_character_reference<'a>(assistant: &'a Assistant, character_id: &str) -> Result<&'a CharacterReference, String> {
     assistant.characters.iter()
         .find(|c| c.id == character_id)
@@ -272,7 +272,28 @@ pub async fn add_display_slot(
     // Create the character window (use slot count as index for positioning)
     let slot_index = data.slots.len() - 1;
     let window_id = create_character_window(&app, &slot, slot_index, &input_state)?;
-    update_slot_window_id(&dir, &slot_id, &window_id)?;
+
+    // Update window_id in the slot data
+    let mut data = load_display_slots_data(&dir)?;
+    if let Some(slot) = data.slots.iter_mut().find(|s| s.id == slot_id) {
+        slot.window_id = Some(window_id.clone());
+        save_display_slots_data(&dir, &data)?;
+        println!("[add_display_slot] Created window '{}' and updated window_id", window_id);
+    }
+
+    // Send character:load event immediately (no delay)
+    let event_payload = serde_json::json!({
+        "slotId": slot_id,
+        "assistantId": assistant_id,
+        "characterId": character_id,
+        "appearanceId": appearance_id,
+        "isNewWindow": true,  // Mark that this is a newly created window
+    });
+    println!("[add_display_slot] Sending character:load event to window '{}': {:?}", window_id, event_payload);
+    match app.emit("character:load", event_payload) {
+        Ok(_) => println!("[add_display_slot] Event sent successfully"),
+        Err(e) => println!("[add_display_slot] Failed to send event: {:?}", e),
+    }
 
     Ok(slot)
 }
@@ -291,6 +312,9 @@ pub async fn update_display_slot(
     assistant_manager: State<'_, crate::AssistantManagerState>,
     input_state: State<'_, Arc<Mutex<InputState>>>,
 ) -> Result<(), String> {
+    println!("[update_display_slot] CALLED with slot_id: {}, assistant_id: {}, character_id: {}, appearance_id: {}",
+        slot_id, assistant_id, character_id, appearance_id);
+
     let dir = data_dir.lock()
         .map_err(|e| format!("获取数据目录失败: {}", e))?;
     let mut data = load_display_slots_data(&dir)?;
@@ -298,6 +322,8 @@ pub async fn update_display_slot(
     // Find the slot
     let slot = data.find_slot(&slot_id)
         .ok_or_else(|| format!("槽位不存在: {}", slot_id))?;
+
+    println!("[update_display_slot] Found slot: id={}, window_id={:?}", slot.id, slot.window_id);
 
     // Check if the new assistant is different and already exists
     if slot.assistant_id != assistant_id && data.has_assistant(&assistant_id) {
@@ -336,14 +362,46 @@ pub async fn update_display_slot(
     data.slots[slot_index].character_name = character.name.clone();
     data.slots[slot_index].appearance_id = appearance_id.clone();
     data.slots[slot_index].appearance_name = appearance_name.clone();
-    data.slots[slot_index].window_id = None;
+    // Don't set window_id to None here - keep the old window_id if exists
+    // This allows frontend to still find the slot config during window recreation
 
     save_display_slots_data(&dir, &data)?;
 
     // Create new window
     let updated_slot = &data.slots[slot_index];
+    println!("[update_display_slot] Creating new window for slot: id={}, window_id={:?}", updated_slot.id, updated_slot.window_id);
     let window_id = create_character_window(&app, updated_slot, slot_index, &input_state)?;
-    update_slot_window_id(&dir, &slot_id, &window_id)?;
+    println!("[update_display_slot] Created window with ID: {}", window_id);
+
+    // Update window_id in the slot data
+    let mut data = load_display_slots_data(&dir)?;
+    if let Some(slot) = data.slots.iter_mut().find(|s| s.id == slot_id) {
+        slot.window_id = Some(window_id.clone());
+        save_display_slots_data(&dir, &data)?;
+        println!("[update_display_slot] Updated window_id to: {}", window_id);
+    }
+
+    // Spawn a thread to send character:load event after a short delay
+    // This gives the frontend window time to initialize and set up event listeners
+    let app_handle = app.clone();
+    let event_payload = serde_json::json!({
+        "slotId": slot_id,
+        "assistantId": assistant_id,
+        "characterId": character_id,
+        "appearanceId": appearance_id,
+        "isNewWindow": true,  // Mark that this is a newly created window
+    });
+    let window_id_for_log = window_id.clone();
+    let slot_id_for_log = slot_id.clone();
+    std::thread::spawn(move || {
+        println!("[update_display_slot] Thread: Waiting 100ms before sending event to window '{}' (slot {})", window_id_for_log, slot_id_for_log);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        println!("[update_display_slot] Thread: Sending character:load event to window \"{}\": {:?}", window_id_for_log, event_payload);
+        match app_handle.emit("character:load", event_payload) {
+            Ok(_) => println!("[update_display_slot] Thread: Event sent successfully"),
+            Err(e) => println!("[update_display_slot] Thread: Failed to send event: {:?}", e),
+        }
+    });
 
     Ok(())
 }
@@ -434,9 +492,12 @@ pub fn create_character_window(
 ) -> Result<String, String> {
     let window_id = format!("{}{}", CHAR_WINDOW_PREFIX, slot.id);
 
-    // Check if window already exists
-    if app.get_webview_window(&window_id).is_some() {
-        return Ok(window_id);
+    // Check if window already exists - if so, close it first before creating new one
+    if let Some(window) = app.get_webview_window(&window_id) {
+        println!("[display_slot] Window {} already exists, closing it before creating new one", window_id);
+        let _ = window.close();
+        // Note: window.close() is asynchronous, we don't need to wait.
+        // If there's a temporary ID conflict, Tauri will handle it or the new window will replace the old one.
     }
 
     // Create the window - 500x500 like the main character window
@@ -462,74 +523,65 @@ pub fn create_character_window(
     if let Some(pos) = &slot.position {
         // Restore saved position (convert i32 to f64)
         builder = builder.position(pos.x as f64, pos.y as f64);
-        println!("[display_slot] Restoring window '{}' to saved position: ({}, {})", window_id, pos.x, pos.y);
+        println!("[display_slot] Restoring window \"{}\" to saved position: ({}, {})", window_id, pos.x, pos.y);
     } else {
         // Calculate offset position based on slot index to avoid overlap
         // Default: centered with offset (each window offset by 100px)
-        let offset = (slot_index as i32) * 100;
+        let _offset = (slot_index as i32) * 100;
         builder = builder.center();
         // Note: Tauri doesn't support relative positioning directly,
         // so we rely on the frontend to emit position events that we save
-        println!("[display_slot] Creating window '{}' centered (will be repositioned by frontend)", window_id);
+        println!("[display_slot] Creating window \"{}\" centered (will be repositioned by frontend)", window_id);
     }
 
-    let _window = builder
+    let window = builder
     .build()
     .map_err(|e| format!("创建窗口失败: {}", e))?;
 
     println!("[display_slot] Window created successfully: {}", window_id);
+
+    // Explicitly show the window to ensure it's visible
+    println!("[display_slot] Showing window \"{}\"...", window_id);
+    window.show()
+        .map_err(|e| format!("显示窗口失败: {}", e))?;
+    println!("[display_slot] Window \"{}\" is now visible", window_id);
 
     // Register window for passthrough mode support
     input_state.lock()
         .map_err(|e| format!("获取 InputState 失败: {}", e))?
         .registered_windows
         .push(window_id.clone());
-    println!("[display_slot] Registered window '{}' for passthrough mode", window_id);
+    println!("[display_slot] Registered window \"{}\" for passthrough mode", window_id);
 
-    // Clone necessary data for the delayed event
-    let window_id_for_event = window_id.clone();
-    let app_handle = app.clone();
-    let event_payload = serde_json::json!({
-        "slotId": slot.id,
-        "assistantId": slot.assistant_id,
-        "characterId": slot.character_id,
-        "appearanceId": slot.appearance_id,
-    });
+    // Note: character:load event is now sent immediately by the caller (update_display_slot or add_display_slot)
+    // instead of using a delayed thread. This ensures more reliable character loading.
 
-    println!("[display_slot] Spawning thread to send character:load event after 1500ms delay");
-
-    // Spawn a thread to delay the event emission
-    // This gives the frontend window time to initialize and set up event listeners
-    std::thread::spawn(move || {
-        println!("[display_slot] Thread started, waiting 1500ms...");
-        std::thread::sleep(std::time::Duration::from_millis(1500));
-        println!("[display_slot] Delay complete, sending character:load event to window '{}': {:?}", window_id_for_event, event_payload);
-        match app_handle.emit("character:load", event_payload) {
-            Ok(_) => println!("[display_slot] Event sent successfully"),
-            Err(e) => println!("[display_slot] Failed to send event: {:?}", e),
-        }
-    });
-
-    println!("[display_slot] Thread spawned, returning window_id: {}", window_id);
+    println!("[display_slot] Window setup complete, returning window_id: {}", window_id);
 
     Ok(window_id)
 }
 
 /// Close a character window
 fn close_character_window(app: &AppHandle, window_id: &str, input_state: &Arc<Mutex<InputState>>) {
+    println!("[close_character_window] CALLED with window_id: {}", window_id);
+
     // Unregister window from passthrough mode
     input_state.lock()
         .ok()
         .and_then(|mut state| {
             if let Some(pos) = state.registered_windows.iter().position(|w| w == window_id) {
                 state.registered_windows.remove(pos);
-                println!("[display_slot] Unregistered window '{}' from passthrough mode", window_id);
+                println!("[display_slot] Unregistered window \"{}\" from passthrough mode", window_id);
             }
             Some(())
         });
 
     if let Some(window) = app.get_webview_window(window_id) {
+        println!("[close_character_window] Found window, closing...");
         let _ = window.close();
+        println!("[close_character_window] Window close command sent");
+    } else {
+        println!("[close_character_window] Window not found: {}", window_id);
     }
 }
 
@@ -537,18 +589,23 @@ fn close_character_window(app: &AppHandle, window_id: &str, input_state: &Arc<Mu
 ///
 /// This function is public so it can be called during app startup
 /// to update window IDs for restored windows.
+#[allow(dead_code)]
 pub fn update_slot_window_id(
     data_dir: &PathBuf,
     slot_id: &str,
     window_id: &str,
 ) -> Result<(), String> {
+    println!("[update_slot_window_id] CALLED with slot_id: {}, window_id: {}", slot_id, window_id);
     let mut data = load_display_slots_data(data_dir)?;
 
     if let Some(slot) = data.slots.iter_mut().find(|s| s.id == slot_id) {
+        println!("[update_slot_window_id] Found slot, updating window_id to: {}", window_id);
         slot.window_id = Some(window_id.to_string());
         save_display_slots_data(data_dir, &data)?;
+        println!("[update_slot_window_id] Saved successfully");
         Ok(())
     } else {
+        println!("[update_slot_window_id] Slot not found: {}", slot_id);
         Err(format!("槽位不存在: {}", slot_id))
     }
 }

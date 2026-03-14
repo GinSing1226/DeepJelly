@@ -20,6 +20,7 @@ import AppearanceDetailView from './AppearanceDetailView';
 import AssistantModal from './AssistantModal';
 import CharacterModal from './CharacterModal';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
+import AlertDialog, { type AlertDialogType } from './AlertDialog';
 import type { Character } from '@/types/character';
 import type { AddActionFormData, EditActionFormData } from '@/types/character';
 
@@ -615,6 +616,36 @@ export default function CharacterManagement({ isWindow: _isWindow }: CharacterMa
     itemId: '',
   });
 
+  // 警告/提示弹窗状态
+  const [alertDialog, setAlertDialog] = useState<{
+    isOpen: boolean;
+    type: AlertDialogType;
+    title: string;
+    message: string;
+    confirmText?: string;
+  }>({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+    confirmText: '确定',
+  });
+
+  // 显示警告/提示弹窗的辅助函数
+  const showAlert = (type: AlertDialogType, title: string, message: string, confirmText?: string) => {
+    setAlertDialog({
+      isOpen: true,
+      type,
+      title,
+      message,
+      confirmText: confirmText || '确定',
+    });
+  };
+
+  const closeAlertDialog = () => {
+    setAlertDialog(prev => ({ ...prev, isOpen: false }));
+  };
+
   // Store methods
   const addCharacter = useCharacterManagementStore(state => state.addCharacter);
   const deleteCharacter = useCharacterManagementStore(state => state.deleteCharacter);
@@ -722,7 +753,7 @@ export default function CharacterManagement({ isWindow: _isWindow }: CharacterMa
     } catch (error) {
       console.error('[handleDeleteCharacter] Failed to delete character:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
-      alert(t('character.deleteError', { error: errorMsg }));
+      showAlert('error', t('common.error') || '错误', t('character.deleteError', { error: errorMsg }));
     }
   };
 
@@ -738,7 +769,7 @@ export default function CharacterManagement({ isWindow: _isWindow }: CharacterMa
     } catch (error) {
       console.error('[handleSetDefaultAppearance] Failed to set default appearance:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
-      alert(`设置默认形象失败: ${errorMsg}`);
+      showAlert('error', t('common.error') || '错误', `设置默认形象失败: ${errorMsg}`);
     }
   };
 
@@ -757,7 +788,7 @@ export default function CharacterManagement({ isWindow: _isWindow }: CharacterMa
     } catch (error) {
       console.error('[handleAddAppearance] Failed to add appearance:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
-      alert(t('character.addAppearanceError', { error: errorMsg }));
+      showAlert('error', t('common.error') || '错误', t('character.addAppearanceError', { error: errorMsg }));
     }
   };
 
@@ -772,7 +803,7 @@ export default function CharacterManagement({ isWindow: _isWindow }: CharacterMa
     } catch (error) {
       console.error('[handleDeleteAppearance] Failed to delete appearance:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
-      alert(t('character.deleteAppearanceError', { error: errorMsg }));
+      showAlert('error', t('common.error') || '错误', t('character.deleteAppearanceError', { error: errorMsg }));
     }
   };
 
@@ -968,7 +999,7 @@ export default function CharacterManagement({ isWindow: _isWindow }: CharacterMa
     } catch (error) {
       console.error('[handleConfirmDelete] Failed to delete:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
-      alert(t('character.deleteError', { error: errorMsg }));
+      showAlert('error', t('common.error') || '错误', t('character.deleteError', { error: errorMsg }));
     }
   };
 
@@ -1023,7 +1054,8 @@ export default function CharacterManagement({ isWindow: _isWindow }: CharacterMa
       setAssistantModal({ isOpen: false, isEdit: false, assistant: null });
     } catch (error) {
       console.error('[handleAssistantModalConfirm] Failed to save assistant:', error);
-      alert(t('character.saveError', { error }));
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      showAlert('error', t('common.error') || '错误', t('character.saveError', { error: errorMsg }));
     }
   };
 
@@ -1050,16 +1082,17 @@ export default function CharacterManagement({ isWindow: _isWindow }: CharacterMa
       } else {
         // 新增模式：创建新角色
         await addCharacter(storeSelectedAssistantId, {
+          ...(data.id?.trim() ? { id: data.id.trim() } : {}),
           name: data.name,
           description: data.description,
-        });
+        } as Parameters<typeof addCharacter>[1]);
         // 角色列表会自动更新
       }
       setCharacterModal({ isOpen: false, isEdit: false, character: null });
     } catch (error) {
       console.error('[handleCharacterModalConfirm] Failed to save character:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
-      alert(t('character.saveError', { error: errorMsg }));
+      showAlert('error', t('common.error') || '错误', t('character.saveError', { error: errorMsg }));
     }
   };
 
@@ -1270,6 +1303,16 @@ export default function CharacterManagement({ isWindow: _isWindow }: CharacterMa
             itemType={deleteConfirm.itemType}
             warning={deleteConfirm.warning}
           />
+
+          {/* 警告/提示弹窗 */}
+          <AlertDialog
+            isOpen={alertDialog.isOpen}
+            onClose={closeAlertDialog}
+            type={alertDialog.type}
+            title={alertDialog.title}
+            message={alertDialog.message}
+            confirmText={alertDialog.confirmText}
+          />
         </div>
       );
     }
@@ -1420,6 +1463,26 @@ export default function CharacterManagement({ isWindow: _isWindow }: CharacterMa
           onConfirm={handleCharacterModalConfirm}
           character={characterModal.character}
           isEdit={characterModal.isEdit}
+        />
+
+        {/* 删除确认对话框 */}
+        <DeleteConfirmDialog
+          isOpen={deleteConfirm.isOpen}
+          onClose={() => setDeleteConfirm(prev => ({ ...prev, isOpen: false }))}
+          onConfirm={handleConfirmDelete}
+          itemName={deleteConfirm.itemName}
+          itemType={deleteConfirm.itemType}
+          warning={deleteConfirm.warning}
+        />
+
+        {/* 警告/提示弹窗 */}
+        <AlertDialog
+          isOpen={alertDialog.isOpen}
+          onClose={closeAlertDialog}
+          type={alertDialog.type}
+          title={alertDialog.title}
+          message={alertDialog.message}
+          confirmText={alertDialog.confirmText}
         />
       </div>
     );

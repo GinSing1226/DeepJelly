@@ -108,7 +108,7 @@ pub async fn get_app_integration(
 #[tauri::command]
 pub async fn test_app_connection(
     endpoint: String,
-    auth_token: Option<String>,
+    _auth_token: Option<String>,
 ) -> Result<bool, String> {
     // For now, return a simple validation result
     // In production, this would attempt an actual WebSocket connection

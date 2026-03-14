@@ -4,7 +4,7 @@
 //! Character integrations are lightweight index tables binding characters to AI app integrations.
 
 use crate::logic::character::assistant::generate_dj_id;
-use crate::models::integration::{CharacterIntegration, CharacterIntegrationsData, IntegrationInfo, ProviderType};
+use crate::models::integration::{CharacterIntegration, CharacterIntegrationsData};
 use crate::utils::error::DeepJellyError;
 use std::collections::HashMap;
 use std::fs;
@@ -273,6 +273,7 @@ impl CharacterIntegrationManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::integration::{IntegrationInfo, ProviderType};
     use std::collections::HashMap;
     use tempfile::TempDir;
 

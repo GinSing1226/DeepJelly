@@ -460,6 +460,23 @@ export function SettingsApp() {
   const { t } = useTranslation(['settings', 'common', 'onboarding']);
   const [activeTab, setActiveTab] = useState<SettingsTab>('character');
 
+  // 设置状态
+  const {
+    autoLaunch,
+    setAutoLaunch,
+    language,
+    setLanguage,
+    endpointConfig,
+    updateEndpointConfig,
+    getRecommendedHost,
+    loadSettings,
+  } = useSettingsStore();
+
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
   // Listen for tab switch events from backend
   useEffect(() => {
     let unlisten: (() => void) | null = null;
@@ -483,14 +500,6 @@ export function SettingsApp() {
       if (unlisten) unlisten();
     };
   }, []);
-
-  // 设置状态
-  const {
-    autoLaunch,
-    setAutoLaunch,
-    language,
-    setLanguage,
-  } = useSettingsStore();
 
   // Handle header drag
   const handleHeaderMouseDown = async (e: React.MouseEvent) => {
@@ -623,6 +632,70 @@ export function SettingsApp() {
                   <option value="en">{t('common:localeNameEn')}</option>
                   <option value="ja">{t('common:localeNameJa')}</option>
                 </select>
+              </div>
+
+              {/* DeepJelly Endpoint Configuration */}
+              <div className="settings-group">
+                <h4>DeepJelly API 端点配置</h4>
+
+                {/* Host */}
+                <div className="settings-item">
+                  <label>DeepJelly 地址</label>
+                  <div className="settings-input-with-button">
+                    <input
+                      type="text"
+                      value={endpointConfig.host}
+                      onChange={async (e) => {
+                        const newHost = e.target.value.trim();
+                        if (newHost) {
+                          await updateEndpointConfig({ ...endpointConfig, host: newHost });
+                        }
+                      }}
+                      placeholder="127.0.0.1"
+                    />
+                    <button
+                      className="btn-small"
+                      onClick={async () => {
+                        const lanIp = await getRecommendedHost();
+                        await updateEndpointConfig({ ...endpointConfig, host: lanIp });
+                      }}
+                      title="获取本机局域网 IP"
+                    >
+                      获取本机 IP
+                    </button>
+                  </div>
+                  <small className="settings-hint">
+                    如果是本地 AI 调用，请使用 127.0.0.1
+                  </small>
+                </div>
+
+                {/* Port */}
+                <div className="settings-item">
+                  <label>端口</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value={endpointConfig.port}
+                    onChange={async (e) => {
+                      const newPort = parseInt(e.target.value, 10);
+                      if (newPort >= 1 && newPort <= 65535) {
+                        await updateEndpointConfig({ ...endpointConfig, port: newPort });
+                      }
+                    }}
+                  />
+                  <small className="settings-hint">
+                    DeepJelly HTTP API 服务端口（默认: 12260）
+                  </small>
+                </div>
+
+                {/* Current URL */}
+                <div className="settings-item">
+                  <label>当前配置</label>
+                  <div className="settings-url-display">
+                    http://{endpointConfig.host}:{endpointConfig.port}
+                  </div>
+                </div>
               </div>
             </div>
           )}

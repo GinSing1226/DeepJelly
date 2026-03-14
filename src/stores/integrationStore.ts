@@ -25,6 +25,7 @@ export interface CreateAppIntegrationDTO {
   description?: string;
   endpoint: string;
   authToken?: string;
+  deepjellyToken?: string;
   enabled?: boolean;
 }
 
@@ -155,6 +156,7 @@ export const useIntegrationStore = create<IntegrationState>((set, get) => ({
         description: data.description,
         endpoint: data.endpoint,
         authToken: data.authToken,
+        deepjellyToken: data.deepjellyToken,
         enabled: data.enabled ?? true,
       };
       const integration = await invoke<AppIntegration>('add_app_integration', { integration: integrationWithTempIds });

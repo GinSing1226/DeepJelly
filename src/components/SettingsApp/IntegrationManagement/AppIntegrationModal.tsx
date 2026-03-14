@@ -9,6 +9,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AppIntegration, ProviderType } from '@/types/character';
 import type { CreateAppIntegrationDTO, UpdateAppIntegrationDTO } from '@/stores/integrationStore';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { generateIntegrationPrompt } from '@/utils/promptTemplates';
 import './styles.css';
 
 export interface AppIntegrationModalProps {
@@ -28,55 +30,14 @@ const PROVIDER_OPTIONS: { value: ProviderType; label: string }[] = [
   { value: 'chatgpt', label: 'ChatGPT' },
 ];
 
-// Generate a random application ID (16 chars)
-function generateApplicationId(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+// Generate a 32-char DeepJelly Token
+function generateDeepjellyToken(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 32; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
-}
-
-// Generate integration prompt for AI assistant
-function generateIntegrationPrompt(
-  provider: ProviderType,
-  endpoint: string,
-  applicationId: string,
-  authToken?: string
-): string {
-  const configs = {
-    openclaw: `请将以下配置发送给 OpenClaw：
-
-\`\`\`json
-{
-  "type": "openclaw",
-  "endpoint": "${endpoint}",
-  "applicationId": "${applicationId}"${authToken ? `,
-  "authToken": "${authToken}"` : ''}
-}
-\`\`\``,
-    claude: `请将以下配置发送给 Claude：
-
-\`\`\`json
-{
-  "type": "claude",
-  "endpoint": "${endpoint}",
-  "applicationId": "${applicationId}"
-}
-\`\`\``,
-    chatgpt: `请将以下配置发送给 ChatGPT：
-
-\`\`\`json
-{
-  "type": "chatgpt",
-  "endpoint": "${endpoint}",
-  "applicationId": "${applicationId}"
-}
-\`\`\``,
-  };
-
-  return configs[provider] || configs.openclaw;
 }
 
 export function AppIntegrationModal({
@@ -86,6 +47,7 @@ export function AppIntegrationModal({
   onSave,
 }: AppIntegrationModalProps) {
   const { t } = useTranslation(['settings', 'common', 'onboarding']);
+  const { endpointConfig } = useSettingsStore();
   const isEditMode = !!integration;
 
   // 表单状态
@@ -98,18 +60,26 @@ export function AppIntegrationModal({
   const [loading, setLoading] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionResult, setConnectionResult] = useState<'success' | 'error' | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [promptExpanded, setPromptExpanded] = useState(false);
 
-  // Generate application ID for new integrations
-  const applicationId = useMemo(() => {
-    return integration?.applicationId || generateApplicationId();
-  }, [integration]);
+  // DeepJelly Token - 新增模式时生成，编辑模式时使用现有值
+  const [deepjellyToken, setDeepjellyToken] = useState(() => generateDeepjellyToken());
 
   // Generate integration prompt
   const integrationPrompt = useMemo(() => {
-    if (!endpoint) return '';
-    return generateIntegrationPrompt(provider, endpoint, applicationId, authToken || undefined);
-  }, [provider, endpoint, applicationId, authToken]);
+    if (!endpointConfig?.host || !endpointConfig?.port || !deepjellyToken) return '';
+    // 获取当前语言
+    const locale = (localStorage.getItem('i18nextLng') as 'zh' | 'en' | 'ja') || 'zh';
+    return generateIntegrationPrompt(
+      provider,
+      endpointConfig.host,
+      endpointConfig.port.toString(),
+      deepjellyToken,
+      locale
+    );
+  }, [provider, endpointConfig?.host, endpointConfig?.port, deepjellyToken]);
 
   // 初始化表单数据
   useEffect(() => {
@@ -120,6 +90,8 @@ export function AppIntegrationModal({
       setEndpoint(integration.endpoint);
       setAuthToken(integration.authToken || '');
       setEnabled(integration.enabled ?? true);
+      // 编辑模式：使用现有的 deepjellyToken，如果没有则生成新的
+      setDeepjellyToken(integration.deepjellyToken || generateDeepjellyToken());
     } else {
       // 重置为默认值
       setProvider('openclaw');
@@ -128,22 +100,37 @@ export function AppIntegrationModal({
       setEndpoint('');
       setAuthToken('');
       setEnabled(true);
+      // 新增模式：重新生成新的 deepjellyToken
+      setDeepjellyToken(generateDeepjellyToken());
     }
     setConnectionResult(null);
-    setCopied(false);
+    setCopiedToken(false);
+    setCopiedPrompt(false);
+    setPromptExpanded(false);
   }, [integration, isOpen]);
 
   // 验证表单
   const isFormValid = name.trim() && endpoint.trim();
 
+  // Copy deepjelly token to clipboard
+  const handleCopyToken = async () => {
+    try {
+      await navigator.clipboard.writeText(deepjellyToken);
+      setCopiedToken(true);
+      setTimeout(() => setCopiedToken(false), 2000);
+    } catch (error) {
+      console.error('[AppIntegrationModal] Copy token failed:', error);
+    }
+  };
+
   // Copy prompt to clipboard
   const handleCopyPrompt = async () => {
     try {
       await navigator.clipboard.writeText(integrationPrompt);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedPrompt(true);
+      setTimeout(() => setCopiedPrompt(false), 2000);
     } catch (error) {
-      console.error('[AppIntegrationModal] Copy failed:', error);
+      console.error('[AppIntegrationModal] Copy prompt failed:', error);
     }
   };
 
@@ -166,6 +153,7 @@ export function AppIntegrationModal({
             description: description.trim() || undefined,
             endpoint: endpoint.trim(),
             authToken: authToken.trim() || undefined,
+            deepjellyToken: deepjellyToken, // 新增时保存 deepjellyToken
             enabled,
           } as CreateAppIntegrationDTO);
 
@@ -201,6 +189,8 @@ export function AppIntegrationModal({
 
   if (!isOpen) return null;
 
+  const hasPrompt = integrationPrompt.length > 0;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="app-integration-modal" onClick={(e) => e.stopPropagation()}>
@@ -218,6 +208,37 @@ export function AppIntegrationModal({
 
         {/* Body - MAC Style */}
         <div className="modal-body-mac">
+          {/* Integration Prompt Section - 始终显示 */}
+          <div className="form-group-mac prompt-section-collapsible">
+            <div
+              className="prompt-header-mac"
+              onClick={() => setPromptExpanded(!promptExpanded)}
+            >
+              <label className="form-label-mac">{t('onboarding:integrationPromptTitle')}</label>
+              <button
+                type="button"
+                className="btn-expand-mac"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPromptExpanded(!promptExpanded);
+                }}
+              >
+                {promptExpanded ? '▼' : '▶'}
+              </button>
+            </div>
+            {promptExpanded && (
+              <div className="prompt-box-mac">
+                {hasPrompt ? (
+                  <pre className="prompt-content-mac">{integrationPrompt}</pre>
+                ) : (
+                  <div className="prompt-placeholder-mac">
+                    请先填写应用类型和地址后，将生成集成提示词
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Provider Type */}
           <div className="form-group-mac">
             <label className="form-label-mac">
@@ -298,6 +319,55 @@ export function AppIntegrationModal({
             />
           </div>
 
+          {/* DeepJelly Token - 始终显示 */}
+          <div className="form-group-mac">
+            <label className="form-label-mac">
+              {t('integration.deepjellyToken', 'DeepJelly API Token')}
+            </label>
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              alignItems: 'center',
+            }}>
+              <input
+                type="text"
+                className="form-input-mac"
+                value={deepjellyToken}
+                readOnly
+                style={{
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  background: '#f5f5f7',
+                  color: '#6e6e73',
+                  cursor: 'not-allowed',
+                  flex: 1,
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleCopyToken}
+                style={{
+                  padding: '8px 12px',
+                  background: copiedToken ? '#1a1a1a' : '#007aff',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+                title={copiedToken ? t('common:copied', '已复制') : t('common:copy', '复制')}
+              >
+                {copiedToken ? '✓' : '📋'}
+              </button>
+            </div>
+            <small style={{ color: '#86868b', fontSize: '11px' }}>
+              {isEditMode
+                ? t('integration.deepjellyTokenReadOnly', 'Token 不可更改，这是 AI 应用调用 DeepJelly API 的密钥')
+                : t('integration.deepjellyTokenHint', '这是 AI 应用调用 DeepJelly API 的密钥，请妥善保管')}
+            </small>
+          </div>
+
           {/* Connection Test */}
           <div className="form-group-mac">
             <div className="connection-test-mac">
@@ -318,42 +388,34 @@ export function AppIntegrationModal({
               )}
             </div>
           </div>
-
-          {/* Integration Prompt Section */}
-          {endpoint && (
-            <div className="prompt-section-mac">
-              <label className="form-label-mac">{t('onboarding:integrationPromptTitle')}</label>
-              <div className="prompt-box-mac">
-                <pre className="prompt-content-mac">{integrationPrompt}</pre>
-                <button
-                  type="button"
-                  className="btn-copy-prompt-mac"
-                  onClick={handleCopyPrompt}
-                >
-                  {copied ? (
-                    <>
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
-                        <path d="M13.33 4.67l-8 8M5.33 12.67l8-8" />
-                      </svg>
-                      {t('onboarding:copied')}
-                    </>
-                  ) : (
-                    <>
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
-                        <rect x="3" y="7" width="10" height="6" rx="1" />
-                        <path d="M5.5 7V4.5a2.5 2.5 0 0 1 5 0V7" />
-                      </svg>
-                      {t('onboarding:copyPrompt')}
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer - MAC Style */}
         <div className="modal-footer-mac">
+          <button
+            type="button"
+            className="btn-mac btn-mac-secondary"
+            onClick={handleCopyPrompt}
+            disabled={!hasPrompt}
+            title={!hasPrompt ? "请先填写应用类型和地址" : t('onboarding:copyPrompt')}
+          >
+            {copiedPrompt ? (
+              <>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: '6px' }}>
+                  <path d="M13.33 4.67l-8 8M5.33 12.67l8-8" />
+                </svg>
+                {t('onboarding:copied')}
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: '6px' }}>
+                  <rect x="3" y="7" width="10" height="6" rx="1" />
+                  <path d="M5.5 7V4.5a2.5 2.5 0 0 1 5 0V7" />
+                </svg>
+                {t('onboarding:copyPrompt')}
+              </>
+            )}
+          </button>
           <button
             className="btn-mac btn-mac-secondary"
             onClick={onClose}

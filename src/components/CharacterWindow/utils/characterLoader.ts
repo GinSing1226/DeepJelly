@@ -35,9 +35,16 @@ export async function loadCharacterConfig(
   _appearanceId: string,
   assistantId?: string
 ): Promise<CharacterConfig> {
+  console.log('[loadCharacterConfig] CALLED with:', { characterId, _appearanceId, assistantId });
   try {
     const config = await invoke<CharacterConfig>('get_character', {
       characterId,
+    });
+
+    console.log('[loadCharacterConfig] Backend returned config:', {
+      id: config?.id,
+      assistant_id: config?.assistant_id,
+      name: config?.name,
     });
 
     // 检查 config 是否为 null
@@ -52,15 +59,20 @@ export async function loadCharacterConfig(
       throw new Error('Character not found: ' + characterId);
     }
 
-    // CRITICAL: Use the provided assistantId if available, otherwise use config.assistant_id
+    // CRITICAL: Always use the provided assistantId if available
     // This ensures the correct assistant_id is used for resource loading
-    if (assistantId && !config.assistant_id) {
+    // especially after editing a display slot with a different assistant
+    if (assistantId) {
+      console.log('[loadCharacterConfig] OVERRIDING assistant_id:', {
+        old: config.assistant_id,
+        new: assistantId,
+      });
+      // Override with the provided assistantId (from the event payload)
       config.assistant_id = assistantId;
     } else if (!config.assistant_id) {
       // Last resort: use characterId as assistant_id (fallback)
       config.assistant_id = characterId;
       console.warn('[loadCharacterConfig] Set assistant_id to characterId (fallback):', characterId);
-    } else {
     }
 
     // CRITICAL: config.id should be characterId according to CAP protocol
@@ -68,6 +80,12 @@ export async function loadCharacterConfig(
     if (!config.id || config.id !== characterId) {
       config.id = characterId;
     }
+
+    console.log('[loadCharacterConfig] FINAL config:', {
+      id: config.id,
+      assistant_id: config.assistant_id,
+      name: config.name,
+    });
 
     return config;
   } catch (error) {
@@ -237,6 +255,14 @@ export class CharacterLoader {
     const characterId = config.id;
     const key = this.getCharacterKey(assistantId, characterId, appearanceId);
 
+    console.log('[CharacterLoader.getCharacterResources] CALLED with:', {
+      assistantId,
+      characterId,
+      appearanceId,
+      config_assistant_id: config.assistant_id,
+      config_id: config.id,
+    });
+
 
 
     this.currentCharacterKey = key;
@@ -256,12 +282,24 @@ export class CharacterLoader {
       throw new Error('Appearance not found: ' + appearanceId);
     }
 
+    console.log('[CharacterLoader.getCharacterResources] Loading appearance:', appearanceId, 'Actions:', Object.keys(appearance.actions));
+
     const allFrames: string[] = [];
     for (const [actionKey, action] of Object.entries(appearance.actions)) {
+      // Skip GIF type animations - they are loaded as single files at runtime
+      // and don't need to be preloaded as individual frames
+      const actionType = action.type || 'frames';
+      console.log('[CharacterLoader.getCharacterResources] Processing action:', actionKey, 'type:', actionType, 'resources:', action.resources);
+      if (actionType === 'gif') {
+        console.log('[CharacterLoader.getCharacterResources] Skipping GIF animation:', actionKey);
+        continue;
+      }
+
       if (action.resources) {
         // 新的目录结构需要包含 appearanceId 和 actionKey
         // frame 原本是 "0001.png"，需要变成 "appearanceId/actionKey/0001.png"
         const fullFramePaths = action.resources.map((frame) => `${appearanceId}/${actionKey}/${frame}`);
+        console.log('[CharacterLoader.getCharacterResources] Loading frames for', actionKey, ':', fullFramePaths);
         const resolvedFrames = await Promise.all(
           fullFramePaths.map((frame) => resolveAnimationPathAsync(assistantId, characterId, frame))
         );

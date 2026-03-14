@@ -55,6 +55,7 @@ export default function AssistantModal({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [idError, setIdError] = useState('');
+  const [nameError, setNameError] = useState('');
 
   // 初始化表单数据
   useEffect(() => {
@@ -91,14 +92,15 @@ export default function AssistantModal({
   };
 
   const handleConfirm = () => {
+    // 验证名称
     if (!name.trim()) {
-      alert(t('character.assistantNameRequired'));
+      setNameError(t('character.assistantNameRequired'));
       return;
     }
+    setNameError('');
 
     // 新增模式下验证ID
     if (!isEdit && idError) {
-      alert(idError);
       return;
     }
 
@@ -114,6 +116,7 @@ export default function AssistantModal({
       setName('');
       setDescription('');
       setIdError('');
+      setNameError('');
     }
   };
 
@@ -221,11 +224,15 @@ export default function AssistantModal({
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameError('');
+              }}
               placeholder={t('character.assistantNamePlaceholder')}
               className="form-input-mac"
               autoFocus={isEdit}
             />
+            {nameError && <div className="form-error-mac">{nameError}</div>}
           </div>
 
           <div className="form-group-mac">

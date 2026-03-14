@@ -24,10 +24,13 @@ import SearchView from './Search';
 import { getAgentId } from '@/utils/assistantHelper';
 import { DEFAULTS } from './shared/constants';
 import type { Session } from './shared/types';
+import { useDevToolsShortcut } from '@/hooks/useDevToolsShortcut';
 import '@/styles/design-system.css';
 import './ChatWindow.css';
 
 function ChatWindow() {
+  // Enable F12 shortcut for DevTools
+  useDevToolsShortcut();
   // Component mount log
   // Log initial connection state immediately
   // Use chat window hook

@@ -6,6 +6,7 @@ pub mod brain;
 pub mod character;
 pub mod data;
 pub mod display_slot;
+pub mod endpoint;
 pub mod event;
 pub mod input;
 pub mod locale;

@@ -49,6 +49,19 @@ function generateApplicationId(): string {
   return result;
 }
 
+// 从 WebSocket endpoint 解析 HTTP 端口和地址
+function parseHttpConfig(wsEndpoint: string): { host: string; port: number } {
+  try {
+    const url = new URL(wsEndpoint);
+    return {
+      host: url.hostname,
+      port: parseInt(url.port) || 12260,
+    };
+  } catch {
+    return { host: '127.0.0.1', port: 12260 };
+  }
+}
+
 export function CharacterIntegrationModal({
   isOpen,
   integration,
@@ -690,6 +703,10 @@ export function CharacterIntegrationModal({
       const characterId = selectedCharacter?.id || assistantId;
       const agentId = selectedOpenClawAssistant?.id || '';
 
+      // 解析 HTTP 配置
+      const httpConfig = parseHttpConfig(selectedAppIntegration.endpoint);
+      const deepjellyToken = selectedAppIntegration.deepjellyToken || '';
+
       // 构建绑定消息
       const bindMessage = `# 任务
 帮我修改 openclaw.json 配置，用于集成deepjelly。按我说的直接做，无需再向我确认。
@@ -720,7 +737,7 @@ export function CharacterIntegrationModal({
 }
 \`\`\`
 
-##  步骤2：将以下结构体更新到 bindings 模块
+## 步骤2：将以下结构体更新到 bindings 模块
 ### 配置说明
 1. \`agentId\`：openclaw 与 deepjelly 绑定的agentId（如 \`${agentId}\`）
 2. \`channel\`：固定是deepjelly
@@ -736,7 +753,17 @@ export function CharacterIntegrationModal({
 }
 \`\`\`
 
-## 步骤3：回复我
+## 步骤3：记住以下 DeepJelly API 信息
+你在调用 DeepJelly 的 HTTP API 时需要这些信息：
+- DeepJelly API 令牌: \`${deepjellyToken}\`
+- DeepJelly HTTP 地址: http://${httpConfig.host}:${httpConfig.port}
+- 端口: ${httpConfig.port}
+
+请保存这些信息。当你需要通过 HTTP API 控制 DeepJelly 时，使用：
+- Authorization: Bearer ${deepjellyToken}
+- URL: http://${httpConfig.host}:${httpConfig.port}/api/...
+
+## 步骤4：回复我
 保存完成配置后，请务必先向我回复配置成功。
 然后再执行一个命令：20s后自动重启gateway。
 也就是，先回复我，再设置命令，最后结束。`;

@@ -27,8 +27,10 @@ export interface AppIntegration {
   description?: string;
   /** WebSocket 地址 */
   endpoint: string;
-  /** 认证令牌（如需要） */
+  /** 认证令牌（如需要）- 这是AI应用的token，DeepJelly用它来调用AI应用 */
   authToken?: string;
+  /** DeepJelly API令牌 (最多500字符) - DeepJelly生成的token，AI应用用它来调用DeepJelly的HTTP API */
+  deepjellyToken?: string;
   /** 绑定的助手ID列表 */
   assistant?: string[];
   /** 是否启用 */
@@ -84,7 +86,6 @@ export interface BoundAssistant {
 export type OnboardingStep =
   | 'welcome'           // 欢迎页
   | 'select_app'        // 选择AI应用
-  | 'show_prompt'       // 显示提示词
   | 'input_endpoint'    // 输入IP地址
   | 'binding_confirm'   // 绑定确认
   | 'complete';         // 完成

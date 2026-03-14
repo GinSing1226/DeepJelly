@@ -8,7 +8,6 @@
 import { useOnboardingStore } from '@/stores/onboardingStore';
 import { WelcomeStep } from './steps/WelcomeStep';
 import { SelectAppStep } from './steps/SelectAppStep';
-import { ShowPromptStep } from './steps/ShowPromptStep';
 import { InputEndpointStep } from './steps/InputEndpointStep';
 import { ConfirmAssistantStep } from './steps/ConfirmAssistantStep';
 import type { BoundAssistant } from '@/types/appConfig';
@@ -29,8 +28,6 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
         return <WelcomeStep onSkip={onSkip} />;
       case 'select_app':
         return <SelectAppStep onSkip={onSkip} />;
-      case 'show_prompt':
-        return <ShowPromptStep onSkip={onSkip} />;
       case 'input_endpoint':
         return <InputEndpointStep onSkip={onSkip} />;
       case 'binding_confirm':

@@ -1,4 +1,5 @@
-import { StatusBubble, useStatusBubble, StatusType } from './index';
+import { StatusBubble, useStatusBubble } from './index';
+import type { StatusType } from './useStatusBubble';
 
 /**
  * Example 1: Basic Usage with Preset Status
@@ -6,11 +7,11 @@ import { StatusBubble, useStatusBubble, StatusType } from './index';
  * Demonstrates the simplest way to use StatusBubble with preset status types
  */
 export function Example1_BasicUsage() {
-  const { status, statusType, setPresetStatus } = useStatusBubble();
+  const { status, setPresetStatus } = useStatusBubble();
 
   return (
     <div>
-      <StatusBubble status={status} statusType={statusType} />
+      <StatusBubble status={status} />
 
       <div className="controls">
         <button onClick={() => setPresetStatus('thinking', 3000)}>
@@ -67,7 +68,7 @@ export function Example2_CustomStatus() {
  */
 export function Example3_StateBasedStatus() {
   const [appState, setAppState] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
-  const { status, statusType, setPresetStatus, setCustomStatus, clearStatus } = useStatusBubble();
+  const { status, setPresetStatus, setCustomStatus } = useStatusBubble();
 
   // Update status based on application state
   useEffect(() => {
@@ -103,7 +104,7 @@ export function Example3_StateBasedStatus() {
 
   return (
     <div>
-      <StatusBubble status={status} statusType={statusType} />
+      <StatusBubble status={status} />
 
       <div className="controls">
         <button onClick={handleAction} disabled={appState === 'processing'}>
@@ -121,7 +122,7 @@ export function Example3_StateBasedStatus() {
  */
 export function Example4_NetworkStatus() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const { status, statusType, setPresetStatus, clearStatus } = useStatusBubble();
+  const { status, setPresetStatus } = useStatusBubble();
 
   useEffect(() => {
     const handleOnline = () => {
@@ -150,7 +151,7 @@ export function Example4_NetworkStatus() {
 
   return (
     <div>
-      <StatusBubble status={status} statusType={statusType} />
+      <StatusBubble status={status} />
 
       <div className="network-info">
         Network Status: {isOnline ? 'Online' : 'Offline'}
@@ -165,11 +166,12 @@ export function Example4_NetworkStatus() {
  * Demonstrates how to handle CAP protocol status messages
  */
 export function Example5_CAPIntegration() {
-  const { status, statusType, setPresetStatus, setCustomStatus, clearStatus } = useStatusBubble();
+  const { status, setPresetStatus, setCustomStatus, clearStatus } = useStatusBubble();
 
   // Simulate CAP message handler
   useEffect(() => {
-    const handleCAPMessage = (message: any) => {
+    // @ts-expect-error - Example code, not used in this demo
+    const _handleCAPMessage = (message: any) => {
       if (message.type === 'status') {
         const { status_type, status_value, emoji, text, duration_ms } = message.payload;
 
@@ -195,7 +197,7 @@ export function Example5_CAPIntegration() {
 
   return (
     <div>
-      <StatusBubble status={status} statusType={statusType} />
+      <StatusBubble status={status} />
     </div>
   );
 }
@@ -207,13 +209,13 @@ export function Example5_CAPIntegration() {
  */
 export function Example6_AllPresets() {
   const [currentPreset, setCurrentPreset] = useState<StatusType | null>(null);
-  const { status, statusType, setPresetStatus } = useStatusBubble();
+  const { status, setPresetStatus } = useStatusBubble();
 
   const presets: StatusType[] = ['idle', 'listening', 'thinking', 'executing', 'speaking', 'network_error'];
 
   return (
     <div>
-      <StatusBubble status={status} statusType={statusType} />
+      <StatusBubble status={status} />
 
       <div className="preset-grid">
         {presets.map((preset) => (

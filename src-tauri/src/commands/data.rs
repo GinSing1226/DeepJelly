@@ -7,11 +7,12 @@ use crate::logic::character::AssistantManager;
 use crate::models::{Character, Appearance, Action, ActionType, SpriteSheetConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 /// Assistant manager state type
-pub type AssistantManagerState = Mutex<AssistantManager>;
+/// Use Arc<Mutex<>> to allow cloning State for use in spawn_blocking
+pub type AssistantManagerState = Arc<Mutex<AssistantManager>>;
 
 // ============ DTOs ============
 
@@ -39,12 +40,15 @@ pub struct ActionDTO {
     pub fps: Option<u32>,
     pub r#loop: bool,
     pub description: Option<String>,
+    /// Spritesheet configuration (only for spritesheet type)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spritesheet: Option<SpriteSheetConfig>,
 }
 
 /// DTO for creating an appearance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateAppearanceDTO {
-    pub id: String,
+    pub id: Option<String>,
     pub name: String,
     pub description: Option<String>,
     pub is_default: Option<bool>,
@@ -66,8 +70,24 @@ pub struct UpdateAppearanceDTO {
 pub async fn data_get_all_characters(
     manager: State<'_, AssistantManagerState>,
 ) -> Result<Vec<Character>, String> {
-    let manager = manager.lock().map_err(|e| format!("获取管理器失败: {}", e))?;
-    Ok(manager.get_all_characters())
+    println!("[data_get_all_characters] START");
+    // Use spawn_blocking to avoid blocking the main thread with file I/O
+    // This is critical when running as a packaged exe where file operations are slower
+    // Clone the Arc<Mutex<>> to get a value that can be moved into spawn_blocking
+    let manager_arc = Arc::clone(&*manager);
+    println!("[data_get_all_characters] Entering spawn_blocking...");
+    let result = tokio::task::spawn_blocking(move || {
+        println!("[data_get_all_characters] spawn_blocking: Acquiring lock...");
+        let manager = manager_arc.lock().map_err(|e| format!("获取管理器失败: {}", e))?;
+        println!("[data_get_all_characters] spawn_blocking: Lock acquired, calling get_all_characters...");
+        let characters = manager.get_all_characters();
+        println!("[data_get_all_characters] spawn_blocking: Got {} characters", characters.len());
+        Ok::<Vec<Character>, String>(characters)
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))??;
+    println!("[data_get_all_characters] END: returning {} characters", result.len());
+    Ok(result)
 }
 
 /// Get characters by assistant ID (NEW DATA MODEL)
@@ -76,8 +96,14 @@ pub async fn data_get_characters_by_assistant(
     assistant_id: String,
     manager: State<'_, AssistantManagerState>,
 ) -> Result<Vec<Character>, String> {
-    let manager = manager.lock().map_err(|e| format!("获取管理器失败: {}", e))?;
-    Ok(manager.get_characters_by_assistant(&assistant_id))
+    // Use spawn_blocking to avoid blocking the main thread with file I/O
+    let manager_arc = Arc::clone(&*manager);
+    tokio::task::spawn_blocking(move || {
+        let manager = manager_arc.lock().map_err(|e| format!("获取管理器失败: {}", e))?;
+        Ok(manager.get_characters_by_assistant(&assistant_id))
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))?
 }
 
 /// Add a character to an assistant (NEW DATA MODEL)
@@ -140,18 +166,36 @@ pub async fn data_add_appearance(
     dto: CreateAppearanceDTO,
     manager: State<'_, AssistantManagerState>,
 ) -> Result<Appearance, String> {
+    println!("[data_add_appearance] START: character_id={}, dto.name={}", character_id, dto.name);
     use std::fs;
-    use std::path::Path;
 
     let mut manager = manager.lock().map_err(|e| format!("获取管理器失败: {}", e))?;
+    println!("[data_add_appearance] Acquired lock");
 
     // Get the character to check if it's the first appearance
     let is_first = manager.get_character(&character_id)
         .map(|c| c.appearances.is_empty())
         .unwrap_or(false);
+    println!("[data_add_appearance] is_first={}", is_first);
 
     let is_default = dto.is_default.unwrap_or(is_first);
-    let appearance_id = dto.id.clone();
+
+    // Use provided id or generate random id
+    let appearance_id = match dto.id {
+        Some(id) if !id.is_empty() => id,
+        _ => {
+            // Generate 16 character random ID
+            use rand::Rng;
+            const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
+            let mut rng = rand::thread_rng();
+            (0..16)
+                .map(|_| {
+                    let idx = rng.gen_range(0..CHARSET.len());
+                    CHARSET[idx] as char
+                })
+                .collect()
+        }
+    };
 
     let appearance = Appearance {
         id: appearance_id.clone(),
@@ -164,14 +208,16 @@ pub async fn data_add_appearance(
                 resources: v.resources,
                 fps: v.fps,
                 r#loop: v.r#loop,
-                spritesheet: None,
+                spritesheet: v.spritesheet,  // Use spritesheet from DTO
                 description: v.description,
             }))
             .collect(),
     };
 
+    println!("[data_add_appearance] Calling add_appearance...");
     manager.add_appearance(&character_id, appearance)
         .map_err(|e| format!("添加形象失败: {}", e))?;
+    println!("[data_add_appearance] add_appearance completed");
 
     // Get the assistant_id for this character
     let assistant_id = manager.find_assistant_by_character(&character_id)
@@ -180,19 +226,22 @@ pub async fn data_add_appearance(
     // Create the appearance directory structure
     // characters/{assistant_id}/{character_id}/{appearance_id}/
     let data_dir = manager.data_dir();
-    let characters_dir = data_dir.join("../characters").canonicalize()
-        .unwrap_or_else(|_| data_dir.join("characters"));
+    // Note: data_dir is already the user data directory (e.g., data/user/), so characters should be at data_dir/characters
+    let characters_dir = data_dir.join("characters");
     let appearance_dir = characters_dir
         .join(&assistant_id)
         .join(&character_id)
         .join(&appearance_id);
 
+    println!("[data_add_appearance] Creating directory: {:?}", appearance_dir);
     fs::create_dir_all(&appearance_dir)
         .map_err(|e| format!("创建形象目录失败: {}", e))?;
 
     // Return the created appearance
     let character = manager.get_character(&character_id).unwrap();
-    Ok(character.appearances.iter().find(|a| a.id == appearance_id).unwrap().clone())
+    let result = character.appearances.iter().find(|a| a.id == appearance_id).unwrap().clone();
+    println!("[data_add_appearance] END: success, appearance_id={}", appearance_id);
+    Ok(result)
 }
 
 /// Update an appearance (NEW DATA MODEL)
@@ -203,9 +252,12 @@ pub async fn data_update_appearance(
     dto: UpdateAppearanceDTO,
     manager: State<'_, AssistantManagerState>,
 ) -> Result<(), String> {
+    println!("[data_update_appearance] START: character_id={}, appearance_id={}", character_id, appearance_id);
     let mut manager = manager.lock().map_err(|e| format!("获取管理器失败: {}", e))?;
     manager.update_appearance(&character_id, &appearance_id, dto.name, dto.description, dto.is_default)
-        .map_err(|e| format!("更新形象失败: {}", e))
+        .map_err(|e| format!("更新形象失败: {}", e))?;
+    println!("[data_update_appearance] END: success");
+    Ok(())
 }
 
 /// Delete an appearance (NEW DATA MODEL)
@@ -262,8 +314,8 @@ pub async fn data_add_action_resources(
     };
 
     // Build target directory: characters/{assistant_id}/{character_id}/{appearance_id}/{action_key}/
-    let characters_dir = data_dir.join("../characters").canonicalize()
-        .unwrap_or_else(|_| data_dir.join("characters"));
+    // Note: data_dir is already the user data directory (e.g., data/user/), so characters should be at data_dir/characters
+    let characters_dir = data_dir.join("characters");
     let target_dir = characters_dir
         .join(&assistant_id)
         .join(&character_id)
@@ -362,8 +414,8 @@ pub async fn data_remove_action_resource(
     };
 
     // Build resource file path: characters/{assistant_id}/{character_id}/{appearance_id}/{action_key}/{resource_name}
-    let characters_dir = data_dir.join("../characters").canonicalize()
-        .unwrap_or_else(|_| data_dir.join("characters"));
+    // Note: data_dir is already the user data directory (e.g., data/user/), so characters should be at data_dir/characters
+    let characters_dir = data_dir.join("characters");
     let resource_path = characters_dir
         .join(&assistant_id)
         .join(&character_id)

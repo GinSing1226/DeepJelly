@@ -172,10 +172,23 @@ impl CharacterManager {
     }
 
     /// 加载单个配置文件
-    fn load_config(&self, path: &Path) -> Result<CharacterConfig, DeepJellyError> {
+    pub fn load_config(&self, path: &Path) -> Result<CharacterConfig, DeepJellyError> {
         let content = fs::read_to_string(path)?;
         let config: CharacterConfig = serde_json::from_str(&content)?;
         Ok(config)
+    }
+
+    /// 注册角色来源（用于动态添加角色）
+    ///
+    /// 允许在运行时注册角色来源，而不需要重新扫描整个目录
+    pub fn register_character_source(&mut self, character_id: String, base_dir: PathBuf, assistant_id: String) {
+        self.character_sources.insert(
+            character_id,
+            CharacterSource {
+                base_dir,
+                assistant_id,
+            }
+        );
     }
 
     /// 获取角色配置

@@ -275,6 +275,7 @@ export default function ResourceGrid({
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showActionEditModal, setShowActionEditModal] = useState(false);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
+  const [operationMessage, setOperationMessage] = useState<{ type: 'error' | 'info'; message: string } | null>(null);
 
   // 删除确认弹窗状态
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -329,8 +330,10 @@ export default function ResourceGrid({
   // 打开批量删除确认弹窗
   const handleBatchDeleteConfirm = () => {
     if (selectedIndices.size === 0) return;
+    setOperationMessage(null);
+
     if (isDeleting) {
-      alert('有删除操作正在进行中，请稍后再试');
+      setOperationMessage({ type: 'error', message: '有删除操作正在进行中，请稍后再试' });
       return;
     }
 
@@ -366,7 +369,8 @@ export default function ResourceGrid({
       setSelectedIndices(new Set());
     } catch (error) {
       console.error('[ResourceGrid] Failed to batch delete resources:', error);
-      alert('批量删除失败');
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setOperationMessage({ type: 'error', message: `批量删除失败: ${errorMsg}` });
     } finally {
       setDeletingIndex(null);
       setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
@@ -413,7 +417,7 @@ export default function ResourceGrid({
     } catch (error) {
       console.error('[ResourceGrid] Failed to select files:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
-      alert(`添加资源失败: ${errorMsg}`);
+      setOperationMessage({ type: 'error', message: `添加资源失败: ${errorMsg}` });
     } finally {
       setUploading(false);
     }
@@ -458,7 +462,8 @@ export default function ResourceGrid({
       onUpdate(null as unknown as string[]);
     } catch (error) {
       console.error('[ResourceGrid] Failed to delete resource:', error);
-      alert('删除失败');
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setOperationMessage({ type: 'error', message: `删除失败: ${errorMsg}` });
     } finally {
       setDeletingIndex(null);
       setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
@@ -475,6 +480,20 @@ export default function ResourceGrid({
             <span className="rg-count">({resources.length})</span>
           )}
         </div>
+
+        {/* 操作消息提示 */}
+        {operationMessage && (
+          <div className={`rg-message ${operationMessage.type === 'error' ? 'rg-message-error' : 'rg-message-info'}`}>
+            <span>{operationMessage.message}</span>
+            <button
+              className="rg-message-close"
+              onClick={() => setOperationMessage(null)}
+              aria-label="关闭"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* 操作栏 */}
         {resources.length > 0 && (

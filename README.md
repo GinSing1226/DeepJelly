@@ -9,7 +9,7 @@
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 
-[English](README_EN.md) | 简体中文
+[English](README_EN.md) | 简体中文 | [AI版](README_AGENT.md)
 
 </div>
 
@@ -46,14 +46,30 @@
 - **状态反馈** - 收到消息时惊醒、疑惑、开心等情感反应
 - **陪伴感** - 长时间工作时的数字伴侣，缓解孤独感
 
-#### 4. OpenClaw 深度集成
+#### 4. 多助手、多角色、多形象
+- **多助手管理** - 支持管理多个 AI 助手
+- **多角色绑定** - 对于 OpenClaw，一个 Agent 就是一个助手，Agent 的 sessionKey 就是一个角色
+- **多形象切换** - 可为不同角色配置不同的虚拟形象
+- **多团队展示** - 将 OpenClaw 多团队在桌面展示，实时观测变化和会话内容
+
+#### 5. 多角色桌面展示
+- **同时展示多个角色** - 一个桌面可以同时展示多个角色
+- **独立响应** - 每个角色响应各自绑定的 Agent
+- **位置管理** - 支持拖拽调整角色位置
+
+#### 6. AI Skill 自动化
+- **自动化集成** - AI 通过 Skill 可以自动化操作 DeepJelly
+- **集成管理** - 帮助你管理助手、角色、形象的绑定关系
+- **零配置接入** - AI Agent 可自助完成 DeepJelly 集成配置
+
+#### 7. OpenClaw 深度集成
 - **WebSocket 双向通信** - 低延迟的实时状态同步
 - **Hook 机制** - 订阅 OpenClaw 生命周期事件
 - **工具调用展示** - 可视化 AI 工具调用过程
 - **多渠道消息同步** - 你在飞书等消息渠道发的消息，DeepJelly 也能获取 OpenClaw 的回复并在桌宠上展示
 - **无缝对接** - 即插即用，无需修改 OpenClaw 核心代码
 
-#### 5. 安全隐私
+#### 8. 安全隐私
 - **无云服务** - DeepJelly 不依赖任何云服务
 - **本地数据** - 所有数据（角色资源、配置等）均存储在本地电脑
 - **隐私保护** - 仅通过本地网络与你自己的 AI 应用（如 OpenClaw）和消息渠道（如飞书）通信
@@ -106,45 +122,79 @@ npm run tauri:build
 
 ### 1. 启动 DeepJelly
 
-首次启动会进入引导流程，按提示完成 OpenClaw 集成配置。
+首次启动会进入引导流程，按提示完成集成配置。
 
-### 2. 配置 OpenClaw 连接
+### 2. 配置 AI 应用连接
 
-输入 OpenClaw 的 IP 地址和端口（默认 18790）：
-- **本地开发**: 使用 `127.0.0.1:18790`
-- **局域网部署**: 使用 OpenClaw 机器的局域网 IP
+在引导页面中选择要集成的 AI 应用（目前支持 OpenClaw）：
 
-### 3. 选择 AI 助手
+- **IP 地址**: 填写 AI 应用的 IP 地址
+  - 本地开发使用 `127.0.0.1`
+  - 局域网部署使用 AI 应用机器的局域网 IP
+- **端口**: 默认 `18790`（或自定义端口）
+- **认证令牌**: 可选，如果 AI 应用需要认证则填写
 
-从列表中选择要绑定的 AI 助手，完成绑定。
+### 3. 配置技能（可选）
 
-### 4. 开始使用
+如果使用 OpenClaw，可以安装 DeepJelly Skill 实现 AI 自动化集成：
+
+1. 在 OpenClaw 根目录创建 `skills` 文件夹
+2. 下载 `deepjelly-integrate` 和 `deepjelly-character` 技能
+3. 修改 `openclaw.json` 添加技能加载路径
+4. 从引导页获取 DeepJelly API 信息并配置到技能的 `config.md`
+
+详见 [AI 安装指南](README_AGENT.md)
+
+### 4. 绑定助手和角色
+
+1. **选择助手** - 从列表中选择要绑定的 AI 助手（对于 OpenClaw，一个 Agent 就是一个助手）
+2. **选择角色** - 选择该助手的会话（sessionKey）作为角色
+3. **选择形象** - 为该角色选择虚拟形象外观
+4. **完成绑定** - 保存配置后，角色会显示在桌面上
+
+### 5. 多角色管理
+
+- **添加更多角色** - 在设置中添加新的绑定关系
+- **调整位置** - 拖拽角色到桌面的任意位置
+- **切换形象** - 为不同角色配置不同的外观
+
+### 6. 开始使用
 
 - AI 思考时，角色显示思考动画
 - AI 调用工具时，角色显示工作动画
 - AI 发送消息时，显示聊天气泡
 - 点击角色可触发快捷操作
+- 多个角色会同时响应各自绑定的 Agent
 
 ---
 
 ## OpenClaw 集成
 
-DeepJelly 包含 OpenClaw Channel 插件，通过 WebSocket 实现双向通信。
+DeepJelly 提供 OpenClaw Channel 插件和 AI Skill，实现深度双向集成。
 
-### 安装插件
+### 方式一：手动配置
+
+#### 1. 安装插件
 
 ```bash
-# 1. 复制插件到 OpenClaw 扩展目录
-cp -r adapters/openclaw ~/.openclaw/extensions/deepjelly
+# 下载插件
+wget https://github.com/GinSing1226/DeepJelly/releases/download/deepjelly-V0.1.0/deepjelly-openclaw-plugin.zip
 
-# 2. 安装依赖（只需要 ws）
-cd ~/.openclaw/extensions/deepjelly
-npm install
+# 解压到 OpenClaw 扩展目录
+unzip deepjelly-openclaw-plugin.zip -d ~/.openclaw/extensions/
+mv ~/.openclaw/extensions/deepjelly-openclaw-plugin ~/.openclaw/extensions/deepjelly
 ```
 
-### 配置 OpenClaw
+**Windows (PowerShell)**:
+```powershell
+Invoke-WebRequest -Uri "https://github.com/GinSing1226/DeepJelly/releases/download/deepjelly-V0.1.0/deepjelly-openclaw-plugin.zip" -OutFile "deepjelly-openclaw-plugin.zip"
+Expand-Archive -Path "deepjelly-openclaw-plugin.zip" -DestinationPath "$env:USERPROFILE\.openclaw\extensions\"
+Rename-Item "$env:USERPROFILE\.openclaw\extensions\deepjelly-openclaw-plugin" "$env:USERPROFILE\.openclaw\extensions\deepjelly"
+```
 
-在 `openclaw.json` 中添加 deepjelly 通道配置：
+#### 2. 配置 OpenClaw
+
+在 `openclaw.json` 中添加 deepjelly channel：
 
 **本地开发**:
 ```json
@@ -166,7 +216,7 @@ npm install
   "channels": {
     "deepjelly": {
       "enabled": true,
-      "serverHost": "0.0.0.0",
+      "serverHost": "192.168.10.128",
       "serverPort": 18790,
       "autoStart": true
     }
@@ -174,9 +224,65 @@ npm install
 }
 ```
 
-> **注意**: 局域网部署需要在防火墙中允许 18790 端口入站连接。
+> **注意**: 局域网部署时，`serverHost` 使用 OpenClaw 本机的局域网 IP，**不是** `0.0.0.0`。
 
-详见 [OpenClaw 插件文档](adapters/openclaw/README.md)
+### 方式二：AI 自动配置（推荐）
+
+将以下提示词发送给 OpenClaw AI，它会自动完成插件安装和配置：
+
+```
+请帮我完成与 DeepJelly 的集成：
+
+## 步骤1：安装deepjelly插件
+
+阅读以下文档，给openclaw安装deepjelly插件
+https://github.com/GinSing1226/DeepJelly/blob/main/adapters/openclaw/README.md
+
+## 步骤2：安装deepjelly技能
+
+在openclaw根目录创建skills文件夹。然后将deepjelly-integrate、deepjelly-character两个技能文件夹放进这个文件夹
+
+然后，修改openclaw.json，添加skills.load.extraDirs，
+示例结构体如下：
+{
+  "skills": {
+    "load": {
+      "extraDirs": [
+        "./skills"
+      ],
+      "watch": true
+    }
+  }
+}
+
+## 步骤3：保存端点数据
+
+将我发给你的端点数据，保存到这两个skill的config.md文件里。两个技能都要保存。
+
+## 步骤4：回复用户
+
+最后，将你的 IP 地址（局域网IP）和端口（你开启监听的端口，例如18790）告诉我。
+先回复我，再执行一个命令：20s后自动重启gateway。
+```
+
+### 配置防火墙
+
+局域网部署需要开放端口：
+
+**Windows (PowerShell - 管理员)**:
+```powershell
+New-NetFirewallRule -DisplayName "DeepJelly OpenClaw" -Direction Inbound -LocalPort 18790 -Protocol TCP -Action Allow
+```
+
+**Linux (ufw)**:
+```bash
+sudo ufw allow 18790/tcp
+```
+
+### 详细文档
+
+- [插件安装文档](adapters/openclaw/README.md)
+- [AI 安装指南](README_AGENT.md)
 
 ---
 
@@ -246,11 +352,14 @@ DeepJelly/
 ├── adapters/                 # AI 应用适配器
 │   └── openclaw/             # OpenClaw 插件
 │       ├── src/              # 插件源码
-│       │   ├── server.ts     # WebSocket 服务器
-│       │   ├── converter.ts  # CAP 消息转换
-│       │   └── tools.ts      # Agent 工具
 │       └── README.md         # 插件文档
-└── test/                     # 测试文件
+├── skills/                   # AI 技能（供 OpenClaw 等 AI 应用使用）
+│   ├── deepjelly-integrate/  # 集成管理技能
+│   └── deepjelly-character/  # 角色控制技能
+├── test/                     # 测试文件
+├── README.md                 # 中文文档
+├── README_EN.md              # 英文文档
+└── README_AGENT.md           # AI Agent 安装指南
 ```
 
 ---
@@ -285,9 +394,7 @@ npm run lint
 ### 1. 丰富集成
 
 - **更多 AI 应用** - 支持 Claude Code、ChatGPT、Cursor 等 AI 开发工具
-- **多角色多形象** - 支持多个助手、多个角色、多个形象同时存在
-- **会话绑定** - 不同形象绑定同一个 AI 的不同会话，实现多任务并行
-- **自定义外观** - 用户可导入自定义角色资源（Live2D、VRM 等）
+- **支持更多种类外观** - 支持渲染 Live2D
 
 ### 2. 移动端
 

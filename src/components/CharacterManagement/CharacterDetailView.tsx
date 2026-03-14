@@ -15,6 +15,7 @@ import type { Character } from '@/types/character';
 import { loadThumbnailWithCache } from '@/utils/thumbnailCache';
 import AppearanceModal from './AppearanceModal';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
+import AlertDialog, { type AlertDialogType } from './AlertDialog';
 
 interface CharacterDetailViewProps {
   /** 角色数据 */
@@ -530,12 +531,42 @@ export default function CharacterDetailView({
     itemId: '',
   });
 
+  // 警告/提示弹窗状态
+  const [alertDialog, setAlertDialog] = useState<{
+    isOpen: boolean;
+    type: AlertDialogType;
+    title: string;
+    message: string;
+    confirmText?: string;
+  }>({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+    confirmText: '确定',
+  });
+
+  // 显示警告/提示弹窗的辅助函数
+  const showAlert = (type: AlertDialogType, title: string, message: string, confirmText?: string) => {
+    setAlertDialog({
+      isOpen: true,
+      type,
+      title,
+      message,
+      confirmText: confirmText || '确定',
+    });
+  };
+
+  const closeAlertDialog = () => {
+    setAlertDialog(prev => ({ ...prev, isOpen: false }));
+  };
+
   // 打开删除角色确认弹窗
   const handleDelete = () => {
     if (onDeleteCharacter) {
       // 检查是否有形象
       if (character.appearances.length > 0) {
-        alert(t('character.deleteCharacterHasAppearances', { count: character.appearances.length }));
+        showAlert('warning', t('common.warning') || '警告', t('character.deleteCharacterHasAppearances', { count: character.appearances.length }));
         return;
       }
       // 打开删除确认弹窗
@@ -580,9 +611,11 @@ export default function CharacterDetailView({
     description: string;
     isDefault: boolean;
   }) => {
+    console.log('[CharacterDetailView] handleAppearanceModalConfirm: START, mode=', appearanceModal.mode);
     try {
       if (appearanceModal.mode === 'add') {
         // 新增形象 - 使用默认动作列表
+        console.log('[CharacterDetailView] handleAppearanceModalConfirm: calling data_add_appearance...');
         await invoke('data_add_appearance', {
           characterId: character.id,
           dto: {
@@ -593,10 +626,14 @@ export default function CharacterDetailView({
             actions: JSON.parse(JSON.stringify(DEFAULT_ACTIONS)),
           },
         });
+        console.log('[CharacterDetailView] handleAppearanceModalConfirm: data_add_appearance completed');
         // 刷新角色列表（直接调用 store，不调用 onAddAppearance）
+        console.log('[CharacterDetailView] handleAppearanceModalConfirm: calling loadAllCharacters...');
         await useCharacterManagementStore.getState().loadAllCharacters();
+        console.log('[CharacterDetailView] handleAppearanceModalConfirm: loadAllCharacters completed');
       } else if (appearanceModal.appearance) {
         // 编辑形象
+        console.log('[CharacterDetailView] handleAppearanceModalConfirm: calling data_update_appearance...');
         await invoke('data_update_appearance', {
           characterId: character.id,
           appearanceId: appearanceModal.appearance.id,
@@ -605,13 +642,18 @@ export default function CharacterDetailView({
             description: data.description || undefined,
           },
         });
+        console.log('[CharacterDetailView] handleAppearanceModalConfirm: data_update_appearance completed');
         // 刷新角色列表
+        console.log('[CharacterDetailView] handleAppearanceModalConfirm: calling loadAllCharacters...');
         await useCharacterManagementStore.getState().loadAllCharacters();
+        console.log('[CharacterDetailView] handleAppearanceModalConfirm: loadAllCharacters completed');
       }
       setAppearanceModal({ isOpen: false, mode: 'add' });
+      console.log('[CharacterDetailView] handleAppearanceModalConfirm: END');
     } catch (error) {
       console.error('[CharacterDetailView] Failed to save appearance:', error);
-      alert(t('character.saveError', { error: String(error) }) || '保存形象失败');
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      showAlert('error', t('common.error') || '错误', t('character.saveError', { error: errorMsg }));
     }
   }, [appearanceModal.mode, appearanceModal.appearance, character.id, t]);
 
@@ -623,7 +665,7 @@ export default function CharacterDetailView({
       const isUsedInSlot = result.some((slot: any) => slot.appearanceId === appearance.id);
 
       if (isUsedInSlot) {
-        alert('该形象正在展示槽位中使用，请先移除或更换槽位中的形象后再删除');
+        showAlert('warning', t('common.warning') || '警告', '该形象正在展示槽位中使用，请先移除或更换槽位中的形象后再删除');
         return;
       }
     } catch (error) {
@@ -653,7 +695,8 @@ export default function CharacterDetailView({
       await useCharacterManagementStore.getState().loadAllCharacters();
     } catch (error) {
       console.error('[CharacterDetailView] Failed to delete appearance:', error);
-      alert(t('character.deleteError', { error: String(error) }) || '删除形象失败');
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      showAlert('error', t('common.error') || '错误', t('character.deleteError', { error: errorMsg }));
     }
   }, [character.id, deleteConfirm.itemId, t]);
 
@@ -671,7 +714,8 @@ export default function CharacterDetailView({
       await useCharacterManagementStore.getState().loadAllCharacters();
     } catch (error) {
       console.error('[CharacterDetailView] Failed to set default appearance:', error);
-      alert(t('character.setDefaultError', { error: String(error) }) || '设置默认形象失败');
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      showAlert('error', t('common.error') || '错误', t('character.setDefaultError', { error: errorMsg }));
     }
   }, [character.id, t]);
 
@@ -718,6 +762,16 @@ export default function CharacterDetailView({
         onConfirm={deleteConfirm.itemType === 'character' ? handleConfirmDeleteCharacter : handleConfirmDeleteAppearance}
         itemName={deleteConfirm.itemName}
         itemType={deleteConfirm.itemType}
+      />
+
+      {/* 警告/提示弹窗 */}
+      <AlertDialog
+        isOpen={alertDialog.isOpen}
+        onClose={closeAlertDialog}
+        type={alertDialog.type}
+        title={alertDialog.title}
+        message={alertDialog.message}
+        confirmText={alertDialog.confirmText}
       />
     </div>
   );

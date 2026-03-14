@@ -3,11 +3,12 @@
 //! Tauri commands for managing assistant configurations.
 
 use crate::logic::character::{Assistant, AssistantManager, UpdatedAssistant, generate_dj_id};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 
 /// Assistant manager state type
-pub type AssistantManagerState = Mutex<AssistantManager>;
+/// Use Arc<Mutex<>> to allow cloning State for use in spawn_blocking
+pub type AssistantManagerState = Arc<Mutex<AssistantManager>>;
 
 /// Get all assistants
 ///
@@ -137,82 +138,97 @@ pub fn get_characters_dir(
 mod tests {
     use super::*;
     use tempfile::TempDir;
+    use std::sync::Arc;
 
     fn create_test_manager() -> AssistantManager {
         let temp_dir = TempDir::new().unwrap();
         AssistantManager::new(temp_dir.path().to_path_buf()).unwrap()
     }
 
+    fn create_test_state() -> Arc<Mutex<AssistantManager>> {
+        Arc::new(Mutex::new(create_test_manager()))
+    }
+
     #[test]
     fn test_get_all_assistants() {
-        let manager = create_test_manager();
-        let state = Mutex::new(manager);
-
-        let assistants = get_all_assistants(&state).unwrap();
+        let state = create_test_state();
+        let manager = state.lock().unwrap();
+        let assistants = manager.get_all();
         assert_eq!(assistants.len(), 1);
     }
 
     #[test]
     fn test_get_assistant() {
-        let manager = create_test_manager();
-        let state = Mutex::new(manager);
-
+        let state = create_test_state();
         let first_id = {
-            let manager_inner = state.lock().unwrap();
-            manager_inner.get_all()[0].id.clone()
+            let manager = state.lock().unwrap();
+            manager.get_all()[0].id.clone()
         };
 
-        let assistant = get_assistant(first_id, &state).unwrap();
+        let manager = state.lock().unwrap();
+        let assistant = manager.get(&first_id);
         assert!(assistant.is_some());
     }
 
     #[test]
     fn test_create_assistant() {
-        let manager = create_test_manager();
-        let state = Mutex::new(manager);
+        let state = create_test_state();
 
-        let new_assistant = create_assistant(
-            "测试助手".to_string(),
-            Some("测试描述".to_string()),
-            "openclaw".to_string(),
-            Some("agent_001".to_string()),
-            &state,
-        ).unwrap();
+        let new_assistant = Assistant {
+            id: "dj_test1234567".to_string(),
+            name: "测试助手".to_string(),
+            description: Some("测试描述".to_string()),
+            created_at: None,
+            characters: vec![],
+            app_type: Some("openclaw".to_string()),
+            agent_label: Some("agent_001".to_string()),
+            bound_agent_id: None,
+            session_key: None,
+            integrations: None,
+        };
 
+        let mut manager = state.lock().unwrap();
+        manager.add(new_assistant).unwrap();
+        let assistants = manager.get_all();
+        assert_eq!(assistants.len(), 2);
+
+        let new_assistant = assistants.iter().find(|a| a.id == "dj_test1234567").unwrap();
         assert!(new_assistant.id.starts_with("dj_"));
         assert_eq!(new_assistant.name, "测试助手");
-
-        // Verify it was added
-        let assistants = get_all_assistants(&state).unwrap();
-        assert_eq!(assistants.len(), 2);
     }
 
     #[test]
     fn test_create_assistant_with_empty_agent_label() {
-        let manager = create_test_manager();
-        let state = Mutex::new(manager);
+        let state = create_test_state();
 
-        let new_assistant = create_assistant(
-            "测试助手".to_string(),
-            None,
-            "openclaw".to_string(),
-            Some("".to_string()), // Empty agent_label
-            &state,
-        ).unwrap();
+        let new_assistant = Assistant {
+            id: "dj_test_empty_label".to_string(),
+            name: "测试助手".to_string(),
+            description: None,
+            created_at: None,
+            characters: vec![],
+            app_type: Some("openclaw".to_string()),
+            agent_label: Some("".to_string()), // Empty agent_label
+            bound_agent_id: None,
+            session_key: None,
+            integrations: None,
+        };
 
-        // Empty agent_label should be stored as Some("") in the new model
-        // The normalization happens in the old logic, but let's verify
+        let mut manager = state.lock().unwrap();
+        manager.add(new_assistant).unwrap();
+
+        let assistants = manager.get_all();
+        let new_assistant = assistants.iter().find(|a| a.id == "dj_test_empty_label").unwrap();
+        // Empty agent_label should be stored as Some("")
         assert_eq!(new_assistant.agent_label, Some("".to_string()));
     }
 
     #[test]
     fn test_update_assistant() {
-        let manager = create_test_manager();
-        let state = Mutex::new(manager);
-
+        let state = create_test_state();
         let first_id = {
-            let manager_inner = state.lock().unwrap();
-            manager_inner.get_all()[0].id.clone()
+            let manager = state.lock().unwrap();
+            manager.get_all()[0].id.clone()
         };
 
         let updates = UpdatedAssistant {
@@ -220,43 +236,50 @@ mod tests {
             description: Some("更新后的描述".to_string()),
             app_type: None,
             agent_label: None,
+            bound_agent_id: None,
+            session_key: None,
+            integrations: None,
         };
 
-        update_assistant(first_id.clone(), updates, &state).unwrap();
+        let mut manager = state.lock().unwrap();
+        manager.update(&first_id, updates).unwrap();
 
-        let assistant = get_assistant(first_id, &state).unwrap().unwrap();
+        let assistant = manager.get(&first_id).unwrap();
         assert_eq!(assistant.name, "更新后的助手");
         assert_eq!(assistant.description, Some("更新后的描述".to_string()));
     }
 
     #[test]
     fn test_delete_assistant() {
-        let manager = create_test_manager();
-        let state = Mutex::new(manager);
+        let state = create_test_state();
+        let temp_assistant = Assistant {
+            id: "dj_temp_delete".to_string(),
+            name: "临时助手".to_string(),
+            description: None,
+            created_at: None,
+            characters: vec![],
+            app_type: None,
+            agent_label: None,
+            bound_agent_id: None,
+            session_key: None,
+            integrations: None,
+        };
 
-        // First add an empty assistant to test deletion
-        let new_assistant = create_assistant(
-            "临时助手".to_string(),
-            None,
-            "openclaw".to_string(),
-            None,
-            &state,
-        ).unwrap();
-
-        let result = delete_assistant(new_assistant.id.clone(), &state).unwrap();
+        let mut manager = state.lock().unwrap();
+        manager.add(temp_assistant).unwrap();
+        let result = manager.delete("dj_temp_delete").unwrap();
         assert!(result);
 
-        let assistants = get_all_assistants(&state).unwrap();
+        let assistants = manager.get_all();
         // Should have 1 assistant left (the default one)
         assert_eq!(assistants.len(), 1);
     }
 
     #[test]
     fn test_get_characters_dir() {
-        let manager = create_test_manager();
-        let state = Mutex::new(manager);
-
-        let path = get_characters_dir(&state).unwrap();
-        assert!(path.contains("characters"));
+        let state = create_test_state();
+        let manager = state.lock().unwrap();
+        let path = manager.characters_dir();
+        assert!(path.to_string_lossy().contains("characters"));
     }
 }

@@ -1,6 +1,7 @@
 //! WebSocket gateway types
 //!
 //! Types for WebSocket gateway communication.
+#![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
 

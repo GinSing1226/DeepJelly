@@ -247,40 +247,8 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .chat-bubble.chat-single .chat-bubble-body {
-    background: linear-gradient(135deg, #2D2A24 0%, #25221E 100%);
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2),
-                0 4px 16px rgba(0, 0, 0, 0.15);
-  }
-
-  .chat-bubble.chat-single .chat-bubble-content {
-    color: #F5F3EE;
-  }
-
-  .chat-bubble.chat-single .chat-bubble-pointer {
-    border-top-color: #25221E;
-  }
-
-  .chat-bubble.chat-group .chat-bubble-body {
-    background: linear-gradient(135deg, #2A2824 0%, #222018 100%);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  .chat-bubble.chat-group .chat-bubble-content {
-    color: #F5F3EE;
-  }
-
-  .chat-bubble.chat-group .chat-bubble-pointer {
-    border-top-color: #222018;
-  }
-
-  .chat-bubble-indicator {
-    background: #6A7060;
-  }
-}
+/* Dark mode support - TODO: Not implemented yet */
+/* @media (prefers-color-scheme: dark) { ... } */
 
 /* Responsive adjustments */
 @media (max-width: 400px) {

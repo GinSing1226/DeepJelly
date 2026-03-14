@@ -322,8 +322,52 @@ function SlotPreviewImage({
   useEffect(() => {
     const loadCoverImage = async () => {
       try {
-        // 新的目录结构: {character_id}/{appearance_id}/{action_key}/{resource}
-        const resourceName = `${appearanceId}/internal-base-idle/0001.png`;
+        // 先获取角色配置，检查动作类型
+        const characterConfig = await invoke<{
+          id: string;
+          name: string;
+          appearances: Array<{
+            id: string;
+            name: string;
+            actions: Record<string, {
+              type?: string;
+              resources?: string[];
+              frames?: string[];
+            }>;
+          }>;
+        }>('get_character', { characterId });
+
+        // 找到对应的 appearance
+        const appearance = characterConfig.appearances.find(a => a.id === appearanceId);
+        if (!appearance) {
+          console.error('[SlotPreviewImage] Appearance not found:', appearanceId);
+          setImgError(true);
+          return;
+        }
+
+        // 获取 idle 动作
+        const actionKeys = Object.keys(appearance.actions);
+        const idleActionKey = actionKeys.find(k => k.includes('idle')) || actionKeys[0];
+
+        if (!idleActionKey) {
+          console.error('[SlotPreviewImage] No idle action found');
+          setImgError(true);
+          return;
+        }
+
+        const action = appearance.actions[idleActionKey];
+
+        // 获取资源列表（GIF、spritesheet、frames 都用 resources）
+        const resourceList = action.resources || action.frames;
+        if (!resourceList || resourceList.length === 0) {
+          console.error('[SlotPreviewImage] No resources found');
+          setImgError(true);
+          return;
+        }
+
+        // 第一个资源作为封面图
+        const resourceName = `${appearanceId}/${idleActionKey}/${resourceList[0]}`;
+
         const dataUrl = await invoke<string>('load_character_resource', {
           assistantId,
           characterId,

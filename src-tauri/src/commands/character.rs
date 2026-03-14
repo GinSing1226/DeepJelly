@@ -3,9 +3,10 @@
 //! Tauri commands for managing character configurations.
 
 use crate::logic::character::{CharacterConfig, CharacterManager};
-use crate::logic::character::assistant::AssistantManager;
-use crate::models::{Character as ModelCharacter, Appearance as ModelAppearance, Action as ModelAction, ActionType};
+use crate::models::{Character as ModelCharacter, ActionType};
 use crate::logic::character::types::{AnimationResource, ResourceType};
+use crate::commands::assistant::AssistantManagerState;
+use crate::utils::error::DeepJellyError;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use std::sync::Mutex;
 use tauri::State;
@@ -68,7 +69,7 @@ pub fn get_character(
     // First try CharacterManager (data/characters/*.json)
     let char_manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
     if let Some(config) = char_manager.get_character(&character_id) {
-        println!("[get_character] Found in CharacterManager: {}", character_id);
+        println!("[get_character] Found in CharacterManager: {} (assistant_id: {:?})", character_id, config.assistant_id);
         return Ok(Some(config.clone()));
     }
     drop(char_manager);
@@ -78,9 +79,10 @@ pub fn get_character(
     let ass_manager = assistant_manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
 
     if let Some(model_char) = ass_manager.get_character(&character_id) {
-        println!("[get_character] Found in AssistantManager: {} ({})", character_id, model_char.name);
+        println!("[get_character] Found in AssistantManager: {} ({}) with assistant_id: {:?}", character_id, model_char.name, model_char.assistant_id);
         // Convert Model::Character to CharacterConfig
         let config = convert_character_to_config(&model_char);
+        println!("[get_character] Converted config has assistant_id: {:?}", config.assistant_id);
         return Ok(Some(config));
     }
 
@@ -92,18 +94,71 @@ pub fn get_character(
 ///
 /// Forces reload of the character config from disk, useful when
 /// the config file has been modified externally.
+/// If the character is not in CharacterManager, falls back to AssistantManager.
 #[tauri::command(rename_all = "camelCase")]
 pub fn reload_character(
     character_id: String,
     manager: State<'_, CharacterManagerState>,
+    assistant_manager: State<'_, AssistantManagerState>,
 ) -> Result<CharacterConfig, String> {
     println!("[reload_character] Reloading character: {}", character_id);
 
     let mut char_manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
 
-    char_manager
-        .reload_character(&character_id)
-        .map_err(|e| format!("重新加载角色失败: {}", e))
+    // First try to reload from CharacterManager
+    let result = char_manager.reload_character(&character_id);
+
+    // If character not found in CharacterManager, try AssistantManager fallback
+    if let Err(DeepJellyError::NotFound(_)) = &result {
+        println!("[reload_character] Character not in CharacterManager, trying AssistantManager fallback");
+
+        // Drop the lock before calling AssistantManager to avoid deadlock
+        drop(char_manager);
+
+        // Get character from AssistantManager
+        let ass_manager = assistant_manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
+
+        if let Some(model_char) = ass_manager.get_character(&character_id) {
+            println!("[reload_character] Found in AssistantManager: {} with assistant_id: {:?}", character_id, model_char.assistant_id);
+
+            // Get character base directory
+            let assistant_id = model_char.assistant_id.as_deref().unwrap_or("");
+            let data_dir = ass_manager.data_dir();
+            let character_base_dir = data_dir.join("assistants").join(assistant_id).join("characters").join(&character_id);
+            let config_path = character_base_dir.join("config.json");
+
+            println!("[reload_character] Character base dir: {:?}", character_base_dir);
+            println!("[reload_character] Config path: {:?}", config_path);
+
+            if !config_path.exists() {
+                return Err(format!("角色配置文件不存在: {:?}", config_path));
+            }
+
+            // Reload char_manager to register the character
+            let mut char_manager = manager.lock().map_err(|e| format!("获取锁失败: {}", e))?;
+
+            // Register the character source
+            char_manager.register_character_source(
+                character_id.clone(),
+                character_base_dir.clone(),
+                assistant_id.to_string(),
+            );
+
+            // Load config
+            let config = char_manager.load_config(&config_path)
+                .map_err(|e| format!("加载角色配置失败: {}", e))?;
+
+            // Update cache
+            char_manager.add_character(config.clone());
+
+            println!("[reload_character] Successfully registered and loaded character from AssistantManager");
+            return Ok(config);
+        } else {
+            return Err(format!("角色不存在: {}", character_id));
+        }
+    }
+
+    result.map_err(|e| format!("重新加载角色失败: {}", e))
 }
 
 /// Convert a Model::Character to CharacterConfig
@@ -127,6 +182,7 @@ fn convert_character_to_config(character: &ModelCharacter) -> CharacterConfig {
                 fps: action.fps,
                 r#loop: Some(action.r#loop),
                 description: action.description.clone(),
+                spritesheet: action.spritesheet.clone(),  // Copy spritesheet configuration
             };
             (key.clone(), animation_resource)
         }).collect();
@@ -618,6 +674,7 @@ pub fn add_action(
         fps: None,
         r#loop: Some(loop_value),
         description,
+        spritesheet: None,
     };
 
     manager.add_action(&character_id, &appearance_id, action_key, resource)

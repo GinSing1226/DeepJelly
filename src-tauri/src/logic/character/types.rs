@@ -214,6 +214,9 @@ pub struct AnimationResource {
     pub r#loop: Option<bool>,
     #[serde(default)]
     pub description: Option<String>,
+    /// Spritesheet configuration (only for spritesheet type)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spritesheet: Option<crate::models::SpriteSheetConfig>,
 }
 
 fn default_resource_type() -> ResourceType {
@@ -233,6 +236,7 @@ impl AnimationResource {
             fps: Some(fps),
             r#loop: Some(true),
             description: None,
+            spritesheet: None,
         }
     }
 
@@ -244,6 +248,19 @@ impl AnimationResource {
             fps: None,
             r#loop: Some(true),
             description: None,
+            spritesheet: None,
+        }
+    }
+
+    /// 创建精灵图资源
+    pub fn spritesheet(resources: Vec<String>, fps: u32, spritesheet: crate::models::SpriteSheetConfig) -> Self {
+        Self {
+            r#type: ResourceType::Spritesheet,
+            resources,
+            fps: Some(fps),
+            r#loop: Some(true),
+            description: None,
+            spritesheet: Some(spritesheet),
         }
     }
 }

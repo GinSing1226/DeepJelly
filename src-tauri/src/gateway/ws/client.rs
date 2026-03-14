@@ -1,6 +1,7 @@
 //! WebSocket client connection
 //!
 //! Manages individual WebSocket connections.
+#![allow(dead_code)]
 
 // Import stays the same - types is still a sibling module
 use super::types::ConnectionInfo;

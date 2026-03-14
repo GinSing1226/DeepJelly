@@ -66,7 +66,7 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   setStep: (currentStep) => set({ currentStep }),
 
   selectAppType: (selectedAppType) => {
-    set({ selectedAppType, currentStep: 'show_prompt' });
+    set({ selectedAppType, currentStep: 'input_endpoint' });
   },
 
   setEndpoint: (endpoint) => set({ endpoint }),

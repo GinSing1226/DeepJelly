@@ -118,6 +118,7 @@ interface BrainState {
   getConfig: () => Promise<void>;
   setConfig: (settings: BrainAdapterSettings) => Promise<void>;
   verifyConnection: () => Promise<boolean>;
+  resetConnecting: () => void;
 
   // 消息相关 Actions
   sendMessage: (sessionId: string, content: string) => Promise<{ message_id: string; status: string; error?: string }>;
@@ -152,6 +153,13 @@ export const useBrainStore = create<BrainState>((set, get) => ({
       console.error('[BrainStore] Connection verification failed:', error);
       return false;
     }
+  },
+
+  /**
+   * 重置连接状态（用于超时等异常情况）
+   */
+  resetConnecting: () => {
+    set({ connecting: false });
   },
 
   /**
